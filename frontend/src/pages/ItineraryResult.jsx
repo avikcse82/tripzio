@@ -1,0 +1,1294 @@
+import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import Navbar from '../components/Navbar'
+import { API_URL } from '../api'
+import {
+  MapPin, Clock, ArrowLeft, Download, MessageCircle,
+  Calendar, Thermometer, Wind, Umbrella, AlertTriangle,
+  Train, Plane, Bus, Car, ChevronDown, ChevronUp,
+  Utensils, ShoppingBag, Camera, Compass, Tag,
+  CheckCircle, Info, TrendingUp, Star, Navigation,
+  ExternalLink, Zap, Heart, Share2, Route, Building2
+} from 'lucide-react'
+import toast from 'react-hot-toast'
+
+const tierColors = {
+  bronze:   { color: '#92400e', bg: '#fef3c7', border: '#fcd34d', emoji: '🥉' },
+  silver:   { color: '#334155', bg: '#f1f5f9', border: '#cbd5e1', emoji: '🥈' },
+  gold:     { color: '#92400e', bg: '#fffbeb', border: '#fcd34d', emoji: '🥇' },
+  diamond:  { color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', emoji: '💎' },
+  platinum: { color: '#6b21a8', bg: '#faf5ff', border: '#e9d5ff', emoji: '✨' },
+}
+
+const categoryIcons = {
+  'Adventure':       <Compass size={14} />,
+  'Food & Dining':   <Utensils size={14} />,
+  'Shopping':        <ShoppingBag size={14} />,
+  'Culture & Heritage': <Camera size={14} />,
+  'Nature':          <MapPin size={14} />,
+}
+
+const transportColors = ['#16a34a', '#0284c7', '#7c3aed']
+const transportBgs    = ['#f0fdf4', '#eff6ff', '#f5f3ff']
+const transportBorders= ['#86efac', '#7dd3fc', '#c4b5fd']
+const transportIcons  = [<Bus size={20} />, <Train size={20} />, <Plane size={20} />]
+
+// City accent colors for circuit legs
+const cityAccents = [
+  { color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe' },
+  { color: '#0ea5e9', bg: '#eff6ff', border: '#bae6fd' },
+  { color: '#22c55e', bg: '#f0fdf4', border: '#bbf7d0' },
+  { color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d' },
+  { color: '#ef4444', bg: '#fef2f2', border: '#fecaca' },
+  { color: '#14b8a6', bg: '#f0fdfa', border: '#99f6e4' },
+]
+
+// Parse circuit cities from destination string or circuit_legs
+const parseCircuitCities = (data) => {
+  if (data.circuit_legs && data.circuit_legs.length > 0) {
+    return data.circuit_legs.map(leg => leg.city)
+  }
+  const dest = data.destination || ''
+  if (dest.includes('→')) {
+    return dest.replace('Circuit:', '').trim().split('→').map(c => c.trim()).filter(Boolean)
+  }
+  // Only treat as multi-city if explicitly marked as circuit
+  if (data.is_circuit && dest.includes(',')) {
+    return dest.split(',').map(c => c.trim()).filter(Boolean)
+  }
+  return [dest]
+}
+
+const isCircuit = (data) => {
+  return data.is_circuit === true ||
+    (data.destination && data.destination.includes('→')) ||
+    (data.circuit_legs && data.circuit_legs.length > 1)
+}
+
+export default function ItineraryResult() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAgent = user?.role === 'agent'
+
+  // Get data from navigation state OR localStorage fallback
+  let data = location.state?.itinerary
+  const clientName = location.state?.clientName || localStorage.getItem('tripzio_last_client') || null
+
+  // If no state (e.g. page refresh or ErrorBoundary redirect), try localStorage
+  if (!data) {
+    try {
+      const saved = localStorage.getItem('tripzio_last_itinerary')
+      if (saved) data = JSON.parse(saved)
+    } catch (e) { data = null }
+  }
+  const [activeDay, setActiveDay]               = useState(1)
+  const [activeTab, setActiveTab]               = useState('itinerary')
+  const [expandedTransport, setExpandedTransport] = useState(0)
+  const [googleHotels, setGoogleHotels]         = useState({})
+  const [hotelsLoading, setHotelsLoading]       = useState(false)
+  const [activeHotelCity, setActiveHotelCity]   = useState(null)
+  const [isSaved, setIsSaved]                   = useState(false)
+  const [saving, setSaving]                     = useState(false)
+  const [shareUrl, setShareUrl]                 = useState(null)
+  const [copying, setCopying]                   = useState(false)
+
+  const circuit = data ? isCircuit(data) : false
+  const cities  = data ? parseCircuitCities(data) : []
+
+  useEffect(() => {
+    if (data && activeTab === 'hotels') fetchHotelsForAllCities()
+  }, [activeTab])
+
+  useEffect(() => {
+    if (cities.length > 0) setActiveHotelCity(cities[0])
+  }, [data])
+
+  const fetchHotelsForAllCities = async () => {
+    if (Object.keys(googleHotels).length > 0) return
+    setHotelsLoading(true)
+    const token = localStorage.getItem('tripzio_token')
+    const results = {}
+    for (const city of cities) {
+      try {
+        const resp = await fetch(
+          `${API_URL}/hotels/search/${encodeURIComponent(city)}?tier=${data.plan_tier}`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        )
+        if (resp.ok) {
+          const result = await resp.json()
+          results[city] = result.hotels || []
+        }
+      } catch (e) {
+        console.error(`Hotels fetch error for ${city}:`, e)
+        results[city] = []
+      }
+    }
+    setGoogleHotels(results)
+    setHotelsLoading(false)
+  }
+
+  const handleAltClick = async (alt) => {
+    const token = localStorage.getItem('tripzio_token')
+    // Clean destination name - remove words like "Tour", "Trip", "Circuit"
+    const cleanDest = alt.name
+      .replace(/\b(Tour|Trip|Circuit|Package)\b/gi, '')
+      .trim()
+    toast.loading(`Planning ${cleanDest}...`, { id: 'alt-gen' })
+    try {
+      const resp = await fetch(`${API_URL}/itinerary/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          from_city: data.from_city || 'Kolkata',
+          days: data.days || 5,
+          budget: data.budget || 20000,
+          trip_type: data.trip_type || null,
+          destination: cleanDest,
+          destination_mode: 'specific',
+          plan_tier: data.plan_tier || 'silver',
+          transport_mode: 'balanced',
+          is_flexible: false,
+        })
+      })
+      if (!resp.ok) {
+        const err = await resp.json()
+        throw new Error(err.detail || 'Failed')
+      }
+      const newData = await resp.json()
+      toast.success(`${cleanDest} plan ready! 🎉`, { id: 'alt-gen' })
+      navigate('/itinerary/result', { state: { itinerary: newData } })
+    } catch (e) {
+      toast.error(e.message || 'Could not generate plan', { id: 'alt-gen' })
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      const resp = await fetch(`${API_URL}/trips/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ trip_id: data.id || data.generated_at })
+      })
+      setIsSaved(true)
+      toast.success('Trip saved to My Trips! ❤️')
+    } catch (e) {
+      setIsSaved(true) // Optimistic
+      toast.success('Trip saved! ❤️')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleShare = async () => {
+    const text = `🌍 Check out my Tripzio trip plan!\n\n📍 ${data.destination}\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ Planned using Tripzio — India's AI Travel Planner\ntripzio.io`
+    if (navigator.share) {
+      navigator.share({ title: `Tripzio — ${data.destination}`, text })
+    } else {
+      navigator.clipboard.writeText(text)
+      toast.success('Trip details copied to clipboard!')
+    }
+  }
+
+  const handleWhatsApp = () => {
+    const text = `🌍 *My Tripzio Trip Plan*\n\n📍 *${data.destination}*\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ *Highlights:*\n${data.highlights?.map(h => `• ${h}`).join('\n')}\n\n_Plan yours free at tripzio.io_`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+    toast.success('Opening WhatsApp!')
+  }
+
+  // ── Agent: rich WhatsApp to client ──────────
+  const handleAgentWhatsApp = () => {
+    const agentName = user?.business_name || user?.full_name || 'Your Travel Agent'
+    const to = clientName ? `Hi ${clientName}! 👋` : 'Hi! 👋'
+
+    // Day plan summary — one line per day
+    const dayLines = data.day_plans?.slice(0, 5).map(d =>
+      `Day ${d.day}: ${d.title}`
+    ).join('\n') || ''
+
+    // Hotels — per city for circuits
+    let hotelLines = ''
+    if (data.accommodation?.length > 0) {
+      hotelLines = data.accommodation.slice(0, 4).map(h =>
+        `• ${h.area ? h.area.split(',')[0] : ''}: ${h.name} (${h.rating}⭐)`
+      ).join('\n')
+    }
+
+    // Cost breakdown
+    const cb = data.cost_breakdown || {}
+    const costLines = [
+      cb.transport     ? `🚌 Transport: ${cb.transport}` : '',
+      cb.accommodation ? `🏨 Hotels: ${cb.accommodation}` : '',
+      cb.food          ? `🍽️ Food: ${cb.food}` : '',
+      cb.activities    ? `🎯 Activities: ${cb.activities}` : '',
+      cb.total         ? `💰 *Total: ${cb.total}*` : '',
+    ].filter(Boolean).join('\n')
+
+    // Highlights
+    const highlightLines = data.highlights?.slice(0, 4).map(h => `✅ ${h}`).join('\n') || ''
+
+    const text = [
+      `${to}`,
+      ``,
+      `🗺️ *Your ${data.destination} Trip Plan is Ready!*`,
+      `_Prepared by ${agentName} using Tripzio AI_`,
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      `📍 *${data.destination}*`,
+      `📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')} | 🏷️ ${data.plan_tier?.toUpperCase()} Plan`,
+      data.from_city ? `🚉 From: ${data.from_city}` : '',
+      ``,
+      `✨ *Trip Highlights*`,
+      highlightLines,
+      ``,
+      dayLines ? `📅 *Day-wise Plan*\n${dayLines}` : '',
+      hotelLines ? `\n🏨 *Hotels*\n${hotelLines}` : '',
+      ``,
+      `💰 *Cost Breakdown*`,
+      costLines,
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      `Reply *YES* to confirm your booking! ✈️`,
+      ``,
+      `_${agentName}_`,
+      `_Powered by Tripzio AI — tripzio.io_`,
+    ].filter(l => l !== undefined).join('\n')
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+    toast.success('Opening WhatsApp with full plan!')
+  }
+
+  const handleDownload = () => {
+    const lines = [
+      `TRIPZIO ITINERARY — ${data.destination}`,
+      '='.repeat(50),
+      `From: ${data.from_city} | Days: ${data.days} | Budget: ₹${data.budget?.toLocaleString('en-IN')} | Tier: ${data.plan_tier?.toUpperCase()}`,
+      '',
+      data.summary,
+      '',
+      'HIGHLIGHTS',
+      ...(data.highlights?.map(h => `• ${h}`) || []),
+      '',
+      'DAY PLANS',
+      ...(data.day_plans?.map(d =>
+        `\nDay ${d.day}: ${d.title}\nMorning: ${d.morning}\nAfternoon: ${d.afternoon}\nEvening: ${d.evening}\nMeals: ${d.meals}\nStay: ${d.stay}\nEst: ${d.estimated_cost}`
+      ) || []),
+      '',
+      'COST BREAKDOWN',
+      `Transport: ${data.cost_breakdown?.transport}`,
+      `Accommodation: ${data.cost_breakdown?.accommodation}`,
+      `Food: ${data.cost_breakdown?.food}`,
+      `Activities: ${data.cost_breakdown?.activities}`,
+      `Total: ${data.cost_breakdown?.total}`,
+      '',
+      'LOCAL TIPS',
+      ...(data.local_tips?.map(t => `• ${t}`) || []),
+      '',
+      'Generated by Tripzio — tripzio.io'
+    ]
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `Tripzio_${data.destination?.replace(/[^a-zA-Z0-9]/g, '_')}_${data.days}days.txt`
+    a.click()
+    toast.success('Downloaded!')
+  }
+
+  if (!data) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+        <Navbar />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '16px' }}>
+          <div style={{ fontSize: '48px' }}>🗺️</div>
+          <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>No itinerary found</h2>
+          <button onClick={() => navigate(isAgent ? '/agent/dashboard' : '/dashboard')}
+            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer' }}>
+            {isAgent ? 'Back to Dashboard' : 'Go to Dashboard'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const tier = tierColors[data.plan_tier] || tierColors.silver
+  // Safety defaults for missing fields
+  const safeData = {
+    destination: data.destination || 'Your Trip',
+    from_city: data.from_city || '',
+    days: data.days || 0,
+    budget: data.budget || 0,
+    plan_tier: data.plan_tier || 'silver',
+    trip_type: data.trip_type || null,
+    summary: data.summary || '',
+    highlights: data.highlights || [],
+    day_plans: data.day_plans || [],
+    accommodation: data.accommodation || [],
+    transport_options: data.transport_options || [],
+    local_transport: data.local_transport || null,
+    places_to_visit: data.places_to_visit || [],
+    things_to_do: data.things_to_do || [],
+    cost_breakdown: data.cost_breakdown || {},
+    local_tips: data.local_tips || [],
+    packing_list: data.packing_list || [],
+    weather: data.weather || null,
+    alternatives: data.alternatives || [],
+    is_circuit: data.is_circuit || false,
+    circuit_legs: data.circuit_legs || [],
+    permit_info: data.permit_info || [],
+    parsed_from: data.parsed_from || null,
+    start_date: data.start_date || null,
+    ...data
+  }
+  Object.assign(data, safeData)
+
+  const tabs = [
+    { id: 'itinerary', label: '📅 Day Plan' },
+    { id: 'hotels',    label: `🏨 Hotels${circuit ? ` (${cities.length} cities)` : ''}` },
+    { id: 'transport', label: `🚂 Transport${circuit ? ` (${cities.length} legs)` : ''}` },
+    { id: 'places',    label: '📍 Places' },
+    { id: 'todo',      label: '🎯 Things To Do' },
+    { id: 'costs',     label: '💰 Cost Breakdown' },
+    { id: 'tips',      label: '💡 Tips & Pack' },
+  ]
+
+  // Get hotels for active city
+  const activeHotels = activeHotelCity
+    ? (googleHotels[activeHotelCity] || (data.accommodation || []).filter(h =>
+        h.area?.toLowerCase().includes(activeHotelCity.toLowerCase()) ||
+        activeHotelCity.toLowerCase().includes((h.area || '').toLowerCase().split(',')[0])
+      ).map(h => ({
+        name: h.name, rating: parseFloat(h.rating) || 4.2,
+        address: h.area, price_display: h.price_range,
+        why: h.why, highlight: h.highlight,
+        photo_url: null,
+        maps_url: `https://www.google.com/maps/search/${encodeURIComponent(h.name + ' ' + activeHotelCity)}`
+      })))
+    : []
+
+  // If no city-specific hotels, show all AI accommodation
+  const fallbackHotels = data.accommodation?.map(h => ({
+    name: h.name, rating: parseFloat(h.rating) || 4.2,
+    address: h.area, price_display: h.price_range,
+    why: h.why, highlight: h.highlight, photo_url: null,
+    maps_url: `https://www.google.com/maps/search/${encodeURIComponent(h.name + ' ' + data.destination)}`
+  })) || []
+
+  const hotelsToShow = activeHotels.length > 0 ? activeHotels : fallbackHotels
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        .tab-btn:hover { background: #f1f5f9 !important; }
+        .day-btn:hover { border-color: #0d9488 !important; }
+        .city-tab:hover { background: #f8fafc !important; }
+        .hotel-card { transition: all 0.25s ease; }
+        .hotel-card:hover { transform: translateY(-3px) !important; box-shadow: 0 12px 32px rgba(0,0,0,0.1) !important; }
+        .transport-card { transition: all 0.2s ease; }
+        .transport-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08) !important; }
+        .alt-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important; }
+        .action-btn:hover { transform: translateY(-1px); }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+        .skeleton { background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size:200% 100%; animation:shimmer 1.5s infinite; border-radius:12px; }
+      `}</style>
+
+      <Navbar />
+
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
+
+        {/* Back */}
+        <button onClick={() => navigate(-1)}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#64748b', fontSize: '14px', fontWeight: '600', cursor: 'pointer', marginBottom: '24px', padding: 0 }}>
+          <ArrowLeft size={16} /> Back
+        </button>
+
+        {/* ── HERO ── */}
+        <div style={{ background: 'linear-gradient(135deg,#0f172a 0%,#134e4a 100%)', borderRadius: '24px', padding: '36px', marginBottom: '28px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'radial-gradient(circle,rgba(13,148,136,0.3) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ flex: 1, minWidth: '240px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '22px' }}>{tier.emoji}</span>
+                <span style={{ background: tier.bg, color: tier.color, border: `1px solid ${tier.border}`, padding: '4px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>
+                  {data.plan_tier?.toUpperCase()} PLAN
+                </span>
+                {circuit && (
+                  <span style={{ background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Route size={11} /> Circuit · {cities.length} cities
+                  </span>
+                )}
+                {data.start_date && (
+                  <span style={{ background: 'rgba(255,255,255,0.1)', color: '#94a3b8', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={11} /> {new Date(data.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+              <h1 style={{ fontSize: 'clamp(24px,4vw,40px)', fontWeight: '900', color: 'white', margin: '0 0 8px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.5px' }}>
+                {data.destination} 🌏
+              </h1>
+              {/* Circuit route pills */}
+              {circuit && cities.length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  {cities.map((city, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ background: `${cityAccents[i % cityAccents.length].color}30`, color: cityAccents[i % cityAccents.length].color, border: `1px solid ${cityAccents[i % cityAccents.length].color}50`, padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>
+                        {city}
+                      </span>
+                      {i < cities.length - 1 && <span style={{ color: '#94a3b8', fontSize: '12px' }}>→</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0, maxWidth: '500px', lineHeight: 1.6 }}>{data.summary}</p>
+            </div>
+
+            {/* Action buttons — role aware */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {isAgent ? (
+                // ── AGENT buttons ──
+                <>
+                  {/* Back to dashboard */}
+                  <button className="action-btn"
+                    onClick={() => navigate('/agent/dashboard')}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <ArrowLeft size={15} /> Dashboard
+                  </button>
+
+                  {/* Send full plan to client */}
+                  <button className="action-btn"
+                    onClick={handleAgentWhatsApp}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(37,211,102,0.4)' }}>
+                    <MessageCircle size={15} />
+                    {clientName ? `Send to ${clientName}` : 'Send to Client'}
+                  </button>
+
+                  {/* Download */}
+                  <button className="action-btn" onClick={handleDownload}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <Download size={15} /> Download
+                  </button>
+
+                  {/* Agent branding badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#5eead4' }} />
+                    <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600' }}>
+                      {user?.business_name || user?.full_name}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                // ── USER buttons ──
+                <>
+                  <button className="action-btn" onClick={handleSave} disabled={saving || isSaved}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: isSaved ? '#dc2626' : 'rgba(255,255,255,0.1)', color: 'white', border: `1px solid ${isSaved ? '#dc2626' : 'rgba(255,255,255,0.2)'}`, borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: isSaved ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                    <Heart size={15} fill={isSaved ? 'white' : 'none'} />
+                    {isSaved ? 'Saved!' : saving ? 'Saving...' : 'Save'}
+                  </button>
+                  <button className="action-btn" onClick={handleShare}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <Share2 size={15} /> Share
+                  </button>
+                  <button className="action-btn" onClick={handleWhatsApp}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <MessageCircle size={15} /> WhatsApp
+                  </button>
+                  <button className="action-btn" onClick={handleDownload}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <Download size={15} /> Download
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Trip stats */}
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            {[
+              { icon: <MapPin size={14} />, label: 'From', value: data.from_city },
+              { icon: <Clock size={14} />, label: 'Duration', value: `${data.days} days` },
+              { icon: <TrendingUp size={14} />, label: 'Budget', value: `₹${data.budget?.toLocaleString('en-IN')}` },
+              { icon: <Tag size={14} />, label: 'Trip Type', value: data.trip_type || 'Any' },
+              circuit ? { icon: <Route size={14} />, label: 'Cities', value: `${cities.length} destinations` } : null,
+            ].filter(Boolean).map((s, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ color: '#5eead4' }}>{s.icon}</div>
+                <div>
+                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{s.value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Parsed from (custom plan) */}
+        {data.parsed_from && (
+          <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '14px', padding: '14px 18px', marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <Info size={16} color="#0d9488" style={{ flexShrink: 0, marginTop: '1px' }} />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>AI understood your request as:</div>
+              <span style={{ fontSize: '13px', color: '#0f766e', fontWeight: '500' }}>{data.parsed_from}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Highlights */}
+        {data.highlights?.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '12px', marginBottom: '28px' }}>
+            {data.highlights.map((h, i) => (
+              <div key={i} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', animation: `fadeUp ${0.2 + i * 0.06}s ease` }}>
+                <CheckCircle size={16} color="#0d9488" />
+                <span style={{ fontSize: '13px', color: '#374151', fontWeight: '500' }}>{h}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Weather */}
+        {data.weather && (
+          <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', padding: '22px', marginBottom: '28px', boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                🌤 Weather at {circuit ? cities[0] : data.destination}
+                {circuit && <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '400', marginLeft: '8px' }}>(first stop)</span>}
+              </h3>
+              <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '4px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>{data.weather.season}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: '12px', marginBottom: data.weather.advisory ? '14px' : '0' }}>
+              {[
+                { icon: <Thermometer size={13} color="#0ea5e9" />, label: 'Temperature', value: data.weather.temperature },
+                { icon: <Wind size={13} color="#8b5cf6" />, label: 'Condition', value: data.weather.condition },
+                { icon: <Umbrella size={13} color="#f59e0b" />, label: 'Humidity', value: data.weather.humidity || 'Moderate' },
+                { icon: <Car size={13} color="#22c55e" />, label: 'Wind', value: data.weather.wind || 'Light' },
+              ].map((item, i) => (
+                <div key={i} style={{ padding: '12px', background: '#f8fafc', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
+                    {item.icon}
+                    <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</span>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+            {data.weather.advisory && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '10px' }}>
+                <AlertTriangle size={14} color="#ef4444" />
+                <span style={{ fontSize: '13px', color: '#ef4444', fontWeight: '600' }}>{data.weather.advisory}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TABS ── */}
+        <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.04)', marginBottom: '28px' }}>
+          <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #f1f5f9', padding: '0 8px' }}>
+            {tabs.map(tab => (
+              <button key={tab.id} className="tab-btn"
+                onClick={() => setActiveTab(tab.id)}
+                style={{ padding: '14px 14px', border: 'none', borderBottom: `2px solid ${activeTab === tab.id ? '#0d9488' : 'transparent'}`, background: 'transparent', color: activeTab === tab.id ? '#0d9488' : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ padding: '28px' }}>
+
+            {/* ── DAY PLAN ── */}
+            {activeTab === 'itinerary' && (
+              <div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+                  {data.day_plans?.map(d => (
+                    <button key={d.day} className="day-btn"
+                      onClick={() => setActiveDay(d.day)}
+                      style={{ padding: '8px 16px', borderRadius: '20px', border: `2px solid ${activeDay === d.day ? '#0d9488' : '#e2e8f0'}`, background: activeDay === d.day ? '#f0fdfa' : 'white', color: activeDay === d.day ? '#0d9488' : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                      Day {d.day}
+                    </button>
+                  ))}
+                </div>
+
+                {data.day_plans?.filter(d => d.day === activeDay).map(day => (
+                  <div key={day.day} style={{ animation: 'fadeUp 0.3s ease' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                      <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                        Day {day.day} — {day.title}
+                      </h3>
+                      <span style={{ background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', padding: '5px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: '700' }}>
+                        Est. {day.estimated_cost}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: '12px', marginBottom: '18px' }}>
+                      {[
+                        { time: '🌅 Morning', plan: day.morning, bg: '#fef3c7', border: '#fcd34d', color: '#92400e' },
+                        { time: '☀️ Afternoon', plan: day.afternoon, bg: '#eff6ff', border: '#bae6fd', color: '#0369a1' },
+                        { time: '🌆 Evening', plan: day.evening, bg: '#f5f3ff', border: '#ddd6fe', color: '#6d28d9' },
+                      ].map((slot, i) => (
+                        <div key={i} style={{ background: slot.bg, border: `1px solid ${slot.border}`, borderRadius: '14px', padding: '16px 20px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '800', color: slot.color, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{slot.time}</div>
+                          <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.7, margin: 0 }}>{slot.plan}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '12px' }}>
+                      {[
+                        { icon: <Utensils size={14} color="#f59e0b" />, label: 'Meals', value: day.meals, bg: '#f8fafc', border: '#e2e8f0' },
+                        { icon: <Star size={14} color="#0d9488" />, label: 'Stay', value: day.stay, bg: '#f8fafc', border: '#e2e8f0' },
+                        day.tips ? { icon: <Info size={14} color="#f59e0b" />, label: 'Local Tip', value: day.tips, bg: '#fffbeb', border: '#fcd34d' } : null,
+                      ].filter(Boolean).map((card, i) => (
+                        <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: '14px', padding: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '8px' }}>
+                            {card.icon}
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{card.label}</span>
+                          </div>
+                          <p style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6, margin: 0 }}>{card.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── HOTELS TAB — PER CITY ── */}
+            {activeTab === 'hotels' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '0 0 4px' }}>
+                      🏨 Recommended Hotels — {tier.emoji} {data.plan_tier?.charAt(0).toUpperCase() + data.plan_tier?.slice(1)} Plan
+                    </h3>
+                    <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+                      {circuit
+                        ? `Hotels for each city in your circuit · Click city to switch`
+                        : 'Click Maps to explore · Click Book Now to reserve'
+                      }
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
+                    <img src="https://www.google.com/favicon.ico" alt="" style={{ width: '14px', height: '14px' }} />
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Powered by Google</span>
+                  </div>
+                </div>
+
+                {/* City selector for circuit */}
+                {circuit && cities.length > 1 && (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px', padding: '4px', background: '#f8fafc', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+                    {cities.map((city, i) => {
+                      const accent = cityAccents[i % cityAccents.length]
+                      const isActive = activeHotelCity === city
+                      return (
+                        <button key={city}
+                          className="city-tab"
+                          onClick={() => setActiveHotelCity(city)}
+                          style={{ padding: '8px 18px', borderRadius: '10px', border: `1.5px solid ${isActive ? accent.color : 'transparent'}`, background: isActive ? accent.bg : 'transparent', color: isActive ? accent.color : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Building2 size={13} />
+                          {city}
+                          {hotelsLoading && <div style={{ width: '10px', height: '10px', border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
+                          {!hotelsLoading && (
+                            <span style={{ background: accent.color, color: 'white', fontSize: '10px', fontWeight: '800', padding: '1px 6px', borderRadius: '8px' }}>
+                              {(googleHotels[city]?.length || 0) + (data.accommodation?.length || 0) > 0 ? (googleHotels[city]?.length || data.accommodation?.length || 0) : 0}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {hotelsLoading ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '16px' }}>
+                    {[1, 2, 3].map(i => (
+                      <div key={i} style={{ borderRadius: '20px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                        <div className="skeleton" style={{ height: '160px' }} />
+                        <div style={{ padding: '16px' }}>
+                          <div className="skeleton" style={{ height: '18px', marginBottom: '8px', width: '70%' }} />
+                          <div className="skeleton" style={{ height: '13px', width: '50%' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div>
+                    {/* City header for circuit */}
+                    {circuit && activeHotelCity && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', padding: '10px 16px', background: cityAccents[Math.max(0, cities.indexOf(activeHotelCity)) % cityAccents.length].bg, border: `1px solid ${cityAccents[Math.max(0, cities.indexOf(activeHotelCity)) % cityAccents.length].border}`, borderRadius: '12px' }}>
+                        <Building2 size={16} color={cityAccents[Math.max(0, cities.indexOf(activeHotelCity)) % cityAccents.length].color} />
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: cityAccents[Math.max(0, cities.indexOf(activeHotelCity)) % cityAccents.length].color }}>
+                          Hotels in {activeHotelCity}
+                        </span>
+                        <span style={{ fontSize: '12px', color: '#64748b', marginLeft: 'auto' }}>
+                          {hotelsToShow.length} found
+                        </span>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '16px' }}>
+                      {hotelsToShow.length > 0 ? hotelsToShow.map((hotel, i) => (
+                        <div key={i} className="hotel-card"
+                          style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
+                          <div style={{ height: '150px', background: hotel.photo_url ? 'transparent' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', position: 'relative', overflow: 'hidden' }}>
+                            {hotel.photo_url ? (
+                              <img src={hotel.photo_url} alt={hotel.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement.style.background = 'linear-gradient(135deg,#0d9488,#0ea5e9)' }} />
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                <span style={{ fontSize: '44px', opacity: 0.35 }}>🏨</span>
+                              </div>
+                            )}
+                            <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.95)', padding: '4px 10px', borderRadius: '20px', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
+                              <Star size={11} fill="#f59e0b" color="#f59e0b" />
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: '#92400e' }}>{hotel.rating}</span>
+                              {hotel.total_ratings && <span style={{ fontSize: '10px', color: '#64748b' }}>({hotel.total_ratings > 1000 ? `${(hotel.total_ratings/1000).toFixed(1)}k` : hotel.total_ratings})</span>}
+                            </div>
+                            <div style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>
+                              {hotel.price_display || '₹₹'}
+                            </div>
+                          </div>
+                          <div style={{ padding: '16px' }}>
+                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{hotel.name}</h4>
+                            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <MapPin size={11} /> {hotel.address || hotel.area || ''}
+                            </p>
+                            {(hotel.why || hotel.highlight) && (
+                              <p style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5, margin: '0 0 12px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px' }}>
+                                {hotel.why || hotel.highlight}
+                              </p>
+                            )}
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <a href={hotel.maps_url} target="_blank" rel="noopener noreferrer"
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#374151', textDecoration: 'none' }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.color = '#0d9488' }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#374151' }}>
+                                <Navigation size={12} /> Maps
+                              </a>
+                              <a href={`https://www.booking.com/search.html?ss=${encodeURIComponent(hotel.name + ' ' + (activeHotelCity || data.destination))}`}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: 'white', textDecoration: 'none' }}>
+                                <ExternalLink size={12} /> Book Now
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      )) : (
+                        <div style={{ gridColumn: '1/-1', padding: '40px', textAlign: 'center', background: '#f8fafc', borderRadius: '16px', border: '1px dashed #e2e8f0' }}>
+                          <div style={{ fontSize: '32px', marginBottom: '12px' }}>🏨</div>
+                          <p style={{ color: '#64748b', fontSize: '14px' }}>Search for hotels in {activeHotelCity} on Google Maps</p>
+                          <a href={`https://www.google.com/maps/search/hotels+in+${encodeURIComponent(activeHotelCity || '')}`}
+                            target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '12px', padding: '9px 20px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', color: '#0d9488', fontSize: '13px', fontWeight: '700', textDecoration: 'none' }}>
+                            <Navigation size={13} /> Search on Google Maps
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '16px', textAlign: 'center' }}>
+                      Powered by Google · Prices approximate · Always verify before booking
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── TRANSPORT TAB — PER LEG ── */}
+            {activeTab === 'transport' && (
+              <div>
+                {circuit && cities.length > 1 ? (
+                  // Circuit transport — show per leg
+                  <div>
+                    <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>
+                      Complete transport plan for your <strong style={{ color: '#0f172a' }}>{cities.length}-city circuit</strong> from <strong style={{ color: '#0f172a' }}>{data.from_city}</strong>
+                    </p>
+
+                    {/* Leg 1: Origin → First city */}
+                    <div style={{ marginBottom: '28px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#0d9488', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', fontWeight: '800', flexShrink: 0 }}>1</div>
+                        <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                          🚆 {data.from_city} → {cities[0]}
+                        </h4>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {data.transport_options?.map((opt, i) => (
+                          <div key={i} className="transport-card"
+                            style={{ background: 'white', border: `1.5px solid ${expandedTransport === i ? transportColors[i % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+                            onClick={() => setExpandedTransport(expandedTransport === i ? -1 : i)}>
+                            <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: transportBgs[i % 3], border: `1px solid ${transportBorders[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: transportColors[i % 3] }}>
+                                  {transportIcons[i % 3]}
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.mode}</div>
+                                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>{opt.description}</div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontSize: '16px', fontWeight: '800', color: transportColors[i % 3], fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.estimated_cost}</div>
+                                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.duration}</div>
+                                </div>
+                                {expandedTransport === i ? <ChevronUp size={15} color="#94a3b8" /> : <ChevronDown size={15} color="#94a3b8" />}
+                              </div>
+                            </div>
+                            {expandedTransport === i && (
+                              <div style={{ padding: '0 18px 16px', borderTop: '1px solid #f1f5f9' }}>
+                                <div style={{ paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  {opt.details?.map((step, j) => (
+                                    <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: transportBgs[i % 3], border: `1.5px solid ${transportColors[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800', color: transportColors[i % 3], flexShrink: 0, marginTop: '1px' }}>{j + 1}</div>
+                                      <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{step}</span>
+                                    </div>
+                                  ))}
+                                  {opt.booking_tip && (
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px', marginTop: '4px' }}>
+                                      <Info size={13} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                      <span style={{ fontSize: '12px', color: '#92400e', fontWeight: '500' }}>{opt.booking_tip}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Inter-city legs for circuit */}
+                    {cities.slice(1).map((city, idx) => {
+                      const fromCity = cities[idx]
+                      const toCity = city
+                      const legNum = idx + 2
+                      const accent = cityAccents[idx % cityAccents.length]
+                      return (
+                        <div key={idx} style={{ marginBottom: '28px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: accent.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', fontWeight: '800', flexShrink: 0 }}>{legNum}</div>
+                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                              🛺 {fromCity} → {toCity}
+                            </h4>
+                            <span style={{ fontSize: '11px', color: accent.color, background: accent.bg, padding: '3px 10px', borderRadius: '10px', fontWeight: '700' }}>Inter-city</span>
+                          </div>
+
+                          {/* Show local_transport options for this leg or AI-generated inter-city info */}
+                          {data.local_transport?.options ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '10px' }}>
+                              {data.local_transport.options
+                                .filter(opt => {
+                                  const route = (opt.route || '').toLowerCase()
+                                  return route.includes(fromCity.toLowerCase()) ||
+                                         route.includes(toCity.toLowerCase()) ||
+                                         !route // show all if no specific route mentioned
+                                })
+                                .slice(0, 3)
+                                .map((opt, i) => (
+                                <div key={i} style={{ background: '#f8fafc', border: `1px solid ${accent.border}`, borderRadius: '14px', padding: '16px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                    <div>
+                                      <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.name}</div>
+                                      <div style={{ fontSize: '11px', color: accent.color, background: accent.bg, padding: '2px 8px', borderRadius: '8px', display: 'inline-block', marginTop: '3px', fontWeight: '700' }}>{opt.type}</div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                      <div style={{ fontSize: '14px', fontWeight: '800', color: '#0d9488' }}>{opt.cost}</div>
+                                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.duration}</div>
+                                    </div>
+                                  </div>
+                                  {opt.route && (
+                                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <Navigation size={10} /> {opt.route}
+                                    </div>
+                                  )}
+                                  {opt.tip && (
+                                    <div style={{ fontSize: '12px', color: '#374151', background: '#fffbeb', border: '1px solid #fcd34d', padding: '7px 10px', borderRadius: '8px', lineHeight: 1.5 }}>
+                                      💡 {opt.tip}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+
+                              {/* If no matching local transport, show generic info */}
+                              {data.local_transport.options.filter(opt => {
+                                const route = (opt.route || '').toLowerCase()
+                                return route.includes(fromCity.toLowerCase()) || route.includes(toCity.toLowerCase()) || !route
+                              }).length === 0 && (
+                                <div style={{ gridColumn: '1/-1', padding: '16px', background: accent.bg, border: `1px solid ${accent.border}`, borderRadius: '14px' }}>
+                                  <p style={{ fontSize: '13px', color: '#374151', margin: 0 }}>
+                                    🚐 <strong>Shared taxi/jeep</strong> is the most common way to travel between {fromCity} and {toCity}. Available from the main taxi stand. Cost: ₹200-400 per person, Duration: 3-5 hours.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ padding: '16px 20px', background: accent.bg, border: `1px solid ${accent.border}`, borderRadius: '14px' }}>
+                              <p style={{ fontSize: '13px', color: '#374151', margin: 0, lineHeight: 1.6 }}>
+                                🚐 Shared taxi or private cab is recommended between {fromCity} and {toCity}. Shared: ₹200-400/person · Private: ₹1,500-2,500 · Duration: 3-5 hours. Taxis available from main taxi stand.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {/* Return journey */}
+                    <div style={{ marginBottom: '20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', fontWeight: '800', flexShrink: 0 }}>{cities.length + 1}</div>
+                        <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                          🏠 {cities[cities.length - 1]} → {data.from_city} (Return)
+                        </h4>
+                      </div>
+                      <div style={{ padding: '16px 20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px' }}>
+                        <p style={{ fontSize: '13px', color: '#374151', margin: 0, lineHeight: 1.6 }}>
+                          Reverse the journey from {cities[cities.length - 1]} back to {data.from_city}. Book return train/bus ticket in advance from IRCTC. Allow extra travel day for comfort.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Local transport note */}
+                    {data.local_transport?.note && (
+                      <div style={{ padding: '14px 18px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '12px', display: 'flex', gap: '10px' }}>
+                        <Info size={16} color="#0d9488" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ fontSize: '13px', color: '#0f766e', fontWeight: '500', lineHeight: 1.6 }}>{data.local_transport.note}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Single destination transport
+                  <div>
+                    <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px' }}>
+                      From <strong style={{ color: '#0f172a' }}>{data.from_city}</strong> to <strong style={{ color: '#0f172a' }}>{data.destination}</strong> — choose what works best
+                    </p>
+                    <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', marginBottom: '14px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>🚆 Getting There</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                      {data.transport_options?.map((opt, i) => (
+                        <div key={i} className="transport-card"
+                          style={{ background: 'white', border: `1.5px solid ${expandedTransport === i ? transportColors[i % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+                          onClick={() => setExpandedTransport(expandedTransport === i ? -1 : i)}>
+                          <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: transportBgs[i % 3], border: `1px solid ${transportBorders[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: transportColors[i % 3] }}>
+                                {transportIcons[i % 3]}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.mode}</div>
+                                <div style={{ fontSize: '12px', color: '#64748b' }}>{opt.description}</div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '16px', fontWeight: '800', color: transportColors[i % 3], fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.estimated_cost}</div>
+                                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.duration}</div>
+                              </div>
+                              {expandedTransport === i ? <ChevronUp size={15} color="#94a3b8" /> : <ChevronDown size={15} color="#94a3b8" />}
+                            </div>
+                          </div>
+                          {expandedTransport === i && (
+                            <div style={{ padding: '0 18px 16px', borderTop: '1px solid #f1f5f9' }}>
+                              <div style={{ paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {opt.details?.map((step, j) => (
+                                  <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: transportBgs[i % 3], border: `1.5px solid ${transportColors[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800', color: transportColors[i % 3], flexShrink: 0, marginTop: '1px' }}>{j + 1}</div>
+                                    <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{step}</span>
+                                  </div>
+                                ))}
+                                {opt.booking_tip && (
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px', marginTop: '4px' }}>
+                                    <Info size={13} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                    <span style={{ fontSize: '12px', color: '#92400e', fontWeight: '500' }}>{opt.booking_tip}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {data.local_transport && (
+                      <>
+                        <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', marginBottom: '14px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>🛺 Getting Around in {data.destination}</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '10px', marginBottom: '16px' }}>
+                          {data.local_transport.options?.map((opt, i) => (
+                            <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                <div>
+                                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.name}</div>
+                                  <div style={{ fontSize: '11px', color: '#0d9488', background: '#f0fdfa', padding: '2px 8px', borderRadius: '8px', display: 'inline-block', marginTop: '3px', fontWeight: '700' }}>{opt.type}</div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#0d9488' }}>{opt.cost}</div>
+                                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.duration}</div>
+                                </div>
+                              </div>
+                              {opt.route && (
+                                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Navigation size={10} /> {opt.route}
+                                </div>
+                              )}
+                              {opt.tip && (
+                                <div style={{ fontSize: '12px', color: '#374151', background: '#fffbeb', border: '1px solid #fcd34d', padding: '7px 10px', borderRadius: '8px', lineHeight: 1.5 }}>
+                                  💡 {opt.tip}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {data.local_transport.note && (
+                          <div style={{ padding: '14px 18px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '12px', display: 'flex', gap: '10px' }}>
+                            <Info size={16} color="#0d9488" style={{ flexShrink: 0, marginTop: '1px' }} />
+                            <span style={{ fontSize: '13px', color: '#0f766e', fontWeight: '500', lineHeight: 1.6 }}>{data.local_transport.note}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── PLACES ── */}
+            {activeTab === 'places' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '16px' }}>
+                {data.places_to_visit?.map((place, i) => (
+                  <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', animation: `fadeUp ${0.1 + i * 0.05}s ease` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>{place.name}</h4>
+                      <span style={{ background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', marginLeft: '8px' }}>{place.type}</span>
+                    </div>
+                    <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6, marginBottom: '12px' }}>{place.description}</p>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {place.entry_fee && <span style={{ fontSize: '11px', color: '#374151', background: 'white', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>🎟 {place.entry_fee}</span>}
+                      {place.best_time && <span style={{ fontSize: '11px', color: '#374151', background: 'white', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>🕐 {place.best_time}</span>}
+                      {place.duration && <span style={{ fontSize: '11px', color: '#374151', background: 'white', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>⏱ {place.duration}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── THINGS TO DO ── */}
+            {activeTab === 'todo' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '16px' }}>
+                {data.things_to_do?.map((cat, i) => (
+                  <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                        {categoryIcons[cat.category] || <Star size={14} />}
+                      </div>
+                      <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>{cat.category}</h4>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {cat.activities?.map((act, j) => (
+                        <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                          <CheckCircle size={13} color="#0d9488" style={{ marginTop: '2px', flexShrink: 0 }} />
+                          <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>{act}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── COST BREAKDOWN ── */}
+            {activeTab === 'costs' && (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '14px', marginBottom: '24px' }}>
+                  {data.cost_breakdown && Object.entries(data.cost_breakdown).filter(([k]) => k !== 'total').map(([key, value], i) => {
+                    const meta = {
+                      transport: { emoji: '🚌', color: '#0ea5e9' },
+                      accommodation: { emoji: '🏨', color: '#8b5cf6' },
+                      food: { emoji: '🍽️', color: '#f59e0b' },
+                      activities: { emoji: '🎯', color: '#22c55e' },
+                      miscellaneous: { emoji: '📦', color: '#64748b' }
+                    }
+                    const m = meta[key] || { emoji: '📌', color: '#64748b' }
+                    return (
+                      <div key={key} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
+                        <div style={{ fontSize: '24px', marginBottom: '10px' }}>{m.emoji}</div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{key}</div>
+                        <div style={{ fontSize: '20px', fontWeight: '900', color: m.color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {(() => {
+                  const totalNum = parseInt((data.cost_breakdown?.total || '0').replace(/[^0-9]/g, '')) || 0
+                  const budgetNum = data.budget || 0
+                  const savings = budgetNum - totalNum
+                  const savingsPct = budgetNum > 0 ? Math.round((savings / budgetNum) * 100) : 0
+                  const isOver = savings < 0
+                  const tier = data.plan_tier || 'silver'
+                  const utilizationPct = budgetNum > 0 ? Math.round((totalNum / budgetNum) * 100) : 0
+
+                  // Tier-aware messaging
+                  const tierMsg = {
+                    bronze: {
+                      good: { icon: '🎉', color: '#34d399', label: `Smart savings! ₹${savings.toLocaleString('en-IN')} back in your pocket (${savingsPct}% saved)` },
+                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                    },
+                    silver: {
+                      good: { icon: '✓', color: '#60a5fa', label: `Great value — ₹${savings.toLocaleString('en-IN')} buffer for shopping & extras` },
+                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                    },
+                    gold: {
+                      good: savings > budgetNum * 0.15
+                        ? { icon: '💡', color: '#fbbf24', label: `${savingsPct}% unused — consider upgrading hotels or adding an extra day` }
+                        : { icon: '⭐', color: '#34d399', label: `Premium experience — budget well utilized` },
+                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                    },
+                    diamond: {
+                      good: savings > budgetNum * 0.1
+                        ? { icon: '💎', color: '#fbbf24', label: `${savingsPct}% unused — upgrade to luxury suites or private transfers` }
+                        : { icon: '💎', color: '#34d399', label: `Full luxury experience — every rupee working for you` },
+                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                    },
+                    platinum: {
+                      good: { icon: '✨', color: '#c084fc', label: `Ultra luxury — uncompromising experience` },
+                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                    }
+                  }
+
+                  const msg = (tierMsg[tier] || tierMsg.silver)[isOver ? 'over' : 'good']
+
+                  return (
+                    <div style={{ background: 'linear-gradient(135deg,#0f172a,#134e4a)', borderRadius: '16px', padding: '24px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
+                        <div>
+                          <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>Total estimated cost</div>
+                          <div style={{ fontSize: '36px', fontWeight: '900', color: 'white', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{data.cost_breakdown?.total}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '14px', padding: '14px 20px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Your budget</div>
+                            <div style={{ fontSize: '22px', fontWeight: '800', color: '#5eead4', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>₹{budgetNum.toLocaleString('en-IN')}</div>
+                          </div>
+                          <div style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', padding: '14px 20px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Budget used</div>
+                            <div style={{ fontSize: '22px', fontWeight: '800', color: isOver ? '#f87171' : '#5eead4', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{utilizationPct}%</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Budget bar */}
+                      <div style={{ marginBottom: '14px' }}>
+                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.min(utilizationPct, 100)}%`, background: isOver ? '#f87171' : utilizationPct >= 90 ? '#34d399' : utilizationPct >= 75 ? '#60a5fa' : '#fbbf24', borderRadius: '6px', transition: 'width 1s ease' }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px' }}>
+                          <span style={{ fontSize: '10px', color: '#64748b' }}>₹0</span>
+                          <span style={{ fontSize: '10px', color: '#64748b' }}>₹{budgetNum.toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+
+                      {/* Tier-aware message */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: `rgba(${isOver ? '239,68,68' : '52,211,153'},0.1)`, border: `1px solid rgba(${isOver ? '239,68,68' : '52,211,153'},0.25)`, borderRadius: '10px' }}>
+                        <span style={{ fontSize: '16px' }}>{msg.icon}</span>
+                        <span style={{ fontSize: '13px', color: msg.color, fontWeight: '600' }}>{msg.label}</span>
+                      </div>
+
+                      {/* Upgrade suggestion for Gold+ with leftover */}
+                      {!isOver && savings > budgetNum * 0.15 && ['gold', 'diamond', 'platinum'].includes(tier) && (
+                        <div style={{ marginTop: '10px', padding: '12px 16px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: '10px' }}>
+                          <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: '700', marginBottom: '6px' }}>💡 With your remaining ₹{savings.toLocaleString('en-IN')} you could:</div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {[
+                              '⬆ Upgrade to better hotel',
+                              '🚖 Add private taxi throughout',
+                              '🗓 Extend by 1-2 days',
+                              '🍽 Add a fine dining night',
+                            ].map((opt, i) => (
+                              <span key={i} style={{ fontSize: '11px', color: '#fcd34d', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>
+                                {opt}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
+            {/* ── TIPS & PACK ── */}
+            {activeTab === 'tips' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: '24px' }}>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>💡 Local Tips</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {data.local_tips?.map((tip, i) => (
+                      <div key={i} style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                        <span style={{ fontSize: '14px', flexShrink: 0 }}>💡</span>
+                        <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {data.permit_info?.[0] && data.permit_info[0] !== 'null' && (
+                    <div style={{ marginTop: '20px' }}>
+                      <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '12px' }}>📋 Permits Required</h3>
+                      {data.permit_info.map((p, i) => (
+                        <div key={i} style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', gap: '8px' }}>
+                          <AlertTriangle size={14} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                          <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{p}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>🎒 Packing List</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    {(data.weather?.pack?.length > 0 ? data.weather.pack : data.packing_list)?.map((item, i) => (
+                      <div key={i} style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle size={13} color="#0d9488" />
+                        <span style={{ fontSize: '12px', color: '#374151', fontWeight: '500' }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Alternatives */}
+        {data.alternatives?.length > 0 && (
+          <div style={{ marginBottom: '32px' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>
+              🔀 Similar Destinations at Same Budget
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: '14px' }}>
+              {data.alternatives.map((alt, i) => (
+                <div key={i}
+                  className="alt-card"
+                  onClick={() => handleAltClick(alt)}
+                  style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>{alt.name}</h4>
+                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#0d9488', whiteSpace: 'nowrap', marginLeft: '8px' }}>{alt.estimated_budget}</span>
+                  </div>
+                  <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6, marginBottom: '12px' }}>{alt.reason}</p>
+                  <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '8px', padding: '8px 12px', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: '600' }}>✨ {alt.highlight}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0ea5e9', fontSize: '12px', fontWeight: '700' }}>
+                    <Zap size={12} fill="#0ea5e9" /> Plan trip to {alt.name} →
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

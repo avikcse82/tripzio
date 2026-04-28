@@ -1,0 +1,912 @@
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import Navbar from '../components/Navbar'
+import { API_URL } from '../api'
+import {
+  MapPin, Search, Heart, TrendingUp, Clock, Star,
+  ArrowRight, Compass, Sun, Mountain, Waves, Calendar,
+  ThumbsUp, AlertTriangle, Thermometer, Wind, Umbrella,
+  Tag, Train, Plane, Bus, Car, ChevronDown, ChevronUp,
+  Zap, Settings2, Sparkles, Send, Globe, Route,
+  MessageSquare, Lightbulb, CheckCircle
+} from 'lucide-react'
+import toast from 'react-hot-toast'
+
+// ── Destination data ──────────────────────────────────────────────────
+const destinations = [
+  {
+    name: 'Manali', region: 'Himachal Pradesh', type: 'Hill Station',
+    duration: '5-7 days', budget: '12,000', rating: 4.8,
+    photo: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=600&q=80&auto=format&fit=crop',
+    photoBg: 'linear-gradient(160deg,#1a1a2e 0%,#16213e 40%,#0f3460 100%)',
+    photoEmoji: '🏔️', badge: 'Trending', badgeColor: '#f59e0b',
+    icon: <Mountain size={18} color="white" />, iconBg: 'linear-gradient(135deg,#8b5cf6,#6d28d9)',
+    accent: '#8b5cf6', lightBg: '#f5f3ff', border: '#e9d5ff',
+    tags: ['Adventure', 'Snow', 'Trekking'],
+  },
+  {
+    name: 'Goa', region: 'Goa', type: 'Beach Paradise',
+    duration: '4-6 days', budget: '15,000', rating: 4.7,
+    photo: 'https://images.unsplash.com/photo-1587922546307-776227941871?w=600&q=80&auto=format&fit=crop',
+    photoBg: 'linear-gradient(160deg,#006994 0%,#0099cc 50%,#00bcd4 100%)',
+    photoEmoji: '🏖️', badge: 'Most Booked', badgeColor: '#0284c7',
+    icon: <Waves size={18} color="white" />, iconBg: 'linear-gradient(135deg,#0ea5e9,#0284c7)',
+    accent: '#0ea5e9', lightBg: '#eff6ff', border: '#bae6fd',
+    tags: ['Beach', 'Nightlife', 'Water Sports'],
+  },
+  {
+    name: 'Rajasthan', region: 'Rajasthan', type: 'Heritage & Culture',
+    duration: '7-10 days', budget: '18,000', rating: 4.9,
+    photo: 'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=600&q=80&auto=format&fit=crop',
+    photoBg: 'linear-gradient(160deg,#7c2d12 0%,#b45309 50%,#d97706 100%)',
+    photoEmoji: '🏯', badge: 'Top Rated', badgeColor: '#d97706',
+    icon: <Sun size={18} color="white" />, iconBg: 'linear-gradient(135deg,#f59e0b,#d97706)',
+    accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
+    tags: ['Heritage', 'Forts', 'Desert'],
+  },
+  {
+    name: 'Kerala', region: 'Kerala', type: 'Nature & Wellness',
+    duration: '5-7 days', budget: '14,000', rating: 4.8,
+    photo: 'https://images.unsplash.com/photo-1609766418204-94aae0ecfdfc?w=600&q=80&auto=format&fit=crop',
+    photoBg: 'linear-gradient(160deg,#14532d 0%,#166534 50%,#16a34a 100%)',
+    photoEmoji: '🌴', badge: 'Trending', badgeColor: '#16a34a',
+    icon: <Compass size={18} color="white" />, iconBg: 'linear-gradient(135deg,#22c55e,#16a34a)',
+    accent: '#22c55e', lightBg: '#f0fdf4', border: '#bbf7d0',
+    tags: ['Backwaters', 'Ayurveda', 'Nature'],
+  },
+  {
+    name: 'Leh Ladakh', region: 'J&K / Ladakh', type: 'Adventure & Offbeat',
+    duration: '7-10 days', budget: '25,000', rating: 4.9,
+    photo: 'https://images.unsplash.com/photo-1571402780805-c88e4cfb2cfe?w=600&q=80&auto=format&fit=crop',
+    photoBg: 'linear-gradient(160deg,#0c1445 0%,#1e3a5f 50%,#2563eb 100%)',
+    photoEmoji: '⛰️', badge: 'Must Visit', badgeColor: '#1d4ed8',
+    icon: <Mountain size={18} color="white" />, iconBg: 'linear-gradient(135deg,#0ea5e9,#0369a1)',
+    accent: '#0369a1', lightBg: '#eff6ff', border: '#bae6fd',
+    tags: ['Adventure', 'Mountains', 'Permit'],
+  },
+  {
+    name: 'Andaman', region: 'Andaman & Nicobar', type: 'Island Paradise',
+    duration: '5-7 days', budget: '20,000', rating: 4.8,
+    photo: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&q=80&auto=format&fit=crop',
+    photoBg: 'linear-gradient(160deg,#003049 0%,#0077b6 50%,#00b4d8 100%)',
+    photoEmoji: '🏝️', badge: 'Hot Pick', badgeColor: '#0d9488',
+    icon: <Waves size={18} color="white" />, iconBg: 'linear-gradient(135deg,#14b8a6,#0d9488)',
+    accent: '#14b8a6', lightBg: '#f0fdfa', border: '#99f6e4',
+    tags: ['Beach', 'Diving', 'Islands'],
+  },
+]
+
+const planTiers = [
+  { id: 'bronze', label: 'Bronze', emoji: '🥉', tagline: 'Budget Explorer', color: '#92400e', bg: '#fef3c7', border: '#fcd34d', multiplier: 0.6, stay: 'Hostels', transport: 'State bus', food: 'Dhabas' },
+  { id: 'silver', label: 'Silver', emoji: '🥈', tagline: 'Smart Traveler', color: '#334155', bg: '#f1f5f9', border: '#cbd5e1', multiplier: 1.0, stay: '2-3 Star', transport: 'AC Train', food: 'Local mix' },
+  { id: 'gold', label: 'Gold', emoji: '🥇', tagline: 'Comfort Seeker', color: '#92400e', bg: '#fffbeb', border: '#fcd34d', multiplier: 1.7, stay: '3-4 Star', transport: 'Flight', food: 'Restaurants' },
+  { id: 'diamond', label: 'Diamond', emoji: '💎', tagline: 'Premium', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', multiplier: 3.0, stay: '4-5 Star', transport: 'Flight+Cab', food: 'Fine dining', premium: true },
+  { id: 'platinum', label: 'Platinum', emoji: '✨', tagline: 'Ultra Luxury', color: '#6b21a8', bg: '#faf5ff', border: '#e9d5ff', multiplier: 5.5, stay: '5-Star', transport: 'Charter', food: 'Chef exp.', premium: true },
+]
+
+const transportModes = [
+  { id: 'cheapest', label: 'Cheapest', icon: <Bus size={14} />, color: '#16a34a', bg: '#f0fdf4', border: '#86efac', desc: 'Save maximum' },
+  { id: 'balanced', label: 'Balanced', icon: <Train size={14} />, color: '#0284c7', bg: '#eff6ff', border: '#7dd3fc', desc: 'Best value' },
+  { id: 'fastest', label: 'Fastest', icon: <Plane size={14} />, color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd', desc: 'Save time' },
+  { id: 'all', label: 'Show All', icon: <Car size={14} />, color: '#b45309', bg: '#fffbeb', border: '#fcd34d', desc: 'Compare all' },
+]
+
+// Sample prompts to inspire users
+const SAMPLE_PROMPTS = [
+  { lang: 'English', text: '5 days Shimla and Manali circuit from Delhi, budget ₹25,000, couple trip in May' },
+  { lang: 'Hindi', text: 'Kolkata se 7 din ka trip — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, budget 35 hajar, adventure trip' },
+  { lang: 'Mixed', text: 'Delhi to Kerala road trip — Ooty 2 days, Munnar 3 days, Alleppey backwaters 2 days, family of 4, gold tier' },
+  { lang: 'English', text: 'Northeast circuit — Shillong 2 days, Cherrapunji 1 day, Mawlynnong 1 day from Kolkata, ₹15,000 solo' },
+  { lang: 'Hindi', text: 'Rajasthan ka poora tour — Jaipur 2 din, Jodhpur 2 din, Jaisalmer 3 din, Udaipur 2 din, Delhi se, budget 40 hajar' },
+]
+
+const getSeasonFromDate = (d) => {
+  if (!d) return null
+  const m = new Date(d).getMonth() + 1
+  if (m >= 3 && m <= 5) return 'summer'
+  if (m >= 6 && m <= 9) return 'monsoon'
+  return 'winter'
+}
+
+const addDays = (dateStr, days) => {
+  if (!dateStr || !days) return null
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + parseInt(days) - 1)
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const getSuggestedTier = (budget, days) => {
+  if (!budget || !days) return null
+  const pd = parseInt(budget) / parseInt(days)
+  if (pd < 1500) return 'bronze'
+  if (pd < 3000) return 'silver'
+  if (pd < 6000) return 'gold'
+  if (pd < 12000) return 'diamond'
+  return 'platinum'
+}
+
+export default function UserDashboard() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
+  // Plan mode — quick / detailed / custom
+  const [planMode, setPlanMode] = useState('quick')
+  const [showDetailed, setShowDetailed] = useState(false)
+
+  // Quick + Detailed state
+  const [from, setFrom] = useState('')
+  const [days, setDays] = useState('')
+  const [budget, setBudget] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [tripType, setTripType] = useState('')
+  const [destinationMode, setDestinationMode] = useState('suggest')
+  const [selectedDestination, setSelectedDestination] = useState('')
+  const [isFlexible, setIsFlexible] = useState(false)
+  const [transportMode, setTransportMode] = useState('balanced')
+  const [selectedTier, setSelectedTier] = useState(null)
+  const [showAllDest, setShowAllDest] = useState(false)
+  const [formErrors, setFormErrors] = useState({})
+
+  // Custom Plan state
+  const [customText, setCustomText] = useState('')
+  const [customCharCount, setCustomCharCount] = useState(0)
+  const [showSamples, setShowSamples] = useState(false)
+  const customTextRef = useRef(null)
+
+  // Shared
+  const [generating, setGenerating] = useState(false)
+  const [selectedDest, setSelectedDest] = useState(null)
+
+  const suggestedTier = getSuggestedTier(budget, days)
+  useEffect(() => {
+    if (suggestedTier && !selectedTier) setSelectedTier(suggestedTier)
+  }, [suggestedTier])
+
+  const getTodayString = () => new Date().toISOString().split('T')[0]
+  const silverMult = planTiers.find(t => t.id === 'silver').multiplier
+  const getTierEstimate = (mult) => {
+    if (!budget || !days) return null
+    return `₹${(Math.round((parseInt(budget) * mult / silverMult) / 500) * 500).toLocaleString('en-IN')}`
+  }
+
+  const season = getSeasonFromDate(startDate)
+  const climateDestObj = destinations.find(d =>
+    d.name.toLowerCase().includes(selectedDestination.toLowerCase()) ||
+    selectedDestination.toLowerCase().includes(d.name.toLowerCase())
+  )
+
+  // ── Validation ──────────────────────────────────────────────
+  const validateQuick = () => {
+    const e = {}
+    if (!from.trim()) e.from = 'Enter your city'
+    if (!days || days < 1 || days > 30) e.days = 'Enter 1-30 days'
+    if (!budget || budget < 1000) e.budget = 'Min ₹1,000'
+    setFormErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const validateDetailed = () => {
+    const e = {}
+    if (!from.trim()) e.from = 'Enter your city'
+    if (!days || days < 1 || days > 30) e.days = 'Enter 1-30 days'
+    if (!budget || budget < 1000) e.budget = 'Min ₹1,000'
+    if (!startDate) e.startDate = 'Select start date'
+    if (!selectedTier) e.tier = 'Select a plan tier'
+    if (destinationMode === 'specific' && !selectedDestination) e.destination = 'Select destination'
+    setFormErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const validateCustom = () => {
+    if (!customText.trim() || customText.trim().length < 20) {
+      toast.error('Please describe your trip in at least a few words')
+      return false
+    }
+    return true
+  }
+
+  // ── Generate handlers ────────────────────────────────────────
+  const handleGenerate = async () => {
+    const valid = planMode === 'quick' ? validateQuick() :
+                  planMode === 'detailed' ? validateDetailed() :
+                  validateCustom()
+    if (!valid) return
+    setGenerating(true)
+
+    try {
+      const token = localStorage.getItem('tripzio_token')
+
+      if (planMode === 'custom') {
+        // Custom plan — send free text to AI
+        const response = await fetch(`${API_URL}/itinerary/generate-custom`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ free_text: customText.trim() })
+        })
+        if (!response.ok) {
+          const err = await response.json()
+          throw new Error(err.detail || 'Generation failed')
+        }
+        const itinerary = await response.json()
+        toast.success('Your custom itinerary is ready!')
+        navigate('/itinerary/result', { state: { itinerary } })
+        return
+      }
+
+      const tripParams = {
+        from_city: from,
+        days: parseInt(days),
+        budget: parseInt(budget),
+        trip_type: tripType || null,
+        destination: destinationMode === 'specific' ? selectedDestination : null,
+        destination_mode: destinationMode,
+        plan_tier: selectedTier || suggestedTier || 'silver',
+        transport_mode: transportMode,
+        start_date: startDate || null,
+        is_flexible: isFlexible,
+      }
+
+      if (destinationMode === 'specific' && selectedDestination) {
+        const response = await fetch(`${API_URL}/itinerary/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(tripParams)
+        })
+        if (!response.ok) {
+          const err = await response.json()
+          throw new Error(err.detail || 'Generation failed')
+        }
+        const itinerary = await response.json()
+        navigate('/itinerary/result', { state: { itinerary } })
+      } else {
+        const response = await fetch(`${API_URL}/itinerary/suggest-destinations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(tripParams)
+        })
+        if (!response.ok) {
+          const err = await response.json()
+          throw new Error(err.detail || 'Suggestion failed')
+        }
+        const data = await response.json()
+        navigate('/destinations/suggest', { state: { suggestions: data.suggestions, tripParams } })
+      }
+    } catch (err) {
+      toast.error(err.message || 'Something went wrong. Please try again.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const inputBase = (err) => ({
+    width: '100%', padding: '11px 14px',
+    background: 'white',
+    border: `1.5px solid ${err ? '#fca5a5' : '#e2e8f0'}`,
+    borderRadius: '10px', color: '#0f172a',
+    fontSize: '14px', fontFamily: 'Inter, sans-serif',
+    outline: 'none', transition: 'border 0.2s',
+  })
+
+  const stepLabel = (color, text) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+      <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '6px', height: '6px', background: 'white', borderRadius: '50%' }} />
+      </div>
+      <span style={{ fontSize: '11px', fontWeight: '700', color, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{text}</span>
+    </div>
+  )
+
+  const quickReady = from && days && budget
+  const detailedReady = from && days && budget && startDate && selectedTier && (destinationMode === 'suggest' || selectedDestination)
+  const customReady = customText.trim().length >= 20
+  const isReady = planMode === 'quick' ? quickReady : planMode === 'detailed' ? detailedReady : customReady
+
+  const modeConfig = {
+    quick: { label: '⚡ Quick Plan', desc: '4 inputs · AI picks everything else' },
+    detailed: { label: '🎯 Detailed', desc: 'Full control · Dates, tier, destination' },
+    custom: { label: '✍️ Custom Plan', desc: 'Any language · Multi-city circuits' },
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        input::placeholder, textarea::placeholder { color: #94a3b8; }
+        input:focus, textarea:focus { border-color: #0d9488 !important; box-shadow: 0 0 0 3px rgba(13,148,136,0.1) !important; }
+        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.4; }
+        .dest-photo-card { transition: all 0.25s ease; }
+        .dest-photo-card:hover { transform: translateY(-5px) !important; box-shadow: 0 16px 40px rgba(0,0,0,0.14) !important; }
+        .tier-card { transition: all 0.2s ease; }
+        .tier-card:hover { transform: translateY(-2px); }
+        .gen-btn { transition: all 0.2s ease; }
+        .gen-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(13,148,136,0.45) !important; }
+        .mode-btn { transition: all 0.2s ease; }
+        .mode-btn:hover { background: rgba(255,255,255,0.12) !important; }
+        .sample-chip:hover { border-color: #0d9488 !important; background: #f0fdfa !important; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+      `}</style>
+
+      <Navbar />
+
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 24px' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: '32px', animation: 'fadeUp 0.4s ease' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.2)', borderRadius: '20px', padding: '5px 14px', marginBottom: '14px' }}>
+            <div style={{ width: '6px', height: '6px', background: '#0d9488', borderRadius: '50%', animation: 'blink 2s infinite' }} />
+            <span style={{ fontSize: '11px', color: '#0d9488', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>AI-Powered</span>
+          </div>
+          <h1 style={{ fontSize: 'clamp(28px,4.5vw,46px)', fontWeight: '900', color: '#0f172a', marginBottom: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-1px', lineHeight: 1.1 }}>
+            Where to next, {user?.full_name?.split(' ')[0]}? 🌏
+          </h1>
+          <p style={{ fontSize: '15px', color: '#64748b', lineHeight: 1.6, maxWidth: '480px' }}>
+            Tell us a little — our AI builds your perfect Indian itinerary.
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '14px', marginBottom: '32px' }}>
+          {[
+            { label: 'Trips Planned', value: '0', sub: '✦ Plan your first trip today', subColor: '#0284c7', action: 'Start planning →', iconBg: 'linear-gradient(135deg,#0ea5e9,#0284c7)', icon: <Plane size={18} color="white" /> },
+            { label: 'Saved Trips', value: '0', sub: '✦ Save trips you love', subColor: '#e11d48', action: 'Explore trips →', iconBg: 'linear-gradient(135deg,#f43f5e,#e11d48)', icon: <Heart size={18} color="white" /> },
+            { label: 'Destinations', value: '0', sub: '✦ 500+ destinations ready', subColor: '#0f766e', action: 'View trending →', iconBg: 'linear-gradient(135deg,#0d9488,#0f766e)', icon: <MapPin size={18} color="white" /> },
+            { label: 'Days Travelled', value: '0', sub: '✦ Life is short, travel more', subColor: '#d97706', action: 'Get inspired →', iconBg: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: <Calendar size={18} color="white" /> },
+          ].map((s, i) => (
+            <div key={i} style={{ background: 'white', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '20px', padding: '22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', animation: `fadeUp ${0.3 + i * 0.08}s ease`, cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: s.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.15)' }}>{s.icon}</div>
+                <span style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '3px 8px', borderRadius: '10px' }}>Live in M2</span>
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: '900', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginTop: '4px' }}>{s.label}</div>
+              <div style={{ fontSize: '12px', color: s.subColor, marginTop: '4px', fontWeight: '500' }}>{s.sub}</div>
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+                <span style={{ fontSize: '11px', color: s.subColor, fontWeight: '700' }}>{s.action}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── MAIN PLANNER ── */}
+        <div style={{ background: 'white', borderRadius: '28px', overflow: 'hidden', marginBottom: '52px', boxShadow: '0 4px 32px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.05)', animation: 'fadeUp 0.5s ease' }}>
+
+          {/* Planner Header */}
+          <div style={{ background: 'linear-gradient(135deg,#0f172a 0%,#134e4a 100%)', padding: '24px 32px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(13,148,136,0.3)', border: '1px solid rgba(13,148,136,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Sparkles size={18} color="#5eead4" />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '19px', fontWeight: '800', color: 'white', margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Plan your trip
+                  </h2>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, marginTop: '2px' }}>
+                    {modeConfig[planMode].desc}
+                  </p>
+                </div>
+              </div>
+
+              {/* Mode Toggle — 3 buttons */}
+              <div style={{ display: 'flex', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: '14px', padding: '4px', gap: '4px' }}>
+                {Object.entries(modeConfig).map(([id, cfg]) => (
+                  <button key={id}
+                    className="mode-btn"
+                    onClick={() => { setPlanMode(id); if (id === 'detailed') setShowDetailed(true) }}
+                    style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: planMode === id ? 'white' : 'transparent', color: planMode === id ? '#0f172a' : '#94a3b8', fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif', boxShadow: planMode === id ? '0 2px 8px rgba(0,0,0,0.15)' : 'none', whiteSpace: 'nowrap' }}>
+                    {cfg.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: '32px' }}>
+
+            {/* ── CUSTOM PLAN TAB ── */}
+            {planMode === 'custom' && (
+              <div style={{ animation: 'fadeUp 0.3s ease' }}>
+
+                {/* Intro banner */}
+                <div style={{ background: 'linear-gradient(135deg,#f0fdfa,#eff6ff)', border: '1px solid #99f6e4', borderRadius: '16px', padding: '20px 24px', marginBottom: '24px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Globe size={20} color="white" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      Tell us your dream trip — in any language
+                    </h3>
+                    <p style={{ fontSize: '13px', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Single destination or multi-city circuit — Hindi, English, or mixed. Our AI understands it all and builds your complete plan.
+                    </p>
+                  </div>
+                </div>
+
+                {/* What you can do chips */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                  {[
+                    { icon: <Route size={12} />, label: 'Multi-city circuits' },
+                    { icon: <MessageSquare size={12} />, label: 'Hindi / English / Mixed' },
+                    { icon: <Tag size={12} />, label: 'Mention budget & dates' },
+                    { icon: <Lightbulb size={12} />, label: 'Any trip type' },
+                  ].map((chip, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '20px', fontSize: '12px', fontWeight: '600', color: '#374151' }}>
+                      <span style={{ color: '#0d9488' }}>{chip.icon}</span>
+                      {chip.label}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Main text area */}
+                <div style={{ position: 'relative', marginBottom: '16px' }}>
+                  <textarea
+                    ref={customTextRef}
+                    value={customText}
+                    onChange={e => { setCustomText(e.target.value); setCustomCharCount(e.target.value.length) }}
+                    placeholder={`अपना सपनों का सफर बताइए...\n\nExamples:\n• "5 days Shimla + Manali from Delhi, ₹25,000, couple trip"\n• "Kolkata se 7 din — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, adventure"\n• "Kerala road trip — Munnar 2 days, Alleppey 2 days, Kovalam 2 days, family of 4, ₹40,000"`}
+                    style={{ width: '100%', minHeight: '180px', padding: '16px', background: '#f8fafc', border: `1.5px solid ${customText.length > 0 ? '#0d9488' : '#e2e8f0'}`, borderRadius: '16px', color: '#0f172a', fontSize: '14px', fontFamily: 'Inter, sans-serif', outline: 'none', resize: 'vertical', lineHeight: 1.7, transition: 'border 0.2s' }}
+                  />
+                  <div style={{ position: 'absolute', bottom: '12px', right: '14px', fontSize: '11px', color: customCharCount > 500 ? '#ef4444' : '#94a3b8', fontWeight: '500' }}>
+                    {customCharCount}/500
+                  </div>
+                </div>
+
+                {/* Sample prompts */}
+                <div style={{ marginBottom: '24px' }}>
+                  <button
+                    onClick={() => setShowSamples(!showSamples)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: '#0d9488', fontSize: '13px', fontWeight: '700', cursor: 'pointer', padding: '0 0 12px', fontFamily: 'Inter, sans-serif' }}>
+                    <Lightbulb size={14} />
+                    {showSamples ? 'Hide examples' : 'Show example prompts'}
+                    {showSamples ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+
+                  {showSamples && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', animation: 'fadeUp 0.2s ease' }}>
+                      {SAMPLE_PROMPTS.map((sample, i) => (
+                        <div key={i}
+                          className="sample-chip"
+                          onClick={() => { setCustomText(sample.text); setCustomCharCount(sample.text.length); customTextRef.current?.focus() }}
+                          style={{ padding: '12px 16px', background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                          <span style={{ padding: '2px 8px', background: '#f0fdfa', color: '#0d9488', borderRadius: '8px', fontSize: '10px', fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0, marginTop: '1px' }}>{sample.lang}</span>
+                          <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>{sample.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tips */}
+                <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '14px 18px', marginBottom: '24px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '800', color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Lightbulb size={12} /> For best results mention
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '6px' }}>
+                    {[
+                      '📍 Your starting city',
+                      '📅 Days per destination',
+                      '💰 Total budget (₹)',
+                      '👥 Trip type (family/solo/couple)',
+                      '🗓 Travel month or dates',
+                      '✈️ Preferred transport',
+                    ].map((tip, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#92400e', fontWeight: '500' }}>
+                        <CheckCircle size={11} color="#d97706" />
+                        {tip}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── QUICK / DETAILED TABS ── */}
+            {planMode !== 'custom' && (
+              <>
+                {/* Core 4 inputs */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: '18px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>Travelling From</label>
+                    <div style={{ position: 'relative' }}>
+                      <MapPin size={14} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                      <input type="text" placeholder="Kolkata" value={from}
+                        onChange={e => { setFrom(e.target.value); setFormErrors(p => ({ ...p, from: '' })) }}
+                        style={{ ...inputBase(formErrors.from), paddingLeft: '34px' }} />
+                    </div>
+                    {formErrors.from && <p style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>⚠ {formErrors.from}</p>}
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>Number of Days</label>
+                    <input type="number" placeholder="5" min="1" max="30" value={days}
+                      onChange={e => { setDays(e.target.value); setFormErrors(p => ({ ...p, days: '' })) }}
+                      style={inputBase(formErrors.days)} />
+                    {formErrors.days
+                      ? <p style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>⚠ {formErrors.days}</p>
+                      : startDate && days ? <p style={{ color: '#0d9488', fontSize: '11px', marginTop: '4px', fontWeight: '600' }}>↩ Returns {addDays(startDate, days)}</p> : null}
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>Total Budget (₹)</label>
+                    <input type="number" placeholder="15000" min="1000" value={budget}
+                      onChange={e => { setBudget(e.target.value); setFormErrors(p => ({ ...p, budget: '' })); setSelectedTier(null) }}
+                      style={inputBase(formErrors.budget)} />
+                    {formErrors.budget
+                      ? <p style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>⚠ {formErrors.budget}</p>
+                      : budget && days ? <p style={{ color: '#0ea5e9', fontSize: '11px', marginTop: '4px', fontWeight: '600' }}>≈ ₹{Math.round(budget / days).toLocaleString('en-IN')}/day</p> : null}
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>Trip Type</label>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {['Family', 'Solo', 'Couple', 'Friends', 'Adventure'].map(t => (
+                        <button key={t} onClick={() => setTripType(tripType === t ? '' : t)}
+                          style={{ padding: '6px 13px', borderRadius: '20px', border: `1.5px solid ${tripType === t ? '#0d9488' : '#e2e8f0'}`, background: tripType === t ? '#f0fdfa' : 'white', color: tripType === t ? '#0d9488' : '#64748b', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif' }}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick banner */}
+                {planMode === 'quick' && (
+                  <div style={{ padding: '13px 18px', background: 'linear-gradient(135deg,#f0fdfa,#eff6ff)', border: '1px solid #99f6e4', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Sparkles size={14} color="white" />
+                    </div>
+                    <span style={{ fontSize: '13px', color: '#0f766e', fontWeight: '500', lineHeight: 1.5 }}>
+                      AI picks the <strong>best destination</strong>, <strong>plan tier</strong>, travel dates and transport for your budget and season
+                    </span>
+                  </div>
+                )}
+
+                {/* Expand toggle */}
+                {planMode === 'quick' && (
+                  <button onClick={() => { setShowDetailed(!showDetailed); if (!showDetailed) setPlanMode('detailed') }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#64748b', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: '0', fontFamily: 'Inter, sans-serif', marginBottom: showDetailed ? '24px' : '0' }}>
+                    <Settings2 size={14} />
+                    {showDetailed ? 'Hide advanced options' : 'Customise — dates, destination, tier & transport'}
+                    {showDetailed ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                )}
+
+                {/* Detailed section */}
+                {(showDetailed || planMode === 'detailed') && (
+                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '30px', marginTop: '24px' }}>
+
+                    {/* STEP 1 — Dates */}
+                    <div style={{ marginBottom: '28px' }}>
+                      {stepLabel('#0ea5e9', 'Step 1 — Travel Dates')}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(185px,1fr))', gap: '16px' }}>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>Start Date</label>
+                          <input type="date" min={getTodayString()} value={startDate}
+                            onChange={e => { setStartDate(e.target.value); setFormErrors(p => ({ ...p, startDate: '' })) }}
+                            style={{ ...inputBase(formErrors.startDate), colorScheme: 'light' }} />
+                          {formErrors.startDate && <p style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>⚠ {formErrors.startDate}</p>}
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>Return Date</label>
+                          {startDate && days ? (
+                            <div style={{ padding: '11px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Calendar size={14} color="#16a34a" />
+                              <span style={{ fontSize: '14px', fontWeight: '700', color: '#15803d' }}>{addDays(startDate, days)}</span>
+                            </div>
+                          ) : (
+                            <div style={{ padding: '11px 14px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '10px' }}>
+                              <span style={{ fontSize: '13px', color: '#94a3b8' }}>Auto from start date + days</span>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>Flexibility</label>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {[{ val: false, label: '📌 Fixed' }, { val: true, label: '🔄 ±3 days' }].map(opt => (
+                              <button key={String(opt.val)} onClick={() => setIsFlexible(opt.val)}
+                                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: `1.5px solid ${isFlexible === opt.val ? '#0d9488' : '#e2e8f0'}`, background: isFlexible === opt.val ? '#f0fdfa' : 'white', color: isFlexible === opt.val ? '#0d9488' : '#64748b', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* STEP 2 — Tier */}
+                    <div style={{ marginBottom: '28px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        {stepLabel('#f59e0b', 'Step 2 — Experience Tier')}
+                        {suggestedTier && (
+                          <span style={{ fontSize: '11px', color: '#16a34a', background: '#dcfce7', border: '1px solid #86efac', padding: '3px 12px', borderRadius: '20px', fontWeight: '700', marginBottom: '16px' }}>
+                            ✓ Best match: {planTiers.find(t => t.id === suggestedTier)?.label}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(108px,1fr))', gap: '10px' }}>
+                        {planTiers.map(tier => {
+                          const isSelected = selectedTier === tier.id
+                          const isSugg = suggestedTier === tier.id
+                          return (
+                            <div key={tier.id} style={{ position: 'relative' }}>
+                              {isSugg && !isSelected && (
+                                <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', background: '#16a34a', color: 'white', fontSize: '8px', fontWeight: '800', padding: '3px 9px', borderRadius: '10px', whiteSpace: 'nowrap', zIndex: 1, boxShadow: '0 2px 6px rgba(22,163,74,0.3)' }}>
+                                  BEST MATCH
+                                </div>
+                              )}
+                              <button className="tier-card"
+                                onClick={() => { setSelectedTier(tier.id); setFormErrors(p => ({ ...p, tier: '' })) }}
+                                style={{ width: '100%', padding: '16px 10px', borderRadius: '16px', border: `2px solid ${isSelected ? tier.color : '#e2e8f0'}`, background: isSelected ? tier.bg : 'white', cursor: 'pointer', textAlign: 'center', fontFamily: 'Inter, sans-serif', boxShadow: isSelected ? `0 4px 16px ${tier.color}25` : '0 1px 4px rgba(0,0,0,0.04)' }}>
+                                <div style={{ fontSize: '24px', marginBottom: '7px' }}>{tier.emoji}</div>
+                                <div style={{ fontSize: '12px', fontWeight: '800', color: isSelected ? tier.color : '#475569', marginBottom: '2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{tier.label}</div>
+                                <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '7px' }}>{tier.tagline}</div>
+                                {budget && days && (
+                                  <div style={{ fontSize: '11px', fontWeight: '700', color: isSelected ? tier.color : '#94a3b8', background: isSelected ? `${tier.color}15` : '#f8fafc', padding: '3px 0', borderRadius: '6px' }}>
+                                    {getTierEstimate(tier.multiplier)}
+                                  </div>
+                                )}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {selectedTier && (
+                        <div style={{ marginTop: '14px', padding: '12px 18px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', gap: '28px', flexWrap: 'wrap' }}>
+                          {[{ e: '🏨', k: 'stay' }, { e: '🚌', k: 'transport' }, { e: '🍽️', k: 'food' }].map(item => (
+                            <div key={item.k} style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: '#374151', fontWeight: '500' }}>
+                              <span>{item.e}</span><span>{planTiers.find(t => t.id === selectedTier)?.[item.k]}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* STEP 3 — Destination */}
+                    <div style={{ marginBottom: '28px' }}>
+                      {stepLabel('#8b5cf6', 'Step 3 — Where To?')}
+                      {/* Multi-city hint */}
+                      <div
+                        onClick={() => setPlanMode('custom')}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '10px',
+                          padding: '10px 16px', marginBottom: '16px',
+                          background: '#faf5ff', border: '1px dashed #c4b5fd',
+                          borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f3e8ff'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#faf5ff'}>
+                        <span style={{ fontSize: '16px' }}>✍️</span>
+                        <div>
+                          <span style={{ fontSize: '13px', color: '#7c3aed', fontWeight: '600' }}>
+                            Planning a multi-city circuit?
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '6px' }}>
+                            Switch to Custom Plan — type your entire route in any language
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700', marginLeft: 'auto' }}>
+                          Switch →
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', marginBottom: '18px' }}>
+                        {[
+                          { val: 'suggest', label: '✨ Suggest me', sub: 'AI picks best match' },
+                          { val: 'specific', label: '📍 I know where', sub: 'I have a destination' }
+                        ].map(opt => (
+                          <button key={opt.val}
+                            onClick={() => { setDestinationMode(opt.val); setSelectedDestination(''); setFormErrors(p => ({ ...p, destination: '' })) }}
+                            style={{ flex: 1, padding: '13px 18px', borderRadius: '14px', border: `2px solid ${destinationMode === opt.val ? '#8b5cf6' : '#e2e8f0'}`, background: destinationMode === opt.val ? '#f5f3ff' : 'white', color: destinationMode === opt.val ? '#7c3aed' : '#64748b', cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s', boxShadow: destinationMode === opt.val ? '0 4px 14px rgba(139,92,246,0.15)' : 'none' }}>
+                            <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '2px' }}>{opt.label}</div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.sub}</div>
+                          </button>
+                        ))}
+                      </div>
+
+                      {destinationMode === 'specific' && (
+                        <div>
+                          <div style={{ position: 'relative', marginBottom: '14px' }}>
+                            <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                            <input type="text" placeholder="Type any destination — Coorg, Spiti, Bali..."
+                              value={selectedDestination}
+                              onChange={e => { setSelectedDestination(e.target.value); setFormErrors(p => ({ ...p, destination: '' })) }}
+                              style={{ ...inputBase(false), paddingLeft: '38px', paddingRight: '38px', borderColor: selectedDestination ? '#8b5cf6' : '#e2e8f0' }} />
+                            {selectedDestination && (
+                              <button onClick={() => setSelectedDestination('')} style={{ position: 'absolute', right: '13px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: 0 }}>×</button>
+                            )}
+                          </div>
+                          <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>— or pick from popular —</p>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: '10px', marginBottom: '12px' }}>
+                            {(showAllDest ? destinations : destinations.slice(0, 4)).map(dest => (
+                              <button key={dest.name}
+                                onClick={() => { setSelectedDestination(dest.name); setFormErrors(p => ({ ...p, destination: '' })) }}
+                                style={{ padding: '11px 13px', borderRadius: '12px', border: `1.5px solid ${selectedDestination === dest.name ? dest.accent : '#e2e8f0'}`, background: selectedDestination === dest.name ? dest.lightBg : 'white', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: dest.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{dest.icon}</div>
+                                <div>
+                                  <div style={{ fontSize: '12px', fontWeight: '700', color: selectedDestination === dest.name ? dest.accent : '#0f172a' }}>{dest.name}</div>
+                                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>₹{dest.budget}+</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                          <button onClick={() => setShowAllDest(!showAllDest)}
+                            style={{ background: 'none', border: 'none', color: '#0d9488', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'Inter, sans-serif', padding: 0 }}>
+                            {showAllDest ? <><ChevronUp size={13} />Show less</> : <><ChevronDown size={13} />Show all {destinations.length} destinations</>}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* STEP 4 — Transport */}
+                    <div>
+                      {stepLabel('#22c55e', 'Step 4 — Transport Preference')}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px' }}>
+                        {transportModes.map(mode => (
+                          <button key={mode.id} onClick={() => setTransportMode(mode.id)}
+                            style={{ padding: '14px 10px', borderRadius: '14px', border: `2px solid ${transportMode === mode.id ? mode.color : '#e2e8f0'}`, background: transportMode === mode.id ? mode.bg : 'white', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif', boxShadow: transportMode === mode.id ? `0 3px 10px ${mode.color}25` : 'none' }}>
+                            <div style={{ color: transportMode === mode.id ? mode.color : '#94a3b8', display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>{mode.icon}</div>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: transportMode === mode.id ? mode.color : '#64748b', marginBottom: '2px' }}>{mode.label}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>{mode.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── GENERATE BUTTON ── */}
+            <div style={{ marginTop: '28px', paddingTop: '24px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <button
+                className="gen-btn"
+                onClick={handleGenerate}
+                disabled={generating || !isReady}
+                style={{ padding: '15px 36px', background: generating || !isReady ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: generating || !isReady ? '#94a3b8' : 'white', border: 'none', borderRadius: '16px', fontSize: '15px', fontWeight: '800', cursor: generating || !isReady ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '9px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating && isReady ? '0 4px 18px rgba(13,148,136,0.4)' : 'none', letterSpacing: '-0.2px' }}>
+                {generating ? (
+                  <><div style={{ width: '17px', height: '17px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                    {planMode === 'custom' ? 'Building your custom plan...' : 'Generating your trip...'}</>
+                ) : (
+                  <>{planMode === 'custom' ? <Send size={17} /> : <Zap size={17} fill="currentColor" />}
+                    {planMode === 'custom' ? 'Build My Custom Plan' : `Generate ${planMode === 'quick' ? 'Quick ' : ''}Itinerary`}</>
+                )}
+              </button>
+
+              {!isReady && planMode !== 'custom' && (
+                <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+                  {planMode === 'quick' ? 'Fill city, days and budget to continue' : 'Complete all steps above'}
+                </p>
+              )}
+              {!isReady && planMode === 'custom' && customText.length > 0 && customText.length < 20 && (
+                <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>Write a bit more to describe your trip</p>
+              )}
+
+              {isReady && planMode !== 'custom' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '14px' }}>
+                  <span style={{ fontSize: '20px' }}>{planTiers.find(t => t.id === (selectedTier || suggestedTier))?.emoji || '✨'}</span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
+                      {planTiers.find(t => t.id === (selectedTier || suggestedTier))?.label || 'Auto'} Plan · {days} days
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>
+                      {from} → {destinationMode === 'suggest' || !selectedDestination ? 'AI picks destination' : selectedDestination}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isReady && planMode === 'custom' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: '#f0fdfa', border: '1.5px solid #99f6e4', borderRadius: '14px' }}>
+                  <CheckCircle size={16} color="#0d9488" />
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#0f766e' }}>Ready — AI will parse and plan your trip</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── POPULAR DESTINATIONS ── */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
+            <div>
+              <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#0f172a', margin: '0 0 8px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.3px' }}>
+                Popular Destinations
+              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Handpicked experiences across India</p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '20px', fontSize: '11px', fontWeight: '700', color: '#b45309' }}>
+                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block', animation: 'blink 2s infinite' }} />
+                    Trending now
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '20px', fontSize: '11px', fontWeight: '700', color: '#15803d' }}>
+                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                    Best for this season
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: '1.5px solid #e2e8f0', color: '#0d9488', fontSize: '13px', fontWeight: '700', cursor: 'pointer', padding: '9px 18px', borderRadius: '12px', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>
+              View all <ArrowRight size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: '20px' }}>
+            {destinations.map((dest, i) => (
+              <div key={i}
+                className="dest-photo-card"
+                onClick={() => {
+                  setPlanMode('detailed')
+                  setShowDetailed(true)
+                  setDestinationMode('specific')
+                  setSelectedDestination(dest.name)
+                  window.scrollTo({ top: 300, behavior: 'smooth' })
+                }}
+                style={{ background: 'white', border: `2px solid ${selectedDestination === dest.name && planMode !== 'custom' ? dest.accent : 'transparent'}`, borderRadius: '22px', overflow: 'hidden', cursor: 'pointer', boxShadow: selectedDestination === dest.name && planMode !== 'custom' ? `0 8px 28px ${dest.accent}25` : '0 2px 12px rgba(0,0,0,0.07)', animation: `fadeUp ${0.5 + i * 0.07}s ease`, position: 'relative' }}>
+
+                {/* Photo */}
+                <div style={{ position: 'relative', height: '190px', overflow: 'hidden', background: dest.photoBg }}>
+                  <div style={{ position: 'absolute', inset: 0, background: dest.photoBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '64px', opacity: 0.25 }}>{dest.photoEmoji}</span>
+                  </div>
+                  <img src={dest.photo} alt={dest.name}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease' }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                    onError={e => e.currentTarget.style.opacity = '0'} />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '80px', background: 'linear-gradient(to top,rgba(0,0,0,0.6),transparent)', zIndex: 2 }} />
+                  {/* Trending badge */}
+                  <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 3 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', color: 'white', fontSize: '10px', fontWeight: '800', padding: '4px 10px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: dest.badgeColor, display: 'inline-block' }} />
+                      {dest.badge}
+                    </span>
+                  </div>
+                  {/* Rating */}
+                  <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.95)', padding: '5px 10px', borderRadius: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 3 }}>
+                    <Star size={11} fill="#f59e0b" color="#f59e0b" />
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#92400e' }}>{dest.rating}</span>
+                  </div>
+                  {/* Icon */}
+                  <div style={{ position: 'absolute', bottom: '12px', left: '14px', width: '36px', height: '36px', borderRadius: '10px', background: dest.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 10px rgba(0,0,0,0.3)', zIndex: 3 }}>
+                    {dest.icon}
+                  </div>
+                </div>
+
+                {/* Card body */}
+                <div style={{ padding: '18px 20px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', margin: '0 0 3px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{dest.name}</h3>
+                  <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px', fontWeight: '500' }}>{dest.type}</p>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                    {dest.tags.map(tag => (
+                      <span key={tag} style={{ padding: '3px 10px', background: dest.lightBg, border: `1px solid ${dest.border}`, borderRadius: '20px', fontSize: '10px', fontWeight: '700', color: dest.accent }}>{tag}</span>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Clock size={12} color="#94a3b8" />
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>{dest.duration}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>from</span>
+                      <span style={{ fontSize: '15px', fontWeight: '800', color: dest.accent, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>₹{dest.budget}</span>
+                    </div>
+                  </div>
+                  {selectedDestination === dest.name && planMode !== 'custom' && (
+                    <div style={{ marginTop: '12px', padding: '8px 14px', background: dest.lightBg, border: `1px solid ${dest.border}`, borderRadius: '10px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      <CheckCircle size={14} color={dest.accent} />
+                      <span style={{ fontSize: '12px', color: dest.accent, fontWeight: '700' }}>Selected for your trip</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
