@@ -20,6 +20,8 @@ origins = [
     "https://tripzio.io",
     "https://www.tripzio.io",
     "https://tripzio.vercel.app",
+    "https://tripzio-ochre.vercel.app",
+    "https://tripzio-8zb9g5l4n-tripzio-s-projects.vercel.app",
 ]
 
 app.add_middleware(
