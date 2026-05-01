@@ -1,445 +1,490 @@
 /**
  * frontend/src/utils/generatePDF.js
- * Tripzio — Beautiful PDF Generator (User + Agent)
- *
- * Install dependency first:
- *   npm install jspdf
- *
- * Usage in ItineraryResult.jsx:
- *   import { generateTripPDF } from '../utils/generatePDF'
- *   generateTripPDF({ data, user, isAgent, clientName })
+ * Tripzio — Premium PDF Generator (User + Agent)
+ * No emojis — jsPDF Helvetica only supports Latin characters
  */
 
 import { jsPDF } from 'jspdf'
 
-// ── Brand colors ──────────────────────────────────────────────
-const C = {
-  teal:       [13, 148, 136],    // #0d9488
-  tealLight:  [240, 253, 250],   // #f0fdfa
-  tealDark:   [15, 118, 110],    // #0f766e
-  navy:       [15, 23, 42],      // #0f172a
-  slate:      [100, 116, 139],   // #64748b
-  slateLight: [241, 245, 249],   // #f1f5f9
-  white:      [255, 255, 255],
-  black:      [0, 0, 0],
-  gold:       [245, 158, 11],    // #f59e0b
-  green:      [22, 163, 74],     // #16a34a
-  greenLight: [240, 253, 244],
-  red:        [239, 68, 68],
-  border:     [226, 232, 240],   // #e2e8f0
+
+// ── Sanitize: strip non-Latin chars that break Helvetica ─────
+// Replaces rupee sign, arrows, and any char > 0xFF with safe equivalents
+function san(str) {
+  if (!str) return ''
+  let s = String(str)
+  // Replace common non-Latin chars that break jsPDF Helvetica
+  const replacements = [
+    [8377, 'Rs.'],  // rupee sign
+    [8594, '->'],   // right arrow
+    [8592, '<-'],   // left arrow
+    [8211, '-'],    // en dash
+    [8212, '--'],   // em dash
+    [8216, "'"],    // left single quote
+    [8217, "'"],    // right single quote
+    [8220, '"'],    // left double quote
+    [8221, '"'],    // right double quote
+  ]
+  let result = ''
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i)
+    const rep = replacements.find(r => r[0] === code)
+    if (rep) { result += rep[1]; continue }
+    result += code <= 255 ? s[i] : ''  // drop anything outside Latin-1
+  }
+  return result
 }
 
-const TIER_COLOR = {
+// ── Palette ───────────────────────────────────────────────────
+const C = {
+  teal:       [13,  148, 136],
+  tealDark:   [15,  118, 110],
+  tealLight:  [232, 249, 246],
+  tealMid:    [153, 246, 228],
+  navy:       [15,  23,  42],
+  navyMid:    [30,  41,  59],
+  slate:      [71,  85,  105],
+  slateLight: [226, 232, 240],
+  muted:      [148, 163, 184],
+  white:      [255, 255, 255],
+  offWhite:   [248, 250, 252],
+  gold:       [217, 119, 6],
+  goldLight:  [254, 243, 199],
+  green:      [21,  128, 61],
+  greenLight: [220, 252, 231],
+  red:        [185, 28,  28],
+}
+
+const TIER_BG = {
+  bronze:   [254, 243, 199],
+  silver:   [241, 245, 249],
+  gold:     [254, 249, 195],
+  diamond:  [239, 246, 255],
+  platinum: [250, 245, 255],
+}
+const TIER_FG = {
   bronze:   [146, 64,  14],
   silver:   [51,  65,  85],
-  gold:     [146, 64,  14],
+  gold:     [133, 77,  14],
   diamond:  [29,  78,  216],
   platinum: [107, 33,  168],
 }
-
-const TIER_EMOJI_LABEL = {
-  bronze:   '🥉 BRONZE',
-  silver:   '🥈 SILVER',
-  gold:     '🥇 GOLD',
-  diamond:  '💎 DIAMOND',
-  platinum: '✨ PLATINUM',
+const TIER_LABEL = {
+  bronze:   'BRONZE PLAN',
+  silver:   'SILVER PLAN',
+  gold:     'GOLD PLAN',
+  diamond:  'DIAMOND PLAN',
+  platinum: 'PLATINUM PLAN',
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Core helpers ──────────────────────────────────────────────
+const PW = 210, ML = 14, MR = 196, CW = MR - ML
 
-const rgb = (arr) => ({ r: arr[0], g: arr[1], b: arr[2] })
+function sf(doc, arr)  { doc.setFillColor(arr[0], arr[1], arr[2]) }
+function sd(doc, arr)  { doc.setDrawColor(arr[0], arr[1], arr[2]) }
+function st(doc, arr)  { doc.setTextColor(arr[0], arr[1], arr[2]) }
 
-function setFill(doc, arr)   { doc.setFillColor(arr[0], arr[1], arr[2]) }
-function setDraw(doc, arr)   { doc.setDrawColor(arr[0], arr[1], arr[2]) }
-function setTextC(doc, arr)  { doc.setTextColor(arr[0], arr[1], arr[2]) }
-
-function rect(doc, x, y, w, h, fill, r = 0) {
-  setFill(doc, fill)
-  if (r > 0) doc.roundedRect(x, y, w, h, r, r, 'F')
-  else doc.rect(x, y, w, h, 'F')
+function box(doc, x, y, w, h, fill, r = 0, stroke = null, sw = 0.3) {
+  sf(doc, fill)
+  if (stroke) { sd(doc, stroke); doc.setLineWidth(sw) }
+  const style = stroke ? 'FD' : 'F'
+  if (r > 0) doc.roundedRect(x, y, w, h, r, r, style)
+  else doc.rect(x, y, w, h, style)
 }
 
-function line(doc, x1, y1, x2, y2, color = C.border, lw = 0.3) {
+function ln(doc, x1, y1, x2, y2, color = C.slateLight, lw = 0.25) {
   doc.setLineWidth(lw)
-  setDraw(doc, color)
+  sd(doc, color)
   doc.line(x1, y1, x2, y2)
 }
 
-function text(doc, str, x, y, opts = {}) {
-  const { size = 10, bold = false, color = C.navy, align = 'left', maxWidth } = opts
+function txt(doc, str, x, y, {
+  size = 10, weight = 'normal', color = C.navy,
+  align = 'left', maxW = null
+} = {}) {
   doc.setFontSize(size)
-  doc.setFont('helvetica', bold ? 'bold' : 'normal')
-  setTextC(doc, color)
-  if (maxWidth) {
-    const lines = doc.splitTextToSize(String(str || ''), maxWidth)
+  doc.setFont('helvetica', weight)
+  st(doc, color)
+  const s = String(str ?? '')
+  if (maxW) {
+    const lines = doc.splitTextToSize(s, maxW)
     doc.text(lines, x, y, { align })
     return lines.length
   }
-  doc.text(String(str || ''), x, y, { align })
+  doc.text(s, x, y, { align })
   return 1
 }
 
-function wrap(doc, str, x, y, maxWidth, opts = {}) {
-  const { size = 9, color = C.slate, lineH = 5 } = opts
+function wrp(doc, str, x, y, maxW, { size = 9, color = C.slate, lh = 5 } = {}) {
   doc.setFontSize(size)
   doc.setFont('helvetica', 'normal')
-  setTextC(doc, color)
-  const lines = doc.splitTextToSize(String(str || ''), maxWidth)
+  st(doc, color)
+  const lines = doc.splitTextToSize(san(String(str ?? '')), maxW)
   doc.text(lines, x, y)
-  return lines.length * lineH
+  return lines.length * lh
 }
 
-// Check if new page needed, add one if so
-function checkPage(doc, y, needed = 30) {
-  if (y + needed > 270) {
-    doc.addPage()
-    return 20
-  }
+function newPage(doc, y, needed = 35) {
+  if (y + needed > 272) { doc.addPage(); return 18 }
   return y
 }
 
-// ── Section header ─────────────────────────────────────────────
-function sectionHeader(doc, y, label, icon = '') {
-  rect(doc, 14, y, 182, 8, C.tealLight, 3)
-  text(doc, `${icon}  ${label}`, 19, y + 5.5, { size: 10, bold: true, color: C.tealDark })
-  return y + 12
+// ── Structural components ─────────────────────────────────────
+
+function pageTopBar(doc, destination) {
+  box(doc, 0, 0, PW, 9, C.navy)
+  ln(doc, 0, 9, PW, 9, C.teal, 0.5)
+  txt(doc, 'TRIPZIO', ML, 6.2, { size: 7, weight: 'bold', color: C.teal })
+  txt(doc, '|  ' + san(destination), ML + 22, 6.2, { size: 7, color: C.muted })
+  txt(doc, 'tripzio.io', MR, 6.2, { size: 7, color: C.muted, align: 'right' })
 }
 
-// ── Pill badge ─────────────────────────────────────────────────
-function pill(doc, x, y, label, bgColor, textColor) {
-  const w = doc.getTextWidth(label) + 8
-  rect(doc, x, y - 4, w, 6, bgColor, 3)
-  text(doc, label, x + 4, y, { size: 7.5, bold: true, color: textColor })
-  return w
-}
-
-// ── Page header (repeated on each page after first) ──────────
-function miniHeader(doc, destination) {
-  rect(doc, 0, 0, 210, 10, C.navy)
-  text(doc, 'TRIPZIO', 14, 6.5, { size: 7, bold: true, color: C.teal })
-  text(doc, `| ${destination}`, 35, 6.5, { size: 7, color: C.slate })
-  text(doc, 'tripzio.io', 196, 6.5, { size: 7, color: C.slate, align: 'right' })
-}
-
-// ── Footer ────────────────────────────────────────────────────
-function footer(doc, pageNum, totalPages, isAgent, agentName) {
-  const y = 285
-  line(doc, 14, y, 196, y, C.border)
+function pageFooter(doc, pageNum, total, isAgent, agentName) {
+  const fy = 283
+  ln(doc, ML, fy, MR, fy, C.slateLight, 0.3)
   const left = isAgent
-    ? `Prepared by ${agentName} · Powered by Tripzio AI`
-    : 'Generated by Tripzio AI · tripzio.io'
-  text(doc, left, 14, y + 5, { size: 7.5, color: C.slate })
-  text(doc, `Page ${pageNum} of ${totalPages}`, 196, y + 5, { size: 7.5, color: C.slate, align: 'right' })
+    ? `Prepared by ${san(agentName)}  |  Powered by Tripzio AI`
+    : 'Generated by Tripzio AI  |  tripzio.io'
+  txt(doc, left, ML, fy + 5, { size: 7, color: C.muted })
+  txt(doc, `Page ${pageNum} / ${total}`, MR, fy + 5, { size: 7, color: C.muted, align: 'right' })
+}
+
+function secHead(doc, y, label) {
+  // Left accent bar + label
+  box(doc, ML, y, 2.5, 7, C.teal)
+  txt(doc, label, ML + 6, y + 5.2, { size: 9.5, weight: 'bold', color: C.navy })
+  ln(doc, ML + 6, y + 7.5, MR, y + 7.5, C.slateLight, 0.25)
+  return y + 13
 }
 
 // ─────────────────────────────────────────────────────────────
-// MAIN EXPORT
+// MAIN
 // ─────────────────────────────────────────────────────────────
 
 export function generateTripPDF({ data, user, isAgent = false, clientName = null }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const PW = 210, ML = 14, MR = 196, CW = MR - ML  // page width, margins, content width
 
-  const agentName  = user?.business_name || user?.full_name || 'Travel Agent'
-  const userName   = user?.full_name || 'Traveler'
-  const tierColor  = TIER_COLOR[data.plan_tier] || TIER_COLOR.silver
-  const tierLabel  = TIER_EMOJI_LABEL[data.plan_tier] || 'SILVER'
+  const agentName = user?.business_name || user?.full_name || 'Travel Agent'
+  const userName  = user?.full_name || 'Traveler'
+  const tier      = data.plan_tier || 'silver'
+  const tierBg    = TIER_BG[tier]  || TIER_BG.silver
+  const tierFg    = TIER_FG[tier]  || TIER_FG.silver
+  const tierLabel = TIER_LABEL[tier] || 'SILVER PLAN'
+  const dest      = san(data.destination || 'Your Trip')
 
-  // ── PAGE 1 — HERO ────────────────────────────────────────────
-  // Dark hero header
-  rect(doc, 0, 0, PW, 72, C.navy)
+  // ══════════════════════════════════════════════════════════
+  // PAGE 1 — COVER
+  // ══════════════════════════════════════════════════════════
 
-  // Teal accent bar
-  rect(doc, 0, 0, PW, 2, C.teal)
+  // Full dark hero
+  box(doc, 0, 0, PW, 80, C.navy)
+  // Top teal stripe
+  box(doc, 0, 0, PW, 2, C.teal)
 
-  // Tripzio wordmark
-  text(doc, 'TRIPZIO', ML, 12, { size: 11, bold: true, color: C.teal })
-  text(doc, 'AI Travel Planner', ML + 28, 12, { size: 8, color: C.slate })
-  text(doc, 'tripzio.io', MR, 12, { size: 8, color: C.slate, align: 'right' })
+  // Brand bar
+  txt(doc, 'TRIPZIO', ML, 14, { size: 13, weight: 'bold', color: C.teal })
+  txt(doc, 'AI TRAVEL PLANNER', ML + 37, 14, { size: 7, color: C.muted })
+  txt(doc, 'tripzio.io', MR, 14, { size: 8, color: C.muted, align: 'right' })
 
-  // Tier pill
-  rect(doc, ML, 17, 30, 7, tierColor, 3)
-  text(doc, tierLabel, ML + 15, 22, { size: 7.5, bold: true, color: C.white, align: 'center' })
+  // Tier badge
+  box(doc, ML, 19, 36, 7, tierBg, 3.5)
+  txt(doc, tierLabel, ML + 18, 24.2, { size: 7.5, weight: 'bold', color: tierFg, align: 'center' })
 
-  // Destination
-  text(doc, data.destination || 'Your Trip', ML, 38, { size: 26, bold: true, color: C.white })
+  // Destination — big
+  txt(doc, dest, ML, 42, { size: 28, weight: 'bold', color: C.white })
 
-  // Trip meta pills
+  // Thin teal underline
+  box(doc, ML, 45, Math.min(doc.getTextWidth(dest) * 0.85, CW), 1, C.teal)
+
+  // Meta row
+  const metaY = 53
   const metaItems = [
-    `📅 ${data.days} Days`,
-    `📍 From ${data.from_city || '—'}`,
-    `💰 ₹${data.budget?.toLocaleString('en-IN') || '—'}`,
-    data.trip_type ? `👤 ${data.trip_type}` : null,
+    `${data.days || '?'} DAYS`,
+    `FROM  ${data.from_city || '--'}`,
+    `BUDGET  Rs.${data.budget?.toLocaleString('en-IN') || '--'}`,
+    data.trip_type ? `${data.trip_type.toUpperCase()} TRIP` : null,
   ].filter(Boolean)
 
-  let px = ML
-  metaItems.forEach(m => {
-    const w = doc.getTextWidth(m) + 10
-    rect(doc, px, 43, w, 7, [255, 255, 255, 0.1], 3) // semi-transparent not supported, use slate
-    rect(doc, px, 43, w, 7, [30, 41, 59], 3)
-    text(doc, m, px + 5, 48, { size: 8, color: [148, 163, 184] })
-    px += w + 4
+  let mx = ML
+  metaItems.forEach((m, i) => {
+    if (i > 0) {
+      // separator dot
+      box(doc, mx, metaY + 1.5, 1.2, 1.2, C.muted)
+      mx += 5
+    }
+    txt(doc, m, mx, metaY + 3.5, { size: 7.5, weight: 'bold', color: C.muted })
+    mx += doc.getTextWidth(m) + 3
   })
 
-  // Summary
-  doc.setFontSize(9)
+  // Summary text
+  doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
-  setTextC(doc, C.slate)
-  const sumLines = doc.splitTextToSize(data.summary || '', CW)
-  doc.text(sumLines.slice(0, 2), ML, 60)
+  st(doc, [148, 163, 184])
+  const sumLines = doc.splitTextToSize(san(data.summary || ''), CW - 10)
+  doc.text(sumLines.slice(0, 2), ML, 63)
 
-  // Agent / User branding strip
-  if (isAgent) {
-    rect(doc, 0, 68, PW, 10, C.teal)
-    text(doc, `Prepared for: ${clientName || 'Your Client'}`, ML, 74.5, { size: 8.5, bold: true, color: C.white })
-    text(doc, `By: ${agentName}`, MR, 74.5, { size: 8.5, color: C.white, align: 'right' })
-  } else {
-    rect(doc, 0, 68, PW, 10, C.teal)
-    text(doc, `Prepared for: ${userName}`, ML, 74.5, { size: 8.5, bold: true, color: C.white })
-    text(doc, `Generated on: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, MR, 74.5, { size: 8.5, color: C.white, align: 'right' })
-  }
+  // Prepared-for strip
+  box(doc, 0, 74, PW, 12, C.teal)
+  const leftLabel = isAgent ? `Prepared for:  ${san(clientName || 'Client')}` : `Prepared for:  ${san(userName)}`
+  const rightLabel = isAgent ? `By:  ${san(agentName)}` : `Date:  ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`
+  txt(doc, leftLabel,  ML, 81.5, { size: 8.5, weight: 'bold', color: C.white })
+  txt(doc, rightLabel, MR, 81.5, { size: 8.5, color: C.white, align: 'right' })
 
-  let y = 90
+  let y = 95
 
-  // ── HIGHLIGHTS ─────────────────────────────────────────────
+  // ── HIGHLIGHTS ──────────────────────────────────────────────
   if (data.highlights?.length > 0) {
-    y = sectionHeader(doc, y, 'TRIP HIGHLIGHTS', '✨')
-    const cols = 2
-    const colW = CW / cols - 4
+    y = secHead(doc, y, 'TRIP HIGHLIGHTS')
+    const colW = (CW - 6) / 2
     data.highlights.slice(0, 6).forEach((h, i) => {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      const hx = ML + col * (colW + 8)
-      const hy = y + row * 12
-
-      rect(doc, hx, hy - 4, colW, 10, C.tealLight, 3)
-      // Teal dot
-      setFill(doc, C.teal)
-      doc.circle(hx + 4, hy + 0.5, 1.5, 'F')
-      text(doc, h, hx + 8, hy + 1, { size: 8.5, maxWidth: colW - 10 })
-    })
-    y += Math.ceil(data.highlights.slice(0, 6).length / 2) * 12 + 8
-  }
-
-  // ── COST BREAKDOWN ─────────────────────────────────────────
-  y = checkPage(doc, y, 50)
-  if (data.cost_breakdown && Object.keys(data.cost_breakdown).length > 0) {
-    y = sectionHeader(doc, y, 'COST BREAKDOWN', '💰')
-
-    const cb = data.cost_breakdown
-    const costRows = [
-      { label: 'Transport',     val: cb.transport,     icon: '🚂' },
-      { label: 'Accommodation', val: cb.accommodation, icon: '🏨' },
-      { label: 'Food',          val: cb.food,          icon: '🍽' },
-      { label: 'Activities',    val: cb.activities,    icon: '🎯' },
-      { label: 'Miscellaneous', val: cb.miscellaneous, icon: '📦' },
-    ].filter(r => r.val)
-
-    const colW2 = CW / 2 - 4
-    costRows.forEach((r, i) => {
       const col = i % 2
       const row = Math.floor(i / 2)
-      const cx = ML + col * (colW2 + 8)
-      const cy = y + row * 11
+      const hx = ML + col * (colW + 6)
+      const hy = y + row * 13
 
-      rect(doc, cx, cy - 3.5, colW2, 9, C.slateLight, 3)
-      text(doc, `${r.icon} ${r.label}`, cx + 4, cy + 1.5, { size: 8, color: C.slate })
-      text(doc, r.val, cx + colW2 - 4, cy + 1.5, { size: 9, bold: true, color: C.navy, align: 'right' })
+      box(doc, hx, hy, colW, 11, C.tealLight, 3)
+      // Left accent
+      box(doc, hx, hy, 2.5, 11, C.teal, 1.5)
+      txt(doc, san(h), hx + 6, hy + 7, { size: 8, maxW: colW - 9 })
     })
+    y += Math.ceil(Math.min(data.highlights.length, 6) / 2) * 13 + 6
+  }
 
-    y += Math.ceil(costRows.length / 2) * 11 + 4
+  // ── COST BREAKDOWN ──────────────────────────────────────────
+  y = newPage(doc, y, 55)
+  if (data.cost_breakdown) {
+    y = secHead(doc, y, 'COST BREAKDOWN')
+    const cb = data.cost_breakdown
+    const rows = [
+      { label: 'Transport',      val: san(cb.transport) },
+      { label: 'Accommodation',  val: san(cb.accommodation) },
+      { label: 'Food & Dining',  val: san(cb.food) },
+      { label: 'Activities',     val: san(cb.activities) },
+      { label: 'Miscellaneous',  val: san(cb.miscellaneous) },
+    ].filter(r => r.val)
+
+    const cw2 = (CW - 5) / 2
+    rows.forEach((r, i) => {
+      const col = i % 2
+      const row = Math.floor(i / 2)
+      const cx = ML + col * (cw2 + 5)
+      const cy = y + row * 12
+
+      box(doc, cx, cy, cw2, 10, C.offWhite, 3, C.slateLight)
+      txt(doc, r.label, cx + 5,        cy + 6.5, { size: 8,   color: C.slate })
+      txt(doc, r.val,   cx + cw2 - 4,  cy + 6.5, { size: 8.5, weight: 'bold', color: C.navy, align: 'right' })
+    })
+    y += Math.ceil(rows.length / 2) * 12 + 5
 
     // Total bar
-    rect(doc, ML, y, CW, 12, C.navy, 4)
-    text(doc, 'TOTAL ESTIMATED COST', ML + 6, y + 8, { size: 9, bold: true, color: C.teal })
-    text(doc, cb.total || '—', MR - 4, y + 8, { size: 12, bold: true, color: C.white, align: 'right' })
-    y += 18
+    box(doc, ML, y, CW, 13, C.navy, 4)
+    box(doc, ML, y, 4, 13, C.teal, 2)
+    txt(doc, 'TOTAL ESTIMATED COST', ML + 8, y + 8.5, { size: 9, weight: 'bold', color: C.teal })
+    txt(doc, san(String(cb.total || '--')), MR - 5, y + 8.5, { size: 11, weight: 'bold', color: C.white, align: 'right' })
+    y += 20
   }
 
-  // ── DAY PLANS ──────────────────────────────────────────────
-  y = checkPage(doc, y, 20)
+  // ── DAY-WISE ITINERARY ───────────────────────────────────────
+  y = newPage(doc, y, 20)
   if (data.day_plans?.length > 0) {
-    y = sectionHeader(doc, y, 'DAY-WISE ITINERARY', '📅')
+    y = secHead(doc, y, 'DAY-WISE ITINERARY')
 
-    data.day_plans.forEach((day, i) => {
-      y = checkPage(doc, y, 40)
+    data.day_plans.forEach((day, idx) => {
+      // Estimate this day's total height to decide if we need a new page
+      const slotCount = [day.morning, day.afternoon, day.evening].filter(Boolean).length
+      const extrasCount = [day.meals, day.stay].filter(Boolean).length
+      const estimatedHeight = 14 + (slotCount * 22) + (extrasCount * 8) + 12
+      y = newPage(doc, y, estimatedHeight)
 
-      if (i > 0) {
-        miniHeader(doc, data.destination)
-        y = Math.max(y, 20)
-      }
+      if (y < 20) y = 20
 
-      // Day header
-      rect(doc, ML, y, CW, 10, C.teal, 3)
-      text(doc, `Day ${day.day}`, ML + 5, y + 7, { size: 10, bold: true, color: C.white })
-      text(doc, day.title || '', ML + 22, y + 7, { size: 9, color: [204, 251, 241] })
+      // Day header bar
+      box(doc, ML, y, CW, 11, C.teal, 3)
+      txt(doc, `DAY ${day.day}`, ML + 5, y + 7.5, { size: 9, weight: 'bold', color: C.white })
+      txt(doc, san(day.title || ''), ML + 24, y + 7.5, { size: 8.5, color: [204, 251, 241] })
       if (day.estimated_cost) {
-        text(doc, day.estimated_cost, MR - 3, y + 7, { size: 8.5, bold: true, color: C.white, align: 'right' })
+        txt(doc, san(day.estimated_cost), MR - 4, y + 7.5, { size: 8.5, weight: 'bold', color: C.white, align: 'right' })
       }
-      y += 13
+      y += 14
 
-      // Time slots
-      const slots = [
-        { label: '🌅 Morning',   val: day.morning },
-        { label: '☀️ Afternoon', val: day.afternoon },
-        { label: '🌙 Evening',   val: day.evening },
+      // ── Time slots — 3-column icon-tab layout ──────────────────
+      const SLOT_ICON_W = 24  // left icon column width
+      const SLOT_TEXT_W = CW - SLOT_ICON_W - 4
+
+      const slotDefs = [
+        { label: 'MORNING',   icon: 'AM', val: san(day.morning),   bg: [232,249,246], fg: C.tealDark, bar: C.teal },
+        { label: 'AFTERNOON', icon: 'PM', val: san(day.afternoon), bg: [239,246,255], fg: [29,78,216], bar: [59,130,246] },
+        { label: 'EVENING',   icon: 'EV', val: san(day.evening),   bg: [250,245,255], fg: [107,33,168], bar: [139,92,246] },
       ].filter(s => s.val)
 
-      slots.forEach(slot => {
-        y = checkPage(doc, y, 16)
-        text(doc, slot.label, ML + 2, y, { size: 8, bold: true, color: C.tealDark })
-        y += 4
-        const h = wrap(doc, slot.val, ML + 2, y, CW - 4, { size: 8.5, color: C.navy, lineH: 5 })
-        y += h + 2
+      slotDefs.forEach(slot => {
+        y = newPage(doc, y, 20)
+        if (y < 20) y = 20
+
+        // Estimate text height for this slot
+        doc.setFontSize(9)
+        const textLines = doc.splitTextToSize(slot.val, SLOT_TEXT_W - 4)
+        const textH = Math.max(textLines.length * 5, 10)
+        const rowH = textH + 10  // padding top + bottom
+
+        // Row background
+        box(doc, ML, y, CW, rowH, slot.bg, 3)
+
+        // Left colour tab (icon column)
+        box(doc, ML, y, SLOT_ICON_W, rowH, slot.bar, 3)
+
+        // Icon label (centered in tab)
+        txt(doc, slot.icon, ML + SLOT_ICON_W / 2, y + rowH / 2 - 1.5, {
+          size: 7.5, weight: 'bold', color: C.white, align: 'center'
+        })
+        // Slot name below icon
+        txt(doc, slot.label, ML + SLOT_ICON_W / 2, y + rowH / 2 + 3.5, {
+          size: 5.5, color: [255,255,255], align: 'center'
+        })
+
+        // Text content in right column
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'normal')
+        st(doc, C.navy)
+        doc.text(textLines, ML + SLOT_ICON_W + 4, y + 8)
+
+        y += rowH + 3
       })
 
-      // Meals / Stay
-      const extras = [
-        day.meals ? `🍽 Meals: ${day.meals}` : null,
-        day.stay   ? `🏨 Stay: ${day.stay}`   : null,
-      ].filter(Boolean)
+      // Meals + Stay — inline pill row
+      const mealVal = day.meals ? san(day.meals) : null
+      const stayVal = day.stay  ? san(day.stay)  : null
 
-      if (extras.length > 0) {
-        y = checkPage(doc, y, 10)
-        rect(doc, ML, y - 2, CW, extras.length * 7 + 2, C.slateLight, 2)
-        extras.forEach(e => {
-          text(doc, e, ML + 4, y + 3, { size: 8, color: C.slate })
-          y += 7
-        })
+      if (mealVal || stayVal) {
+        y = newPage(doc, y, 12)
+        if (y < 20) y = 20
+
+        // Single row with two pills side by side
+        const halfW = (CW - 4) / 2
+        if (mealVal) {
+          box(doc, ML, y, halfW, 10, C.offWhite, 3, C.slateLight, 0.3)
+          txt(doc, 'MEALS', ML + 4, y + 4.5, { size: 6.5, weight: 'bold', color: C.tealDark })
+          wrp(doc, mealVal, ML + 4, y + 8.5, halfW - 6, { size: 7.5, color: C.navy, lh: 4.5 })
+        }
+        if (stayVal) {
+          const sx = ML + halfW + 4
+          box(doc, sx, y, halfW, 10, C.offWhite, 3, C.slateLight, 0.3)
+          txt(doc, 'STAY', sx + 4, y + 4.5, { size: 6.5, weight: 'bold', color: C.tealDark })
+          wrp(doc, stayVal, sx + 4, y + 8.5, halfW - 6, { size: 7.5, color: C.navy, lh: 4.5 })
+        }
+        y += 14
       }
 
-      y += 8
-
-      // Separator between days
-      if (i < data.day_plans.length - 1) {
-        line(doc, ML, y - 4, MR, y - 4, C.border)
+      // Day separator
+      if (idx < data.day_plans.length - 1) {
+        y += 4
+        ln(doc, ML, y, MR, y, C.slateLight)
+        y += 6
+      } else {
+        y += 8
       }
     })
   }
 
-  // ── ACCOMMODATION ──────────────────────────────────────────
-  y = checkPage(doc, y, 40)
+  // ── HOTELS ──────────────────────────────────────────────────
+  y = newPage(doc, y, 45)
   if (data.accommodation?.length > 0) {
-    y = sectionHeader(doc, y, 'RECOMMENDED HOTELS', '🏨')
+    y = secHead(doc, y, 'RECOMMENDED HOTELS')
 
     data.accommodation.slice(0, 4).forEach((h, i) => {
-      y = checkPage(doc, y, 28)
-      rect(doc, ML, y, CW, 22, C.white, 3)
-      setDraw(doc, C.border)
-      doc.setLineWidth(0.3)
-      doc.roundedRect(ML, y, CW, 22, 3, 3, 'S')
+      y = newPage(doc, y, 28)
 
-      // Hotel name
-      text(doc, h.name, ML + 5, y + 7, { size: 9.5, bold: true, color: C.navy })
-      // Rating stars
-      const stars = '★'.repeat(Math.round(parseFloat(h.rating) || 4))
-      text(doc, stars, MR - 4, y + 7, { size: 9, color: C.gold, align: 'right' })
-      // Area
-      text(doc, h.area || '', ML + 5, y + 13, { size: 8, color: C.slate })
-      // Price
-      text(doc, h.price_range || '', MR - 4, y + 13, { size: 8.5, bold: true, color: C.teal, align: 'right' })
-      // Why
+      box(doc, ML, y, CW, 24, C.white, 3, C.slateLight, 0.3)
+      // Left colour bar
+      const barColors = [C.teal, C.navyMid, C.gold, [124, 58, 237]]
+      box(doc, ML, y, 3, 24, barColors[i % 4], 2)
+
+      txt(doc, san(h.name || `Hotel ${i+1}`),  ML + 7,      y + 8,  { size: 10, weight: 'bold', color: C.navy })
+      txt(doc, san(h.area || ''),              ML + 7,      y + 14, { size: 8,  color: C.slate })
+
+      // Stars as text
+      const starCount = Math.round(parseFloat(h.rating) || 4)
+      const stars = Array(starCount).fill('*').join(' ')
+      txt(doc, stars, MR - 5, y + 8, { size: 9, weight: 'bold', color: C.gold, align: 'right' })
+
+      txt(doc, san(h.price_range || ''),  MR - 5,  y + 14, { size: 8.5, weight: 'bold', color: C.teal, align: 'right' })
+
       if (h.why) {
-        const wLines = doc.splitTextToSize(`💡 ${h.why}`, CW - 10)
-        text(doc, wLines[0], ML + 5, y + 19, { size: 7.5, color: C.slate })
+        const wl = doc.splitTextToSize(san(h.why), CW - 14)
+        txt(doc, wl[0] || '', ML + 7, y + 20, { size: 7.5, color: C.muted })
       }
 
-      y += 26
+      y += 28
     })
   }
 
-  // ── TRANSPORT ──────────────────────────────────────────────
-  y = checkPage(doc, y, 40)
+  // ── TRANSPORT ───────────────────────────────────────────────
+  y = newPage(doc, y, 45)
   if (data.transport_options?.length > 0) {
-    y = sectionHeader(doc, y, 'TRANSPORT OPTIONS', '🚂')
+    y = secHead(doc, y, 'TRANSPORT OPTIONS')
 
+    const tColors = [C.teal, C.gold, [124, 58, 237]]
     data.transport_options.slice(0, 3).forEach((t, i) => {
-      y = checkPage(doc, y, 20)
-      const colors = [[22, 163, 74], [2, 132, 199], [124, 58, 237]]
-      const c = colors[i % colors.length]
+      y = newPage(doc, y, 20)
+      const c = tColors[i % 3]
 
-      rect(doc, ML, y, 3, 16, c, 1)
-      rect(doc, ML + 4, y, CW - 4, 16, C.slateLight, 3)
+      box(doc, ML,     y, CW,   18, C.offWhite, 3)
+      box(doc, ML,     y, 3,    18, c, 1.5)
 
-      text(doc, t.mode || `Option ${i + 1}`, ML + 8, y + 6, { size: 9, bold: true, color: C.navy })
-      text(doc, `${t.duration || ''} · ${t.cost || ''}`, ML + 8, y + 12, { size: 8, color: C.slate })
+      txt(doc, san(t.mode || `Option ${i+1}`).toUpperCase(), ML + 7, y + 7, { size: 8.5, weight: 'bold', color: C.navy })
+      const sub = [san(t.duration), san(t.cost)].filter(Boolean).join('  |  ')
+      txt(doc, sub, ML + 7, y + 13, { size: 8, color: C.slate })
       if (t.recommendation) {
-        text(doc, t.recommendation, MR - 4, y + 9, { size: 7.5, color: C.teal, align: 'right' })
+        txt(doc, san(t.recommendation), MR - 4, y + 10, { size: 7.5, color: c, align: 'right', maxW: 70 })
       }
-
-      y += 20
+      y += 22
     })
   }
 
-  // ── LOCAL TIPS ─────────────────────────────────────────────
-  y = checkPage(doc, y, 30)
+  // ── LOCAL TIPS ──────────────────────────────────────────────
+  y = newPage(doc, y, 35)
   if (data.local_tips?.length > 0) {
-    y = sectionHeader(doc, y, 'LOCAL TIPS', '💡')
+    y = secHead(doc, y, 'LOCAL TIPS & ADVICE')
 
-    data.local_tips.slice(0, 5).forEach((tip, i) => {
-      y = checkPage(doc, y, 14)
-      rect(doc, ML, y - 3, CW, 11, [255, 251, 235], 3)
-      setFill(doc, C.gold)
-      doc.circle(ML + 5, y + 2, 1.5, 'F')
-      const h = wrap(doc, tip, ML + 10, y + 2, CW - 14, { size: 8.5, color: C.navy, lineH: 5 })
-      y += Math.max(12, h + 6)
+    data.local_tips.slice(0, 6).forEach((tip, i) => {
+      y = newPage(doc, y, 16)
+      box(doc, ML, y, CW, 14, C.goldLight, 3)
+      box(doc, ML, y, 3, 14, C.gold, 1.5)
+      // Number
+      txt(doc, String(i + 1).padStart(2, '0'), ML + 6, y + 9, { size: 8, weight: 'bold', color: C.gold })
+      const h = wrp(doc, san(tip), ML + 16, y + 5, CW - 20, { size: 8.5, color: C.navy, lh: 5 })
+      y += Math.max(16, h + 8)
     })
   }
 
-  // ── PACKING LIST ───────────────────────────────────────────
-  y = checkPage(doc, y, 30)
-  const packList = data.weather?.pack?.length > 0 ? data.weather.pack : data.packing_list
-  if (packList?.length > 0) {
-    y = sectionHeader(doc, y, 'PACKING LIST', '🎒')
+  // ── CTA BLOCK ───────────────────────────────────────────────
+  y = newPage(doc, y, 35)
+  y += 5
+  box(doc, ML, y, CW, 28, C.navy, 5)
+  box(doc, ML, y, CW, 3, C.teal, 2.5)
 
-    const cols = 3
-    const colW3 = CW / cols - 2
-    packList.slice(0, 15).forEach((item, i) => {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      const px2 = ML + col * (colW3 + 3)
-      const py  = y + row * 9
-
-      rect(doc, px2, py - 3, colW3, 8, C.tealLight, 2)
-      setFill(doc, C.teal)
-      doc.circle(px2 + 3.5, py + 1, 1.2, 'F')
-      text(doc, item, px2 + 7, py + 1.5, { size: 7.5, color: C.navy, maxWidth: colW3 - 9 })
-    })
-
-    y += Math.ceil(packList.slice(0, 15).length / cols) * 9 + 6
-  }
-
-  // ── FINAL PAGE: BOOKING CTA (Agent only) ──────────────────
   if (isAgent) {
-    y = checkPage(doc, y, 40)
-    rect(doc, ML, y, CW, 30, C.navy, 5)
-    text(doc, 'Ready to book this trip?', ML + CW / 2, y + 10, { size: 13, bold: true, color: C.white, align: 'center' })
-    text(doc, `Contact ${agentName} to confirm your booking`, ML + CW / 2, y + 18, { size: 9, color: C.teal, align: 'center' })
-    text(doc, 'Powered by Tripzio AI · tripzio.io', ML + CW / 2, y + 25, { size: 8, color: C.slate, align: 'center' })
-    y += 36
+    txt(doc, 'Ready to confirm this itinerary?', ML + CW/2, y + 13, { size: 12, weight: 'bold', color: C.white, align: 'center' })
+    txt(doc, `Contact ${agentName} to book`, ML + CW/2, y + 20, { size: 9, color: C.tealMid, align: 'center' })
+    txt(doc, 'Powered by Tripzio AI  |  tripzio.io', ML + CW/2, y + 26, { size: 7.5, color: C.muted, align: 'center' })
   } else {
-    y = checkPage(doc, y, 30)
-    rect(doc, ML, y, CW, 24, C.tealLight, 5)
-    setDraw(doc, C.teal)
-    doc.setLineWidth(0.5)
-    doc.roundedRect(ML, y, CW, 24, 5, 5, 'S')
-    text(doc, '✈️  Plan more trips at tripzio.io', ML + CW / 2, y + 10, { size: 11, bold: true, color: C.tealDark, align: 'center' })
-    text(doc, 'India\'s AI-Powered Travel Intelligence Platform', ML + CW / 2, y + 18, { size: 8.5, color: C.slate, align: 'center' })
-    y += 30
+    txt(doc, 'Plan more trips at tripzio.io', ML + CW/2, y + 13, { size: 12, weight: 'bold', color: C.white, align: 'center' })
+    txt(doc, "India's AI-Powered Travel Intelligence Platform", ML + CW/2, y + 20, { size: 9, color: C.tealMid, align: 'center' })
+    txt(doc, 'Free to use  |  Instant itineraries  |  500+ destinations', ML + CW/2, y + 26, { size: 7.5, color: C.muted, align: 'center' })
   }
 
-  // ── Add mini headers + footers to all pages ────────────────
+  // ── Apply headers + footers to all pages ───────────────────
   const totalPages = doc.getNumberOfPages()
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p)
-    if (p > 1) miniHeader(doc, data.destination)
-    footer(doc, p, totalPages, isAgent, agentName)
+    if (p > 1) pageTopBar(doc, dest)
+    pageFooter(doc, p, totalPages, isAgent, agentName)
   }
 
   // ── Save ───────────────────────────────────────────────────
+  const safeDest = dest.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_')
   const filename = isAgent
-    ? `Tripzio_${(data.destination || 'Trip').replace(/[^a-zA-Z0-9]/g, '_')}_${clientName || 'Client'}_Plan.pdf`
-    : `Tripzio_${(data.destination || 'Trip').replace(/[^a-zA-Z0-9]/g, '_')}_${data.days || ''}Days.pdf`
+    ? `Tripzio_${safeDest}_${(clientName || 'Client').replace(/\s/g, '_')}_Plan.pdf`
+    : `Tripzio_${safeDest}_${data.days || ''}Days.pdf`
 
   doc.save(filename)
 }
