@@ -12,6 +12,7 @@ import AgentDashboard from './pages/AgentDashboard'
 import DestinationSuggestions from './pages/DestinationSuggestions'
 import ItineraryResult from './pages/ItineraryResult'
 import ComingSoon from './pages/ComingSoon'
+import MyTrips from './pages/MyTrips'
 import NotFound from './pages/NotFound'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
@@ -70,7 +71,7 @@ function AppRoutes() {
         <Route path="/dashboard" element={<ProtectedRoute role="user"><UserDashboard /></ProtectedRoute>} />
         <Route path="/destinations/suggest" element={<ProtectedRoute role="user"><DestinationSuggestions /></ProtectedRoute>} />
         <Route path="/itinerary/result" element={<ProtectedRoute><ItineraryResult /></ProtectedRoute>} />
-        <Route path="/my-trips" element={<ProtectedRoute role="user"><ComingSoon /></ProtectedRoute>} />
+        <Route path="/my-trips" element={<ProtectedRoute role="user"><MyTrips /></ProtectedRoute>} />
         <Route path="/explore" element={<ProtectedRoute role="user"><ComingSoon /></ProtectedRoute>} />
         <Route path="/saved" element={<ProtectedRoute role="user"><ComingSoon /></ProtectedRoute>} />
         <Route path="/agent/dashboard" element={<ProtectedRoute role="agent"><AgentDashboard /></ProtectedRoute>} />

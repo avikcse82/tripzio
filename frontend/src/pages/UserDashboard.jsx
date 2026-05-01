@@ -163,6 +163,21 @@ export default function UserDashboard() {
     if (suggestedTier && !selectedTier) setSelectedTier(suggestedTier)
   }, [suggestedTier])
 
+  // ── Live trip stats ──────────────────────────────────────────
+  const [tripStats, setTripStats] = useState({
+    trips_planned: 0, saved_trips: 0, destinations: 0, days_travelled: 0
+  })
+  useEffect(() => {
+    const token = localStorage.getItem('tripzio_token')
+    if (!token) return
+    fetch(`${API_URL}/trips/stats`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setTripStats(data) })
+      .catch(() => {})
+  }, [])
+
   const getTodayString = () => new Date().toISOString().split('T')[0]
   const silverMult = planTiers.find(t => t.id === 'silver').multiplier
   const getTierEstimate = (mult) => {
@@ -349,22 +364,81 @@ export default function UserDashboard() {
           </p>
         </div>
 
-        {/* Stats */}
+        {/* Stats — live from /trips/stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '14px', marginBottom: '32px' }}>
           {[
-            { label: 'Trips Planned', value: '0', sub: '✦ Plan your first trip today', subColor: '#0284c7', action: 'Start planning →', iconBg: 'linear-gradient(135deg,#0ea5e9,#0284c7)', icon: <Plane size={18} color="white" /> },
-            { label: 'Saved Trips', value: '0', sub: '✦ Save trips you love', subColor: '#e11d48', action: 'Explore trips →', iconBg: 'linear-gradient(135deg,#f43f5e,#e11d48)', icon: <Heart size={18} color="white" /> },
-            { label: 'Destinations', value: '0', sub: '✦ 500+ destinations ready', subColor: '#0f766e', action: 'View trending →', iconBg: 'linear-gradient(135deg,#0d9488,#0f766e)', icon: <MapPin size={18} color="white" /> },
-            { label: 'Days Travelled', value: '0', sub: '✦ Life is short, travel more', subColor: '#d97706', action: 'Get inspired →', iconBg: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: <Calendar size={18} color="white" /> },
+            {
+              label: 'Trips Planned',
+              value: tripStats.trips_planned,
+              sub: tripStats.trips_planned === 0 ? '✦ Plan your first trip today' : `✦ ${tripStats.trips_planned} itinerar${tripStats.trips_planned === 1 ? 'y' : 'ies'} generated`,
+              subColor: '#0284c7',
+              action: 'Start planning →',
+              iconBg: 'linear-gradient(135deg,#0ea5e9,#0284c7)',
+              icon: <Plane size={18} color="white" />,
+              onClick: () => window.scrollTo({ top: 400, behavior: 'smooth' }),
+              highlight: tripStats.trips_planned > 0,
+            },
+            {
+              label: 'Saved Trips',
+              value: tripStats.saved_trips,
+              sub: tripStats.saved_trips === 0 ? '✦ Save trips you love' : `✦ Tap to view all saved`,
+              subColor: '#e11d48',
+              action: 'View My Trips →',
+              iconBg: 'linear-gradient(135deg,#f43f5e,#e11d48)',
+              icon: <Heart size={18} color="white" />,
+              onClick: () => navigate('/my-trips'),
+              highlight: tripStats.saved_trips > 0,
+            },
+            {
+              label: 'Destinations',
+              value: tripStats.destinations,
+              sub: tripStats.destinations === 0 ? '✦ 500+ destinations ready' : `✦ Unique places explored`,
+              subColor: '#0f766e',
+              action: 'View trending →',
+              iconBg: 'linear-gradient(135deg,#0d9488,#0f766e)',
+              icon: <MapPin size={18} color="white" />,
+              onClick: () => {},
+              highlight: tripStats.destinations > 0,
+            },
+            {
+              label: 'Days Travelled',
+              value: tripStats.days_travelled,
+              sub: tripStats.days_travelled === 0 ? '✦ Life is short, travel more' : `✦ Days of adventure planned`,
+              subColor: '#d97706',
+              action: 'Get inspired →',
+              iconBg: 'linear-gradient(135deg,#f59e0b,#d97706)',
+              icon: <Calendar size={18} color="white" />,
+              onClick: () => {},
+              highlight: tripStats.days_travelled > 0,
+            },
           ].map((s, i) => (
-            <div key={i} style={{ background: 'white', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '20px', padding: '22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', animation: `fadeUp ${0.3 + i * 0.08}s ease`, cursor: 'pointer', transition: 'all 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)' }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)' }}>
+            <div key={i}
+              onClick={s.onClick}
+              style={{
+                background: 'white',
+                border: s.highlight ? `1.5px solid ${s.subColor}22` : '1px solid rgba(0,0,0,0.06)',
+                borderRadius: '20px', padding: '22px',
+                boxShadow: s.highlight ? `0 4px 20px ${s.subColor}12` : '0 2px 12px rgba(0,0,0,0.04)',
+                animation: `fadeUp ${0.3 + i * 0.08}s ease`,
+                cursor: 'pointer', transition: 'all 0.2s',
+                position: 'relative', overflow: 'hidden',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 12px 28px ${s.subColor}18` }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = s.highlight ? `0 4px 20px ${s.subColor}12` : '0 2px 12px rgba(0,0,0,0.04)' }}>
+
+              {/* Subtle accent bar at top when active */}
+              {s.highlight && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg,${s.subColor},${s.subColor}88)`, borderRadius: '20px 20px 0 0' }} />
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
                 <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: s.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.15)' }}>{s.icon}</div>
-                <span style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '3px 8px', borderRadius: '10px' }}>Live in M2</span>
+                {s.highlight
+                  ? <span style={{ fontSize: '10px', fontWeight: '700', color: s.subColor, background: `${s.subColor}12`, border: `1px solid ${s.subColor}30`, padding: '3px 8px', borderRadius: '10px' }}>Live ✓</span>
+                  : <span style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '3px 8px', borderRadius: '10px' }}>M3</span>
+                }
               </div>
-              <div style={{ fontSize: '32px', fontWeight: '900', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: '36px', fontWeight: '900', color: s.highlight ? s.subColor : '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1, transition: 'color 0.3s' }}>{s.value}</div>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginTop: '4px' }}>{s.label}</div>
               <div style={{ fontSize: '12px', color: s.subColor, marginTop: '4px', fontWeight: '500' }}>{s.sub}</div>
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, itinerary, weather, hotels, agents
+from routers import auth, users, itinerary, weather, hotels, agents, trips
 from core.config import settings
 import os
 
@@ -37,7 +37,8 @@ app.include_router(users.router)
 app.include_router(itinerary.router)
 app.include_router(weather.router)
 app.include_router(hotels.router)
-app.include_router(agents.router)  # ← NEW
+app.include_router(agents.router)
+app.include_router(trips.router)   # ← Module 3: My Trips
 
 @app.get("/")
 async def root():
