@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import {
@@ -76,9 +77,111 @@ const testimonials = [
 ]
 
 const LandingPage = () => {
+  const [showDemo, setShowDemo] = useState(false)
+
+  const samplePlan = {
+    destination: 'Darjeeling → Gangtok',
+    days: 5, budget: '₹18,000', from: 'Kolkata',
+    highlights: ['Tiger Hill sunrise — Kanchenjunga views','Darjeeling toy train UNESCO heritage ride','Rumtek Monastery — largest in Sikkim','MG Marg evening Gangtok','Tea garden walks'],
+    dayPlans: [
+      { day: 1, title: 'Arrival Darjeeling', plan: 'NJP train + taxi. Mall Road, momos at Glenary\'s.' },
+      { day: 2, title: 'Tiger Hill & Sights', plan: 'Sunrise Tiger Hill, Batasia Loop, HMI, Peace Pagoda.' },
+      { day: 3, title: 'Toy Train + Transfer', plan: 'Morning joyride, drive to Gangtok via Teesta, MG Marg.' },
+      { day: 4, title: 'Gangtok Monasteries', plan: 'Rumtek, Enchey, Do-Drul Chorten, local market.' },
+      { day: 5, title: 'Return Journey', plan: 'Tashi Viewpoint, drive NJP, evening train Kolkata.' },
+    ],
+    hotels: [
+      { city: 'Darjeeling', name: 'Cedar Inn', rating: '4.1', price: '₹2,500/night' },
+      { city: 'Gangtok', name: 'Chumbi Residency', rating: '4.3', price: '₹3,000/night' },
+    ],
+    costs: { transport: '₹5,000', hotels: '₹8,000', food: '₹3,000', activities: '₹2,000', total: '₹18,000' }
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
       <Navbar />
+
+      {/* ── DEMO MODAL ── */}
+      {showDemo && (
+        <div onClick={() => setShowDemo(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: 'white', borderRadius: '24px', padding: '28px', maxWidth: '680px', width: '100%', maxHeight: '88vh', overflowY: 'auto', position: 'relative', fontFamily: 'Inter, sans-serif' }}>
+            <button onClick={() => setShowDemo(false)}
+              style={{ position: 'absolute', top: '16px', right: '16px', background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+
+            <div style={{ background: 'linear-gradient(135deg,#0f172a,#134e4a)', borderRadius: '16px', padding: '22px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                <span style={{ background: 'rgba(255,255,255,0.12)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>🥈 SILVER PLAN</span>
+                <span style={{ background: 'rgba(99,102,241,0.3)', color: '#a5b4fc', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>🗺 Circuit · 2 cities</span>
+              </div>
+              <h2 style={{ fontSize: '22px', fontWeight: '900', color: 'white', margin: '0 0 12px', fontFamily: 'sans-serif' }}>Circuit: {samplePlan.destination} 🌏</h2>
+              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                {[['From', samplePlan.from], ['Days', `${samplePlan.days} days`], ['Budget', samplePlan.budget]].map(([l, v], i) => (
+                  <div key={i}><div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{l}</div><div style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{v}</div></div>
+                ))}
+              </div>
+            </div>
+
+            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px' }}>✨ Trip Highlights</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: '6px', marginBottom: '20px' }}>
+              {samplePlan.highlights.map((h, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '8px', padding: '7px 10px', fontSize: '12px', color: '#374151' }}>
+                  <span style={{ color: '#0d9488', fontWeight: '700' }}>✓</span>{h}
+                </div>
+              ))}
+            </div>
+
+            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px' }}>📅 Day-wise Plan</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
+              {samplePlan.dayPlans.map((d, i) => (
+                <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#0f172a', marginBottom: '3px' }}>Day {d.day} — {d.title}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.6 }}>{d.plan}</div>
+                </div>
+              ))}
+            </div>
+
+            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px' }}>🏨 Hotels</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '8px', marginBottom: '20px' }}>
+              {samplePlan.hotels.map((h, i) => (
+                <div key={i} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                  <div style={{ fontSize: '10px', color: '#0d9488', fontWeight: '700', marginBottom: '3px' }}>{h.city}</div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{h.name}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', color: '#f59e0b' }}>⭐ {h.rating}</span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>{h.price}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: 'linear-gradient(135deg,#0f172a,#134e4a)', borderRadius: '16px', padding: '18px', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '13px', fontWeight: '700', color: 'white', marginBottom: '12px' }}>💰 Cost Breakdown</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))', gap: '8px', marginBottom: '12px' }}>
+                {[['🚌','Transport',samplePlan.costs.transport],['🏨','Hotels',samplePlan.costs.hotels],['🍽️','Food',samplePlan.costs.food],['🎯','Activities',samplePlan.costs.activities]].map(([e,l,v],i) => (
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 10px' }}>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{e} {l}</div>
+                    <div style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#94a3b8', fontSize: '13px' }}>Total estimated</span>
+                <span style={{ color: '#5eead4', fontSize: '20px', fontWeight: '900' }}>{samplePlan.costs.total}</span>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '14px' }}>This is a real AI-generated plan. Sign up free to create yours.</p>
+              <Link to="/login" onClick={() => setShowDemo(false)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '13px 28px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', textDecoration: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
+                Plan My Trip Free →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section style={{
@@ -161,12 +264,23 @@ const LandingPage = () => {
               Start Planning Free
               <ArrowRight size={18} />
             </Link>
-            <Link to="/agent/login" style={{
+            <button onClick={() => setShowDemo(true)} style={{
               background: 'rgba(255,255,255,0.08)',
-              color: 'white', textDecoration: 'none',
+              color: 'white',
               padding: '16px 36px', borderRadius: '12px',
               fontSize: '16px', fontWeight: '600',
               border: '1.5px solid rgba(255,255,255,0.2)',
+              display: 'flex', alignItems: 'center', gap: '8px',
+              transition: 'all 0.2s', cursor: 'pointer'
+            }}>
+              👀 See Sample Plan
+            </button>
+            <Link to="/agent/login" style={{
+              background: 'rgba(255,255,255,0.05)',
+              color: '#94a3b8', textDecoration: 'none',
+              padding: '16px 36px', borderRadius: '12px',
+              fontSize: '16px', fontWeight: '600',
+              border: '1.5px solid rgba(255,255,255,0.1)',
               display: 'flex', alignItems: 'center', gap: '8px',
               transition: 'all 0.2s'
             }}>
@@ -179,7 +293,7 @@ const LandingPage = () => {
             marginTop: '20px', fontSize: '13px',
             color: '#475569'
           }}>
-            Free to start · No credit card required
+            Free to sign up · No credit card required
           </p>
         </div>
       </section>
