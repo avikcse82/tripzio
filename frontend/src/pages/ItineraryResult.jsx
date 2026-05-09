@@ -12,7 +12,7 @@ import {
   ExternalLink, Zap, Heart, Share2, Route, Building2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { generateTripPDF } from '../utils/generatePDF'
+import { generateTripPDF } from '../utils/generateItineraryHTML'
 
 const tierColors = {
   bronze:   { color: '#92400e', bg: '#fef3c7', border: '#fcd34d', emoji: '🥉' },
@@ -72,6 +72,19 @@ export default function ItineraryResult() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isAgent = user?.role === 'agent'
+  const [agentProfile, setAgentProfile] = useState(null)
+
+  useEffect(() => {
+    if (!isAgent) return
+    const t = localStorage.getItem('tripzio_token')
+    if (!t) return
+    fetch(`${API_URL}/agents/profile`, {
+      headers: { Authorization: `Bearer ${t}` }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.profile) setAgentProfile(d.profile) })
+      .catch(() => {})
+  }, [isAgent])
 
   // Get data from navigation state OR localStorage fallback
   let data = location.state?.itinerary
@@ -295,7 +308,7 @@ export default function ItineraryResult() {
 
   const handleDownload = () => {
     try {
-      generateTripPDF({ data, user, isAgent, clientName })
+      generateTripPDF({ data, user, isAgent, clientName, agentProfile })
       toast.success('PDF downloaded! 🎉')
     } catch (e) {
       console.error('PDF error:', e)

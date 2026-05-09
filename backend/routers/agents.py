@@ -1,3 +1,9 @@
+"""
+backend/routers/agents.py
+Tripzio Week 3 — Agent Profile + Client Notes added
+Synced to: get_supabase() local, get_current_agent from JWT sub/user_id
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -23,6 +29,9 @@ def get_current_agent(credentials: HTTPAuthorizationCredentials = Depends(securi
         raise HTTPException(status_code=403, detail="Agent access only")
     return payload
 
+
+# ─── Schemas ──────────────────────────────────────────────────
+
 class ClientCreate(BaseModel):
     name: str
     phone: str
@@ -31,6 +40,77 @@ class ClientCreate(BaseModel):
 class ClientUpdate(BaseModel):
     status: Optional[str] = None
     trip_requirement: Optional[str] = None
+    notes: Optional[str] = None
+
+class ProfileUpsert(BaseModel):
+    business_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    city: Optional[str] = None
+    logo_url: Optional[str] = None
+    brand_color: Optional[str] = None
+    whatsapp_number: Optional[str] = None
+    tagline: Optional[str] = None
+
+
+# ─── Agent Profile ────────────────────────────────────────────
+
+@router.get("/profile")
+async def get_profile(agent=Depends(get_current_agent)):
+    try:
+        supabase = get_supabase()
+        agent_id = agent.get("sub") or agent.get("user_id")
+        res = supabase.table("agent_profiles") \
+            .select("*") \
+            .eq("agent_id", str(agent_id)) \
+            .maybe_single() \
+            .execute()
+        if res.data:
+            return {"profile": res.data}
+        # Return empty profile with defaults so frontend never crashes
+        return {"profile": {
+            "agent_id": str(agent_id),
+            "business_name": None,
+            "contact_phone": None,
+            "contact_email": None,
+            "city": None,
+            "logo_url": None,
+            "brand_color": "#0d9488",
+            "whatsapp_number": None,
+            "tagline": None,
+        }}
+    except Exception as e:
+        logger.error(f"Get profile error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch profile")
+
+
+@router.patch("/profile")
+async def upsert_profile(data: ProfileUpsert, agent=Depends(get_current_agent)):
+    try:
+        supabase = get_supabase()
+        agent_id = str(agent.get("sub") or agent.get("user_id"))
+
+        # Filter out None values
+        updates = {k: v for k, v in data.dict().items() if v is not None}
+        updates["agent_id"] = agent_id
+
+        # Upsert — insert if not exists, update if exists
+        res = supabase.table("agent_profiles") \
+            .upsert(updates, on_conflict="agent_id") \
+            .execute()
+
+        if not res.data:
+            raise HTTPException(status_code=500, detail="Failed to save profile")
+
+        return {"success": True, "profile": res.data[0]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upsert profile error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save profile: {str(e)}")
+
+
+# ─── Clients ──────────────────────────────────────────────────
 
 @router.get("/clients")
 async def get_clients(agent=Depends(get_current_agent)):
@@ -52,6 +132,7 @@ async def get_clients(agent=Depends(get_current_agent)):
                 "city": c["city"],
                 "trip": c.get("trip_requirement") or "Not planned yet",
                 "status": c.get("status") or "pending",
+                "notes": c.get("notes") or "",
                 "date": format_date(c.get("created_at")),
                 "avatar_color": get_avatar_color(c["name"]),
             })
@@ -59,6 +140,7 @@ async def get_clients(agent=Depends(get_current_agent)):
     except Exception as e:
         logger.error(f"Get clients error: {e}")
         return {"clients": [], "total": 0}
+
 
 @router.post("/clients")
 async def add_client(data: ClientCreate, agent=Depends(get_current_agent)):
@@ -79,6 +161,7 @@ async def add_client(data: ClientCreate, agent=Depends(get_current_agent)):
             "phone": data.phone.strip(),
             "city": data.city.strip(),
             "status": "pending",
+            "notes": "",
         }
 
         response = supabase.table("agent_clients").insert(insert_data).execute()
@@ -93,6 +176,7 @@ async def add_client(data: ClientCreate, agent=Depends(get_current_agent)):
                 "city": client["city"],
                 "trip": "Not planned yet",
                 "status": "pending",
+                "notes": "",
                 "date": "Just now",
                 "avatar_color": get_avatar_color(client["name"]),
             }
@@ -102,6 +186,7 @@ async def add_client(data: ClientCreate, agent=Depends(get_current_agent)):
     except Exception as e:
         logger.error(f"Add client error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to add client: {str(e)}")
+
 
 @router.patch("/clients/{client_id}")
 async def update_client(client_id: str, data: ClientUpdate, agent=Depends(get_current_agent)):
@@ -125,6 +210,7 @@ async def update_client(client_id: str, data: ClientUpdate, agent=Depends(get_cu
         logger.error(f"Update client error: {e}")
         raise HTTPException(status_code=500, detail="Failed to update client")
 
+
 @router.delete("/clients/{client_id}")
 async def delete_client(client_id: str, agent=Depends(get_current_agent)):
     try:
@@ -144,6 +230,9 @@ async def delete_client(client_id: str, agent=Depends(get_current_agent)):
     except Exception as e:
         logger.error(f"Delete client error: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete client")
+
+
+# ─── Helpers ──────────────────────────────────────────────────
 
 def format_date(iso_string):
     if not iso_string:

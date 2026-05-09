@@ -9,6 +9,7 @@ import UserLogin from './pages/UserLogin'
 import AgentLogin from './pages/AgentLogin'
 import UserDashboard from './pages/UserDashboard'
 import AgentDashboard from './pages/AgentDashboard'
+import AgentProfile from './pages/AgentProfile'
 import DestinationSuggestions from './pages/DestinationSuggestions'
 import ItineraryResult from './pages/ItineraryResult'
 import ComingSoon from './pages/ComingSoon'
@@ -75,6 +76,7 @@ function AppRoutes() {
         <Route path="/explore" element={<ProtectedRoute role="user"><ComingSoon /></ProtectedRoute>} />
         <Route path="/saved" element={<ProtectedRoute role="user"><ComingSoon /></ProtectedRoute>} />
         <Route path="/agent/dashboard" element={<ProtectedRoute role="agent"><AgentDashboard /></ProtectedRoute>} />
+        <Route path="/agent/profile" element={<ProtectedRoute role="agent"><AgentProfile /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

@@ -98,6 +98,8 @@ export default function AgentDashboard() {
     return localStorage.getItem('tripzio_last_client') || null
   })
 
+  const [notesSaving, setNotesSaving] = useState({})   // { [clientId]: bool }
+
   const token = () => localStorage.getItem('tripzio_token')
 
   useEffect(() => { fetchClients() }, [])
@@ -178,7 +180,8 @@ export default function AgentDashboard() {
           phone: editData.phone || undefined,
           city: editData.city || undefined,
           status: editData.status,
-          trip_requirement: editData.trip_requirement || null
+          trip_requirement: editData.trip_requirement || null,
+          notes: editData.notes ?? null,
         })
       })
       if (!r.ok) throw new Error('Failed')
@@ -189,6 +192,7 @@ export default function AgentDashboard() {
         city: editData.city,
         trip: editData.trip_requirement || 'Not planned yet',
         status: editData.status,
+        notes: editData.notes ?? c.notes ?? '',
         avatar_color: getColor(editData.name)
       } : c))
       setExpandedId(null)
@@ -209,6 +213,22 @@ export default function AgentDashboard() {
       if (expandedId === id) setExpandedId(null)
       toast.success(`${name} removed`)
     } catch { toast.error('Failed') }
+  }
+
+  // ── Save notes ───────────────────────────────
+  const handleSaveNotes = async (clientId, notes) => {
+    setNotesSaving(p => ({ ...p, [clientId]: true }))
+    try {
+      const r = await fetch(`${API_URL}/agents/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ notes })
+      })
+      if (!r.ok) throw new Error('Failed')
+      setClients(p => p.map(c => c.id === clientId ? { ...c, notes } : c))
+      toast.success('Notes saved ✓')
+    } catch { toast.error('Failed to save notes') }
+    finally { setNotesSaving(p => ({ ...p, [clientId]: false })) }
   }
 
   // ── Generate / Modify ────────────────────────
@@ -352,6 +372,7 @@ export default function AgentDashboard() {
     { id: 'clients',  icon: '👥', label: 'Clients' },
     { id: 'generate', icon: '✨', label: selectedClient ? `Plan: ${selectedClient.name.split(' ')[0]}` : 'Generate Trip' },
     { id: 'invoices', icon: '📄', label: 'Invoices' },
+    { id: 'profile',  icon: '⚙️', label: 'Profile' },
   ]
 
   return (
@@ -641,6 +662,20 @@ export default function AgentDashboard() {
                                   </div>
                                 </div>
 
+                                {/* Client Notes */}
+                                <div style={{ marginBottom: '10px' }}>
+                                  <label style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                    Client Notes (private — not shown to client)
+                                  </label>
+                                  <textarea
+                                    value={editData.notes ?? client.notes ?? ''}
+                                    onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))}
+                                    placeholder="e.g. Prefers window seats, vegetarian, anniversary trip..."
+                                    rows={2}
+                                    style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', color: '#0f172a', background: '#fafafa', resize: 'vertical', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                                  />
+                                </div>
+
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                   <button onClick={() => handleSaveEdit(client.id)} disabled={editSaving}
                                     style={{ flex: 1, padding: '10px', background: editSaving ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: editSaving ? '#94a3b8' : 'white', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '700', cursor: editSaving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontFamily: 'Inter, sans-serif' }}>
@@ -725,36 +760,37 @@ export default function AgentDashboard() {
                                   <ArrowRight size={13} color="#94a3b8" style={{ marginLeft: 'auto' }} />
                                 </button>
 
-                                {/* Download Plan — only if has plan */}
+                                {/* Download PDF — navigate to ItineraryResult if last plan matches this client */}
                                 {hasPlan && (
                                   <button className="abtn"
                                     onClick={() => {
-                                      const lines = [
-                                        `TRIP PLAN — ${client.name}`,
-                                        '='.repeat(40),
-                                        `Destination: ${client.trip}`,
-                                        `Client: ${client.name} | ${client.phone} | ${client.city}`,
-                                        `Planned by: ${user?.business_name || user?.full_name}`,
-                                        `Status: ${client.status}`,
-                                        '',
-                                        'Generated using Tripzio AI — tripzio.io',
-                                      ]
-                                      const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
-                                      const a = document.createElement('a')
-                                      a.href = URL.createObjectURL(blob)
-                                      a.download = `TripPlan_${client.name.replace(/\s/g, '_')}.txt`
-                                      a.click()
-                                      toast.success('Downloaded!')
+                                      // If last generated itinerary is for this client, go to result page for PDF
+                                      if (lastItinerary && lastClientName === client.name) {
+                                        navigate('/itinerary/result', {
+                                          state: { itinerary: lastItinerary, clientName: client.name }
+                                        })
+                                      } else if (lastItinerary) {
+                                        // Last plan exists but for different client — still allow
+                                        navigate('/itinerary/result', {
+                                          state: { itinerary: lastItinerary, clientName: client.name }
+                                        })
+                                      } else {
+                                        toast('Generate a plan first, then download PDF', { icon: 'ℹ️' })
+                                      }
                                     }}
                                     style={{ width: '100%', padding: '13px 16px', background: '#f8fafc', color: '#374151', border: '1.5px solid #e2e8f0', borderRadius: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                      <Download size={14} color="#374151" />
+                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#f0fdfa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      <Download size={14} color="#0d9488" />
                                     </div>
                                     <div style={{ textAlign: 'left' }}>
-                                      <div style={{ fontSize: '13px', fontWeight: '700' }}>Download Summary</div>
-                                      <div style={{ fontSize: '11px', color: '#64748b' }}>Save trip details as text file</div>
+                                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#0d9488' }}>Download PDF</div>
+                                      <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                        {lastItinerary && (lastClientName === client.name || lastItinerary)
+                                          ? 'Opens plan — download branded PDF'
+                                          : 'Generate a plan first'}
+                                      </div>
                                     </div>
-                                    <ArrowRight size={13} color="#94a3b8" style={{ marginLeft: 'auto' }} />
+                                    <ArrowRight size={13} color="#0d9488" style={{ marginLeft: 'auto' }} />
                                   </button>
                                 )}
 
@@ -1021,6 +1057,28 @@ export default function AgentDashboard() {
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '7px 16px', background: '#f5f3ff', color: '#8b5cf6', borderRadius: '20px', fontSize: '12px', fontWeight: '700', border: '1px solid #ddd6fe' }}>
                 ✨ Module 4 — Coming Soon
               </span>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════
+              PROFILE TAB — redirect to /agent/profile
+          ════════════════════════════════════ */}
+          {activeTab === 'profile' && (
+            <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+              <div style={{ width: '60px', height: '60px', borderRadius: '18px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                <Settings2 size={26} color="white" />
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: '0 0 8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {user?.business_name || 'Your Agency'}
+              </h3>
+              <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '340px', margin: '0 auto 20px', lineHeight: 1.7 }}>
+                Set your agency name, logo, brand colour, and contact details. These appear on all PDF exports and WhatsApp messages.
+              </p>
+              <button
+                onClick={() => navigate('/agent/profile')}
+                style={{ padding: '12px 26px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 4px 14px rgba(13,148,136,0.35)', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <Settings2 size={15} /> Edit Agency Profile
+              </button>
             </div>
           )}
         </div>
