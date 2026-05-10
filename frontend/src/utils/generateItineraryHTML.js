@@ -59,23 +59,22 @@ const TIER_LABELS = {
 }
 
 // ── Generate photo URL from destination ────────────────────────
-function photoUrl(destination, width = 1920, height = 1080) {
-  const query = encodeURIComponent(
-    (destination || 'mountains travel india')
-      .replace(/circuit:/i, '')
-      .replace(/[^a-zA-Z\s]/g, '')
-      .trim()
-      .split(' ').slice(0, 2).join(',')
-  )
-  return `https://source.unsplash.com/${width}x${height}/?${query},travel`
+// Picsum photos — reliable, no CORS, works in print
+// Seed based on destination name so same destination always gets same photo
+function photoUrl(destination) {
+  const seed = (destination || 'travel')
+    .replace(/[^a-zA-Z]/g, '')
+    .toLowerCase()
+    .slice(0, 20)
+  return `https://picsum.photos/seed/${seed}/1920/1080`
 }
 
 function hotelPhotoUrl(area, i) {
-  const queries = ['hotel,luxury,india', 'resort,rooms', 'hotel,interior', 'boutique,hotel']
-  const q = area
-    ? encodeURIComponent(area.split(',')[0].trim() + ',hotel')
-    : encodeURIComponent(queries[i % queries.length])
-  return `https://source.unsplash.com/800x400/?${q}`
+  const seeds = ['hotel1', 'resort2', 'luxury3', 'boutique4', 'lodge5', 'inn6']
+  const seed = area
+    ? area.replace(/[^a-zA-Z]/g, '').toLowerCase().slice(0, 10) + i
+    : seeds[i % seeds.length]
+  return `https://picsum.photos/seed/${seed}/800/400`
 }
 
 // ── Calculate cost percentage ───────────────────────────────────
@@ -275,7 +274,24 @@ function buildCostRows(cb) {
 }
 
 // ── MAIN EXPORT ─────────────────────────────────────────────────
-export function generateTripPDF({ data, user, isAgent = false, clientName = null, agentProfile = null }) {
+// Convert image URL to base64 to avoid CORS in new tab context
+async function toBase64(url) {
+  try {
+    const res = await fetch(url, { mode: 'cors' })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function generateTripPDF({ data, user, isAgent = false, clientName = null, agentProfile = null }) {
   const dest      = data.destination || 'Your Trip'
   const tier      = data.plan_tier || 'silver'
   const tierLabel = TIER_LABELS[tier] || 'Silver Plan'
@@ -284,7 +300,9 @@ export function generateTripPDF({ data, user, isAgent = false, clientName = null
   const initials  = forName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
   const today     = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
   const phone     = agentProfile?.contact_phone || agentProfile?.whatsapp_number || ''
-  const logoUrl   = agentProfile?.logo_url || ''
+  const rawLogoUrl = agentProfile?.logo_url || ''
+  // Convert logo to base64 so it works in new tab without CORS issues
+  const logoUrl = rawLogoUrl ? (await toBase64(rawLogoUrl) || rawLogoUrl) : ''
   const brand     = agentProfile?.brand_color || '#2563eb'
 
   const cb        = data.cost_breakdown || {}
@@ -348,9 +366,31 @@ export function generateTripPDF({ data, user, isAgent = false, clientName = null
   .tip-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
   @media print {
     .no-print { display: none !important; }
-    .day-card:hover { transform: none; box-shadow: none; }
-    body { font-size: 11px; }
-    @page { margin: 0; }
+    .day-card:hover, .hotel-card:hover, .tip-card:hover { transform: none !important; box-shadow: none !important; }
+    body { font-size: 11px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+    @page { margin: 0; size: A4; }
+    .day-card { break-inside: avoid; page-break-inside: avoid; }
+
+    /* Force dark backgrounds to print */
+    .hero-bg, section[style*="background"] {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    /* Slate dark sections */
+    .bg-gradient-to-br.from-slate-900,
+    .bg-gradient-to-br.from-slate-800,
+    [class*="from-slate-9"],
+    [class*="from-slate-8"] {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      background: #0f172a !important;
+      color: white !important;
+    }
+    /* Day card gradients */
+    [class*="bg-gradient-to-br"] {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   }
 </style>
 </head>
@@ -367,7 +407,14 @@ export function generateTripPDF({ data, user, isAgent = false, clientName = null
       <span class="text-gold-400 text-xs font-semibold uppercase tracking-widest ml-2 bg-gold-400/10 px-2 py-0.5 rounded-full">${h(tierLabel)}</span>
     </div>
     <div class="flex items-center gap-3">
-      ${logoUrl ? `<img src="${h(logoUrl)}" class="h-8 rounded-lg border border-white/20" alt="Agency Logo">` : ''}
+      ${logoUrl ? `<img src="${h(logoUrl)}" 
+        class="h-8 rounded-lg border border-white/20" 
+        alt="${h(agentName)}"
+        crossorigin="anonymous"
+        onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div style="display:none;width:32px;height:32px;border-radius:8px;background:${brand};align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px;flex-shrink:0;">
+          ${h(agentName.charAt(0).toUpperCase())}
+        </div>` : ''}
       <span class="text-white/70 text-sm">${h(agentName)}</span>
       <button onclick="window.print()" class="flex items-center gap-2 text-white/70 hover:text-white text-sm px-4 py-2 rounded-lg border border-white/20 hover:border-white/40 transition-all">
         <i data-lucide="printer" class="w-4 h-4"></i>
@@ -378,8 +425,11 @@ export function generateTripPDF({ data, user, isAgent = false, clientName = null
 </nav>
 
 <!-- Hero -->
-<section class="relative hero-bg min-h-[700px] h-screen max-h-[900px] flex items-center overflow-hidden">
-  <img src="${photoUrl(dest)}" alt="${h(dest)}" class="absolute inset-0 w-full h-full object-cover opacity-50" crossorigin="anonymous">
+<section class="relative hero-bg min-h-[700px] h-screen max-h-[900px] flex items-center overflow-hidden" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+  <img src="${photoUrl(dest)}" alt="${h(dest)}"
+    class="absolute inset-0 w-full h-full object-cover opacity-50"
+    style="-webkit-print-color-adjust:exact;print-color-adjust:exact;"
+    onerror="this.style.display='none'">
   <div class="hero-overlay absolute inset-0"></div>
   <div class="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16 w-full">
     <div class="max-w-3xl">
@@ -469,7 +519,7 @@ ${Object.keys(cb).length ? `
         <div class="space-y-5">${buildCostRows(cb)}</div>
       </div>
       <div class="lg:col-span-2">
-        <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-8 text-white sticky top-24">
+        <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-8 text-white sticky top-24" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
           <div class="flex items-center gap-2 mb-6">
             <i data-lucide="wallet" class="w-5 h-5 text-gold-400"></i>
             <span class="text-gold-400 text-xs font-semibold uppercase tracking-widest">Total Estimated Cost</span>
@@ -553,7 +603,7 @@ ${data.local_tips?.length ? `
 </section>` : ''}
 
 <!-- CTA -->
-<section class="py-24 relative overflow-hidden" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)">
+<section class="py-24 relative overflow-hidden" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%); -webkit-print-color-adjust:exact; print-color-adjust:exact;">
   <div class="absolute top-10 left-10 w-72 h-72 rounded-full blur-3xl opacity-20" style="background:${brand}"></div>
   <div class="relative max-w-3xl mx-auto px-6 text-center">
     <div class="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 mb-8">
@@ -648,7 +698,7 @@ ${data.local_tips?.length ? `
       setTimeout(() => {
         win.focus()
         win.print()
-      }, 2000) // wait 2s for images to load
+      }, 3500) // wait 3.5s for images and fonts to fully load
     }
   }
 
