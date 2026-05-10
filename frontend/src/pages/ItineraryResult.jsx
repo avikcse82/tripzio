@@ -106,6 +106,7 @@ export default function ItineraryResult() {
   const [isSaved, setIsSaved]                   = useState(false)
   const [saving, setSaving]                     = useState(false)
   const [shareUrl, setShareUrl]                 = useState(null)
+  const [shareLoading, setShareLoading]           = useState(false)
   const [copying, setCopying]                   = useState(false)
 
   const circuit = data ? isCircuit(data) : false
@@ -229,16 +230,43 @@ export default function ItineraryResult() {
   }
 
   const handleShare = async () => {
-    const text = `🌍 Check out my Tripzio trip plan!\n\n📍 ${data.destination}\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ Planned using Tripzio — India's AI Travel Planner\ntripzio.io`
-    if (navigator.share) {
-      navigator.share({ title: `Tripzio — ${data.destination}`, text })
-    } else {
-      navigator.clipboard.writeText(text)
-      toast.success('Trip details copied to clipboard!')
+    setShareLoading(true)
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      const res = await fetch(`${API_URL}/share/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          trip_data: data,
+          title: `${data.destination} · ${data.days} Days`,
+          destination: data.destination,
+          days: data.days,
+          plan_tier: data.plan_tier,
+          is_agent: isAgent,
+          agent_name: isAgent ? (user?.business_name || user?.full_name) : null,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error('Could not create share link')
+      // Use window.location.origin so it works on localhost AND production
+      const shareUrl = `${window.location.origin}/trip/${result.slug}`
+      if (navigator.share) {
+        await navigator.share({ title: `${data.destination} Itinerary`, text: 'Check out this trip plan on Tripzio!', url: shareUrl })
+      } else {
+        await navigator.clipboard.writeText(shareUrl)
+        toast.success('Share link copied! 🔗')
+      }
+    } catch (e) {
+      toast.error('Could not create share link. Try again.')
+    } finally {
+      setShareLoading(false)
     }
   }
 
-  const handleWhatsApp = () => {
+    const handleWhatsApp = () => {
     const text = `🌍 *My Tripzio Trip Plan*\n\n📍 *${data.destination}*\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ *Highlights:*\n${data.highlights?.map(h => `• ${h}`).join('\n')}\n\n_Plan yours free at tripzio.io_`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
     toast.success('Opening WhatsApp!')
@@ -520,7 +548,7 @@ export default function ItineraryResult() {
                   )}
                   <button className="action-btn" onClick={handleShare}
                     style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
-                    <Share2 size={15} /> Share
+                    <Share2 size={15} /> {shareLoading ? 'Creating...' : 'Share'}
                   </button>
                   <button className="action-btn" onClick={handleWhatsApp}
                     style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>

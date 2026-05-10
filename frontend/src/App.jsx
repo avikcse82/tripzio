@@ -14,6 +14,8 @@ import DestinationSuggestions from './pages/DestinationSuggestions'
 import ItineraryResult from './pages/ItineraryResult'
 import ComingSoon from './pages/ComingSoon'
 import MyTrips from './pages/MyTrips'
+import ExplorePage from './pages/ExplorePage'
+import PublicTripView from './pages/PublicTripView'
 import NotFound from './pages/NotFound'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
@@ -73,10 +75,11 @@ function AppRoutes() {
         <Route path="/destinations/suggest" element={<ProtectedRoute role="user"><DestinationSuggestions /></ProtectedRoute>} />
         <Route path="/itinerary/result" element={<ProtectedRoute><ItineraryResult /></ProtectedRoute>} />
         <Route path="/my-trips" element={<ProtectedRoute role="user"><MyTrips /></ProtectedRoute>} />
-        <Route path="/explore" element={<ProtectedRoute role="user"><ComingSoon /></ProtectedRoute>} />
+        <Route path="/explore" element={<ProtectedRoute role="user"><ExplorePage /></ProtectedRoute>} />
         <Route path="/saved" element={<ProtectedRoute role="user"><ComingSoon /></ProtectedRoute>} />
         <Route path="/agent/dashboard" element={<ProtectedRoute role="agent"><AgentDashboard /></ProtectedRoute>} />
         <Route path="/agent/profile" element={<ProtectedRoute role="agent"><AgentProfile /></ProtectedRoute>} />
+        <Route path="/trip/:slug" element={<PublicTripView />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

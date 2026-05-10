@@ -142,6 +142,7 @@ export default function UserDashboard() {
   const [tripType, setTripType] = useState('')
   const [destinationMode, setDestinationMode] = useState('suggest')
   const [selectedDestination, setSelectedDestination] = useState('')
+  const [intlWarning, setIntlWarning] = useState(false)
   const [isFlexible, setIsFlexible] = useState(false)
   const [transportMode, setTransportMode] = useState('balanced')
   const [selectedTier, setSelectedTier] = useState(null)
@@ -239,7 +240,13 @@ export default function UserDashboard() {
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ free_text: customText.trim() })
         })
-        if (!response.ok) {
+              if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        if (errData?.detail?.code === 'INTERNATIONAL_DESTINATION') {
+          toast.error('Tripzio supports Indian destinations only. International coming soon! 🌍', { duration: 5000 })
+          setIntlWarning(true)
+          return
+        }
           const err = await response.json()
           throw new Error(err.detail || 'Generation failed')
         }
@@ -288,7 +295,12 @@ export default function UserDashboard() {
         navigate('/destinations/suggest', { state: { suggestions: data.suggestions, tripParams } })
       }
     } catch (err) {
-      toast.error(err.message || 'Something went wrong. Please try again.')
+      // Handle international destination error from backend
+      if (err.message?.includes?.('INTERNATIONAL') || err.code === 'INTERNATIONAL_DESTINATION') {
+        toast.error('Tripzio supports Indian destinations only. International coming soon! 🌍', { duration: 5000 })
+      } else {
+        toast.error(err.message || 'Something went wrong. Please try again.')
+      }
     } finally {
       setGenerating(false)
     }
@@ -312,9 +324,9 @@ export default function UserDashboard() {
     </div>
   )
 
-  const quickReady = from && days && budget
-  const detailedReady = from && days && budget && startDate && selectedTier && (destinationMode === 'suggest' || selectedDestination)
-  const customReady = customText.trim().length >= 20
+  const quickReady = from && days && budget && !intlWarning
+  const detailedReady = from && days && budget && startDate && selectedTier && (destinationMode === 'suggest' || selectedDestination) && !intlWarning
+  const customReady = customText.trim().length >= 20 && !intlWarning
   const isReady = planMode === 'quick' ? quickReady : planMode === 'detailed' ? detailedReady : customReady
 
   const modeConfig = {
@@ -523,12 +535,31 @@ export default function UserDashboard() {
                   <textarea
                     ref={customTextRef}
                     value={customText}
-                    onChange={e => { setCustomText(e.target.value); setCustomCharCount(e.target.value.length) }}
+                    onChange={e => {
+                      const val = e.target.value
+                      setCustomText(val)
+                      setCustomCharCount(val.length)
+                      // Block international destinations in custom plan
+                      const intlWords = ['london','paris','dubai','singapore','usa','america','europe','australia','japan','china','thailand','bali','maldives','tokyo','york','francisco','angeles','canada','italy','spain','germany','france','switzerland','korea','vietnam','indonesia','philippines','malaysia','sri lanka','nepal','bhutan','pakistan','egypt','africa','brazil','mexico','abroad','international','foreign','overseas']
+                      setIntlWarning(intlWords.some(w => val.toLowerCase().includes(w)))
+                    }}
                     placeholder={`अपना सपनों का सफर बताइए...\n\nExamples:\n• "5 days Shimla + Manali from Delhi, ₹25,000, couple trip"\n• "Kolkata se 7 din — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, adventure"\n• "Kerala road trip — Munnar 2 days, Alleppey 2 days, Kovalam 2 days, family of 4, ₹40,000"`}
                     style={{ width: '100%', minHeight: '180px', padding: '16px', background: '#f8fafc', border: `1.5px solid ${customText.length > 0 ? '#0d9488' : '#e2e8f0'}`, borderRadius: '16px', color: '#0f172a', fontSize: '14px', fontFamily: 'Inter, sans-serif', outline: 'none', resize: 'vertical', lineHeight: 1.7, transition: 'border 0.2s' }}
                   />
                   <div style={{ position: 'absolute', bottom: '12px', right: '14px', fontSize: '11px', color: customCharCount > 500 ? '#ef4444' : '#94a3b8', fontWeight: '500' }}>
                     {customCharCount}/500
+                  {intlWarning && (
+                    <div style={{ marginTop: '10px', padding: '12px 14px', background: '#fffbeb', border: '1.5px solid #fcd34d', borderRadius: '12px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <span style={{ fontSize: '18px', flexShrink: 0 }}>🌍</span>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#92400e' }}>International destination detected</div>
+                        <div style={{ fontSize: '12px', color: '#b45309', marginTop: '3px', lineHeight: 1.5 }}>
+                          Tripzio specialises in incredible Indian destinations. International travel planning is coming soon!<br/>
+                          <strong>Try:</strong> Darjeeling + Gangtok, Goa, Manali, Kerala, Leh-Ladakh, Rajasthan
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   </div>
                 </div>
 
@@ -786,10 +817,30 @@ export default function UserDashboard() {
                             <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
                             <input type="text" placeholder="Type any destination — Coorg, Spiti, Bali..."
                               value={selectedDestination}
-                              onChange={e => { setSelectedDestination(e.target.value); setFormErrors(p => ({ ...p, destination: '' })) }}
+                              onChange={e => {
+                              const val = e.target.value
+                              setSelectedDestination(val)
+                              setFormErrors(p => ({ ...p, destination: '' }))
+                              // Detect international destinations
+                              const intlWords = ['london','paris','dubai','singapore','usa','america','europe','australia','japan','china','thailand','bali','maldives','london','tokyo','york','francisco','angeles','canada','italy','spain','germany','france','switzerland','korea','vietnam','indonesia','philippines','malaysia','sri lanka','nepal','bhutan','pakistan','egypt','africa','brazil','mexico']
+                              const isIntl = intlWords.some(w => val.toLowerCase().includes(w))
+                              setIntlWarning(isIntl)
+                            }}
                               style={{ ...inputBase(false), paddingLeft: '38px', paddingRight: '38px', borderColor: selectedDestination ? '#8b5cf6' : '#e2e8f0' }} />
                             {selectedDestination && (
-                              <button onClick={() => setSelectedDestination('')} style={{ position: 'absolute', right: '13px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: 0 }}>×</button>
+                              <button onClick={() => { setSelectedDestination(''); setIntlWarning(false) }} style={{ position: 'absolute', right: '13px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: 0 }}>x</button>
+                            )}
+                            {intlWarning && (
+                              <div style={{ marginTop: '8px', padding: '10px 14px', background: '#fffbeb', border: '1.5px solid #fcd34d', borderRadius: '10px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                <span style={{ fontSize: '16px', flexShrink: 0 }}>🌍</span>
+                                <div>
+                                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#92400e' }}>International destination detected</div>
+                                  <div style={{ fontSize: '11px', color: '#b45309', marginTop: '2px', lineHeight: 1.5 }}>
+                                    Tripzio specialises in incredible Indian destinations. International travel planning is coming soon!
+                                    Try: <strong>Goa, Manali, Kerala, Rajasthan, Darjeeling</strong>
+                                  </div>
+                                </div>
+                              </div>
                             )}
                           </div>
                           <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>— or pick from popular —</p>

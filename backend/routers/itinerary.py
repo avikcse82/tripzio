@@ -15,6 +15,45 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/itinerary", tags=["Itinerary"])
 security = HTTPBearer()
 
+# ── India-only destination validation ─────────────────────────
+INTERNATIONAL_KEYWORDS = {
+    "london","england","uk","united kingdom","britain","france","paris","germany","berlin",
+    "usa","america","new york","los angeles","san francisco","chicago","washington",
+    "dubai","uae","abu dhabi","singapore","malaysia","kuala lumpur","bangkok","thailand",
+    "australia","sydney","melbourne","canada","toronto","vancouver",
+    "japan","tokyo","china","beijing","shanghai","korea","seoul",
+    "italy","rome","milan","spain","madrid","barcelona","portugal","lisbon",
+    "switzerland","zurich","geneva","austria","vienna","netherlands","amsterdam",
+    "maldives","sri lanka","colombo","nepal","kathmandu","bhutan","thimphu",
+    "pakistan","bangladesh","myanmar","vietnam","indonesia","bali","jakarta",
+    "philippines","hong kong","taiwan","egypt","cairo","kenya","south africa",
+    "brazil","rio","mexico","europe","africa","abroad","overseas","international",
+    "foreign","outside india","world tour",
+}
+
+INDIA_SAFE_WORDS = {
+    "delhi","mumbai","kolkata","chennai","bangalore","bengaluru","hyderabad",
+    "goa","kochi","darjeeling","gangtok","leh","ladakh","manali","shimla",
+    "jaipur","agra","varanasi","rishikesh","ooty","munnar","andaman",
+    "rajasthan","kerala","himachal","uttarakhand","sikkim","india","indian",
+}
+
+def is_international_destination(destination: str, from_city: str = ""):
+    """
+    Detects international destinations in text.
+    IMPORTANT: Even ONE international keyword = block.
+    Mixed trips like Darjeeling + London are INVALID — block them.
+    """
+    combined = (destination + " " + from_city).lower()
+    # Check every international keyword — ANY match = block
+    # We don't care if Indian destinations are also mentioned
+    # A "Darjeeling + London" circuit is still invalid
+    for keyword in INTERNATIONAL_KEYWORDS:
+        if keyword in combined:
+            return True, keyword
+    return False, ""
+
+
 TIER_CONFIG = {
     "bronze": {
         "stay": "budget guesthouses, hostels, or dharamshalas (₹500-1,500/night)",
@@ -75,7 +114,11 @@ Current weather at destination:
 - Advisory: {weather_data.get('advisory', 'None')}
 """ if weather_data else ""
 
-    return f"""You are Tripzio's AI travel expert specializing in Indian travel. Generate a comprehensive, personalized travel itinerary.
+    return f"""You are Tripzio's AI travel expert specializing ONLY in Indian travel.
+CRITICAL: If the destination is outside India (e.g. London, Dubai, Singapore, USA, Europe), you MUST return: {{"error": "INTERNATIONAL_DESTINATION", "message": "Only Indian destinations supported"}}
+Do NOT generate itineraries for international destinations under any circumstances.
+
+Generate a comprehensive, personalized travel itinerary for Indian destinations only.
 
 TRIP DETAILS:
 - Traveler from: {req.from_city}
@@ -315,7 +358,22 @@ async def generate_itinerary(
     current_user: dict = Depends(get_current_user_from_token)
 ):
     try:
-        logger.info(f"Generating itinerary: {req.from_city} → {req.destination}, {req.days}d, ₹{req.budget}")
+        logger.info(f"Generating itinerary: {req.from_city} -> {req.destination}, {req.days}d")
+
+        # ── Layer 1: India-only validation ────────────────────
+        is_intl, detected = is_international_destination(
+            req.destination or "", req.from_city or ""
+        )
+        if is_intl:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INTERNATIONAL_DESTINATION",
+                    "message": f"Tripzio specialises in incredible Indian destinations. International travel planning is coming soon!",
+                    "detected_keyword": detected,
+                    "suggestion": "Try destinations like Goa, Manali, Kerala, Rajasthan, or Darjeeling!"
+                }
+            )
 
         if req.days < 1 or req.days > 30:
             raise HTTPException(status_code=400, detail="Days must be between 1 and 30")
@@ -489,6 +547,19 @@ async def generate_custom_itinerary(
     try:
         if len(req.free_text.strip()) < 10:
             raise HTTPException(status_code=400, detail="Please describe your trip in more detail")
+
+        # ── Layer 1: India-only validation ────────────────────
+        is_intl, detected = is_international_destination(req.free_text)
+        if is_intl:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INTERNATIONAL_DESTINATION",
+                    "message": f"Tripzio specialises in incredible Indian destinations. International travel planning is coming soon! Detected: '{detected}'",
+                    "detected_keyword": detected,
+                    "suggestion": "Try destinations like Goa, Manali, Kerala, Rajasthan, or Darjeeling!"
+                }
+            )
 
         logger.info(f"Custom plan request from {current_user['email']}: {req.free_text[:80]}...")
 
