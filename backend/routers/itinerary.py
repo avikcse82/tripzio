@@ -10,6 +10,7 @@ import httpx
 import json
 import logging
 from datetime import datetime
+from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/itinerary", tags=["Itinerary"])
@@ -538,6 +539,7 @@ async def get_itinerary_history(current_user: dict = Depends(get_current_user_fr
 # ── CUSTOM PLAN ENDPOINT ──────────────────────
 class CustomPlanRequest(BaseModel):
     free_text: str
+    start_date: Optional[str] = None
 
 @router.post("/generate-custom")
 async def generate_custom_itinerary(
@@ -745,6 +747,10 @@ RULES:
             })
         except Exception as e:
             logger.warning(f"Save failed: {e}")
+
+        # Inject start_date so FestivalAlert fires on result page
+        if req.start_date:
+            ai_response['start_date'] = req.start_date
 
         logger.info(f"✓ Custom plan generated: {ai_response.get('destination')}")
         return ai_response

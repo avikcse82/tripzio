@@ -242,6 +242,9 @@ export default function MyTrips() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
+  const [filterTier, setFilterTier] = useState('all')
+  const [filterDest, setFilterDest] = useState('all')
+  const [sortBy, setSortBy] = useState('newest')
 
   useEffect(() => {
     const token = localStorage.getItem('tripzio_token')
@@ -303,11 +306,25 @@ export default function MyTrips() {
     })
   }
 
-  const filtered = trips.filter(t =>
-    t.title.toLowerCase().includes(search.toLowerCase()) ||
-    t.destination.toLowerCase().includes(search.toLowerCase()) ||
-    t.from_city.toLowerCase().includes(search.toLowerCase())
-  )
+  // Get unique destinations for filter
+  const uniqueDests = [...new Set(trips.map(t => t.destination).filter(Boolean))]
+
+  const filtered = trips
+    .filter(t => {
+      if (search && !t.title.toLowerCase().includes(search.toLowerCase()) &&
+          !t.destination.toLowerCase().includes(search.toLowerCase()) &&
+          !t.from_city.toLowerCase().includes(search.toLowerCase())) return false
+      if (filterTier !== 'all' && t.plan_tier !== filterTier) return false
+      if (filterDest !== 'all' && t.destination !== filterDest) return false
+      return true
+    })
+    .sort((a, b) => {
+      if (sortBy === 'newest') return new Date(b.created_at) - new Date(a.created_at)
+      if (sortBy === 'oldest') return new Date(a.created_at) - new Date(b.created_at)
+      if (sortBy === 'days_desc') return (b.days || 0) - (a.days || 0)
+      if (sortBy === 'days_asc') return (a.days || 0) - (b.days || 0)
+      return 0
+    })
 
   const isFree = true // TODO: replace with real sub check in Module 4
 
@@ -369,6 +386,52 @@ export default function MyTrips() {
         )}
 
         {/* Search — only show when 3+ trips */}
+        {/* ── Filters Row ── */}
+        {trips.length >= 2 && (
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px', alignItems: 'center' }}>
+            {/* Tier filter */}
+            <select value={filterTier} onChange={e => setFilterTier(e.target.value)}
+              style={{ padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', fontWeight: '600', color: '#374151', background: 'white', cursor: 'pointer', fontFamily: 'Inter, sans-serif', outline: 'none' }}>
+              <option value="all">All Tiers</option>
+              <option value="bronze">Bronze</option>
+              <option value="silver">Silver</option>
+              <option value="gold">Gold</option>
+              <option value="diamond">Diamond</option>
+              <option value="platinum">Platinum</option>
+            </select>
+
+            {/* Destination filter */}
+            {uniqueDests.length > 1 && (
+              <select value={filterDest} onChange={e => setFilterDest(e.target.value)}
+                style={{ padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', fontWeight: '600', color: '#374151', background: 'white', cursor: 'pointer', fontFamily: 'Inter, sans-serif', outline: 'none', maxWidth: '180px' }}>
+                <option value="all">All Destinations</option>
+                {uniqueDests.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            )}
+
+            {/* Sort */}
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+              style={{ padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', fontWeight: '600', color: '#374151', background: 'white', cursor: 'pointer', fontFamily: 'Inter, sans-serif', outline: 'none' }}>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="days_desc">Longest Trip</option>
+              <option value="days_asc">Shortest Trip</option>
+            </select>
+
+            {/* Active filter count */}
+            {(filterTier !== 'all' || filterDest !== 'all') && (
+              <button onClick={() => { setFilterTier('all'); setFilterDest('all') }}
+                style={{ padding: '7px 12px', border: '1.5px solid #fca5a5', borderRadius: '10px', fontSize: '11px', fontWeight: '700', color: '#ef4444', background: '#fff1f2', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                Clear Filters ×
+              </button>
+            )}
+
+            <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: 'auto' }}>
+              {filtered.length} of {trips.length} trips
+            </span>
+          </div>
+        )}
+
         {trips.length >= 3 && (
           <div style={{ position: 'relative', marginBottom: '24px' }}>
             <Search size={15} color="#94a3b8" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />

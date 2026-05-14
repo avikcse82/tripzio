@@ -10,6 +10,7 @@ import {
   History, PlusCircle, Eye, AlertCircle, Download
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import FestivalAlert from '../components/FestivalAlert'
 
 import { API_URL } from '../api'
 
@@ -83,6 +84,7 @@ export default function AgentDashboard() {
   const [tripType, setTripType]             = useState('')
   const [destination, setDestination]       = useState('')
   const [startDate, setStartDate]           = useState('')
+  const [customExtractedDate, setCustomExtractedDate] = useState(null)
   const [tier, setTier]                     = useState('silver')
   const [transport, setTransport]           = useState('balanced')
   const [customText, setCustomText]         = useState('')
@@ -273,7 +275,7 @@ export default function AgentDashboard() {
           return
         }
         endpoint = `${API_URL}/itinerary/generate-custom`
-        body = { free_text: customText.trim() }
+        body = { free_text: customText.trim(), start_date: customExtractedDate || null }
       } else {
         if (!from.trim() || !days || !budget) {
           toast.error('Fill From city, Days and Budget')
@@ -369,13 +371,196 @@ export default function AgentDashboard() {
   // Tab bar: Clients | Trip History | Invoices
   // Generate is NOT a tab — it's triggered from within client row
   const tabs = [
-    { id: 'clients',  icon: '👥', label: 'Clients' },
-    { id: 'generate', icon: '✨', label: selectedClient ? `Plan: ${selectedClient.name.split(' ')[0]}` : 'Generate Trip' },
-    { id: 'invoices', icon: '📄', label: 'Invoices' },
-    { id: 'profile',  icon: '⚙️', label: 'Profile' },
+    { id: 'clients',   icon: '👥', label: 'Clients' },
+    { id: 'generate',  icon: '✨', label: selectedClient ? `Plan: ${selectedClient.name.split(' ')[0]}` : 'Generate Trip' },
+    { id: 'analytics', icon: '📊', label: 'Analytics' },
+    { id: 'invoices',  icon: '📄', label: 'Invoices' },
+    { id: 'profile',   icon: '⚙️', label: 'Profile' },
   ]
 
-  return (
+  
+  // ── Extract date from custom plan text ───────────────────────
+  const extractDateFromText = (text) => {
+    try {
+      if (!text || text.length < 5) return null
+      const t = text.toLowerCase()
+      const now = new Date()
+      const year = now.getFullYear()
+
+      // BLOCK: if text contains a past year (e.g. 2023, 2024) — don't extract date
+      const pastYearMatch = t.match(/\b(20[0-2][0-9])\b/)
+      if (pastYearMatch) {
+        const yr = parseInt(pastYearMatch[1])
+        if (yr < year) return null  // past year mentioned — ignore
+      }
+
+      const months = {
+        'january':1,'jan':1,'february':2,'feb':2,
+        'march':3,'mar':3,'april':4,'apr':4,
+        'may':5,'june':6,'jun':6,'july':7,'jul':7,
+        'august':8,'aug':8,'september':9,'sep':9,
+        'october':10,'oct':10,'november':11,'nov':11,
+        'december':12,'dec':12,
+      }
+
+      // Normalise ordinal suffixes: "20th"→"20", "1st"→"1", "3rd"→"3"
+      const norm = t.replace(/\b(\d{1,2})(st|nd|rd|th)\b/g, '$1')
+
+      // PRIORITY 0: Numeric date formats — dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
+      // e.g. "15/08/2026", "15-08-2026", "15.08.2026"
+      const numericFull = norm.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/)
+      if (numericFull) {
+        const day = parseInt(numericFull[1])
+        const mon = parseInt(numericFull[2])
+        const yr  = parseInt(numericFull[3])
+        if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31 && yr >= year) {
+          return `${yr}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+        }
+      }
+
+      // dd/mm or dd-mm (no year) e.g. "15/08", "trip on 26/01"
+      const numericShort = norm.match(/\b(\d{1,2})[\/\-](\d{1,2})\b/)
+      if (numericShort) {
+        const day = parseInt(numericShort[1])
+        const mon = parseInt(numericShort[2])
+        if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
+          return makeDate(year, mon, day)
+        }
+      }
+
+      // "next month" / "this month"
+      if (t.includes('next month')) {
+        const d = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      }
+      if (t.includes('this month')) {
+        return now.toISOString().split('T')[0]
+      }
+
+      // Season keywords
+      const seasonMap = {
+        'this winter':'12','next winter':'12','winter trip':'12','winter vacation':'12',
+        'this summer':'05','next summer':'05','summer trip':'05','summer vacation':'05',
+        'this monsoon':'07','next monsoon':'07','monsoon trip':'07',
+        'this spring':'03','spring trip':'03',
+      }
+      for (const [kw, mon] of Object.entries(seasonMap)) {
+        if (t.includes(kw)) {
+          const m = parseInt(mon)
+          return makeDate(year, m, 1)
+        }
+      }
+
+      // Helper — build date string and auto-advance to next year if past
+      // NO Date object conversion — avoids IST timezone offset bug completely
+      const makeDate = (y, m, d) => {
+        const pad = n => String(n).padStart(2, '0')
+        const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`
+        const dateStr  = `${y}-${pad(m)}-${pad(d)}`
+        if (dateStr < todayStr) return `${y+1}-${pad(m)}-${pad(d)}`
+        return dateStr
+      }
+
+      // PRIORITY 1: "Month Day Year" — "Jan 10 2026", "January 10 2026"
+      const mdyMatch = norm.match(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})\s+(\d{4})/i)
+      if (mdyMatch) {
+        const mon = months[mdyMatch[1].toLowerCase()]
+        const day = parseInt(mdyMatch[2])
+        const yr  = parseInt(mdyMatch[3])
+        if (mon && day >= 1 && day <= 31 && yr >= year) {
+          return makeDate(yr, mon, day)
+        }
+      }
+
+      // PRIORITY 2: "Day Month Year" — "10 Jan 2026"
+      const dmyMatch = norm.match(/\b(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{4})/i)
+      if (dmyMatch) {
+        const day = parseInt(dmyMatch[1])
+        const mon = months[dmyMatch[2].toLowerCase()]
+        const yr  = parseInt(dmyMatch[3])
+        if (mon && day >= 1 && day <= 31 && yr >= year) {
+          return makeDate(yr, mon, day)
+        }
+      }
+
+      // PRIORITY 3: "Month Day" — "March 3", "January 20", "starting August 26"
+      const mdMatch = norm.match(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})\b/i)
+      if (mdMatch) {
+        const mon = months[mdMatch[1].toLowerCase()]
+        const day = parseInt(mdMatch[2])
+        if (mon && day >= 1 && day <= 31) {
+          return makeDate(year, mon, day)
+        }
+      }
+
+      // PRIORITY 4: "Day Month" — "20 January", "10 September se"
+      const dmMatch = norm.match(/\b(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)/i)
+      if (dmMatch) {
+        const day = parseInt(dmMatch[1])
+        const mon = months[dmMatch[2].toLowerCase()]
+        if (mon && day >= 1 && day <= 31) {
+          return makeDate(year, mon, day)
+        }
+      }
+
+      // PRIORITY 3: Festival keywords → exact date
+      const festivalMap = {
+        'republic day':`${year}-01-26`,
+        'holi':`${year}-03-03`,'होली':`${year}-03-03`,
+        'baisakhi':`${year}-04-13`,'vaisakhi':`${year}-04-13`,
+        'independence day':`${year}-08-15`,
+        'onam':`${year}-08-26`,
+        'janmashtami':`${year}-08-23`,
+        'ganesh chaturthi':`${year}-09-10`,'ganesh':`${year}-09-10`,'ganapati':`${year}-09-10`,
+        'navratri':`${year}-10-09`,'नवरात्रि':`${year}-10-09`,'garba':`${year}-10-09`,
+        'dussehra':`${year}-10-19`,'dasara':`${year}-10-19`,
+        'diwali':`${year}-11-07`,'दिवाली':`${year}-11-07`,'deepawali':`${year}-11-07`,
+        'pushkar':`${year}-11-01`,
+        'christmas':`${year}-12-24`,'xmas':`${year}-12-24`,
+        'new year':`${year}-12-31`,'new years':`${year}-12-31`,
+        'sunburn':`${year}-12-27`,
+        'buddha purnima':`${year}-05-12`,
+      }
+      for (const [kw, date] of Object.entries(festivalMap)) {
+        if (t.includes(kw)) return date
+      }
+
+      // PRIORITY 4: Month only — "October mein", "in December", "December mein"
+      const moMatch = norm.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/i)
+      if (moMatch) {
+        const mon = months[moMatch[1].toLowerCase()]
+        if (mon) {
+          return makeDate(year, mon, 1)
+        }
+      }
+
+      // Hindi month keywords
+      const hindiMap = {
+        'january mein':1,'february mein':2,'march mein':3,'april mein':4,
+        'may mein':5,'june mein':6,'july mein':7,'august mein':8,
+        'september mein':9,'october mein':10,'november mein':11,'december mein':12,
+        'अक्टूबर':10,'नवम्बर':11,'दिसम्बर':12,'मार्च':3,'अगस्त':8,
+      }
+      for (const [kw, mon] of Object.entries(hindiMap)) {
+        if (t.includes(kw)) {
+          return makeDate(year, mon, 1)
+        }
+      }
+
+      return null
+    } catch(e) { return null }
+  }
+
+  // ── Validate date is not in past ─────────────────────────
+  const isValidFutureDate = (dateStr) => {
+    if (!dateStr) return false
+    const d = new Date(dateStr)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return d >= today
+  }
+
+return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
@@ -929,6 +1114,11 @@ export default function AgentDashboard() {
                         <div>
                           <label style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Start Date</label>
                           <input type="date" value={startDate} min={new Date().toISOString().split('T')[0]} onChange={e => setStartDate(e.target.value)} style={{ ...inp(false), colorScheme: 'light' }} />
+                          {startDate && !isValidFutureDate(startDate) && (
+                            <p style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', fontWeight: '600' }}>
+                              ⚠️ Please select a future date
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div style={{ marginBottom: '14px' }}>
@@ -977,13 +1167,74 @@ export default function AgentDashboard() {
                     </div>
                   </div>
                   <div style={{ position: 'relative', marginBottom: '12px' }}>
-                    <textarea value={customText} onChange={e => setCustomText(e.target.value.slice(0, 500))}
+                    <textarea value={customText} onChange={e => {
+                      const val = e.target.value.slice(0, 500)
+                      setCustomText(val)
+                      setCustomExtractedDate(extractDateFromText(val))
+                    }}
                       placeholder={generateMode === 'modify'
                         ? `Describe changes to the current plan...\n\nExamples:\n• Remove Munnar, add Coorg instead\n• Extend by 2 days, add Kovalam beach\n• Change to Gold tier hotels throughout`
                         : `Type full trip details...\n\n• 2 days Darjeeling + 2 days Gangtok from Kolkata, ₹18,000\n• Rajasthan — Jaipur 3 days, Jodhpur 2 days, Jaisalmer 2 days`}
                       style={{ width: '100%', minHeight: '140px', padding: '12px', background: '#f8fafc', border: `1.5px solid ${customText.length > 0 ? '#0d9488' : '#e2e8f0'}`, borderRadius: '12px', fontSize: '13px', color: '#0f172a', fontFamily: 'Inter, sans-serif', outline: 'none', resize: 'vertical', lineHeight: 1.7 }} />
                     <span style={{ position: 'absolute', bottom: '9px', right: '11px', fontSize: '10px', color: '#94a3b8' }}>{customText.length}/500</span>
                   </div>
+
+                  {/* Smart festival alert — no date field needed */}
+                  {generateMode === 'new' && customText.length > 10 && (
+                    <div style={{ marginBottom: '10px' }}>
+                      {customExtractedDate && (
+                        <div style={{ marginBottom: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '8px', width: 'fit-content' }}>
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#0d9488' }}>
+                              📅 Date detected: {new Date(customExtractedDate + 'T12:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </span>
+                          </div>
+                          {(() => {
+                            const now = new Date()
+                            const typed = customText.match(/20[0-2][0-9]/)
+                            const typedYear = typed ? parseInt(typed[0]) : null
+                            const detectedYear = parseInt(customExtractedDate.split('-')[0])
+                            const isAdvanced = (typedYear && typedYear < detectedYear) ||
+                                               (typedYear && typedYear === now.getFullYear() &&
+                                                new Date(typedYear + '-' + customExtractedDate.slice(5) + 'T12:00:00') < now)
+                            return isAdvanced ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px', padding: '5px 10px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', width: 'fit-content' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#92400e' }}>
+                                  ⚠️ That date has passed — planning for: {new Date(customExtractedDate + 'T12:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                </span>
+                              </div>
+                            ) : null
+                          })()}
+                        </div>
+                      )}
+                      <FestivalAlert
+                        destination={customText.slice(0, 120)}
+                        startDate={customExtractedDate && isValidFutureDate(customExtractedDate) ? customExtractedDate : null}
+                        days={7}
+                        compact={true}
+                      />
+                    </div>
+                  )}
+
+                  {/* Soft nudge — no date detected */}
+                  {generateMode === 'new' && customText.length > 20 && !customExtractedDate && (
+                    <div style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '10px',
+                      padding: '10px 14px', marginBottom: '10px',
+                      background: '#f0f9ff', border: '1px solid #bae6fd',
+                      borderRadius: '10px',
+                    }}>
+                      <span style={{ fontSize: '15px', flexShrink: 0 }}>💡</span>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>
+                          Add travel dates for festival alerts & price planning
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '2px', lineHeight: 1.5 }}>
+                          e.g. <strong>"...starting March 3"</strong> or <strong>"...in December"</strong> or <strong>"...during Diwali"</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {generateMode === 'new' && (
                     <>
@@ -1008,7 +1259,7 @@ export default function AgentDashboard() {
 
               {/* GENERATE BUTTON */}
               <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <button className="gbtn" onClick={handleGenerate} disabled={generating}
+                <button className="gbtn" onClick={handleGenerate} disabled={generating || (customExtractedDate && !isValidFutureDate(customExtractedDate))}
                   style={{ padding: '13px 28px', background: generating ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: generating ? '#94a3b8' : 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: generating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating ? '0 4px 16px rgba(13,148,136,0.4)' : 'none', transition: 'all 0.2s' }}>
                   {generating
                     ? <><div style={{ width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Generating...</>
@@ -1043,6 +1294,124 @@ export default function AgentDashboard() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ════════════════════════════════════
+              ANALYTICS TAB
+          ════════════════════════════════════ */}
+          {activeTab === 'analytics' && (
+            <div style={{ padding: '24px', animation: 'fadeUp 0.3s ease' }}>
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: '#0d9488', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Agency Performance</div>
+                <h2 style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>Analytics Dashboard</h2>
+              </div>
+
+              {/* ── Stats Cards ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '14px', marginBottom: '28px' }}>
+                {[
+                  { label: 'Total Clients',    val: clients.length,                                              color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
+                  { label: 'Plans Generated',  val: clients.filter(c => c.trip && c.trip !== 'Not planned yet').length, color: '#6d28d9', bg: '#f5f3ff', border: '#ddd6fe' },
+                  { label: 'Confirmed Trips',  val: clients.filter(c => c.status === 'confirmed').length,        color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+                  { label: 'Pending',          val: clients.filter(c => c.status === 'pending').length,          color: '#d97706', bg: '#fffbeb', border: '#fcd34d' },
+                ].map((s, i) => (
+                  <div key={i} style={{ background: s.bg, border: `1.5px solid ${s.border}`, borderRadius: '16px', padding: '18px' }}>
+                    <div style={{ fontSize: '28px', fontWeight: '900', color: s.color, fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1 }}>{s.val}</div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', marginTop: '4px' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Conversion Rate ── */}
+              {clients.length > 0 && (
+                <div style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginBottom: '14px' }}>Conversion Pipeline</div>
+                  {[
+                    { label: 'Enquiries (Total Clients)', val: clients.length, color: '#64748b', pct: 100 },
+                    { label: 'Plans Generated',           val: clients.filter(c => c.trip && c.trip !== 'Not planned yet').length, color: '#8b5cf6', pct: Math.round(clients.filter(c => c.trip && c.trip !== 'Not planned yet').length / clients.length * 100) },
+                    { label: 'Confirmed Bookings',        val: clients.filter(c => c.status === 'confirmed').length, color: '#16a34a', pct: Math.round(clients.filter(c => c.status === 'confirmed').length / clients.length * 100) },
+                    { label: 'Completed Trips',           val: clients.filter(c => c.status === 'completed').length, color: '#0d9488', pct: Math.round(clients.filter(c => c.status === 'completed').length / clients.length * 100) },
+                  ].map((row, i) => (
+                    <div key={i} style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>{row.label}</span>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: row.color }}>{row.val} ({row.pct}%)</span>
+                      </div>
+                      <div style={{ background: '#f1f5f9', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${row.pct}%`, background: row.color, borderRadius: '4px', transition: 'width 1s ease' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Top Destinations ── */}
+              {clients.length > 0 && (() => {
+                const destCount = {}
+                clients.forEach(c => {
+                  if (c.trip && c.trip !== 'Not planned yet') {
+                    const dest = c.trip.split('·')[0].trim()
+                    destCount[dest] = (destCount[dest] || 0) + 1
+                  }
+                })
+                const topDests = Object.entries(destCount).sort((a,b) => b[1]-a[1]).slice(0,5)
+                if (topDests.length === 0) return null
+                return (
+                  <div style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginBottom: '14px' }}>Top Destinations</div>
+                    {topDests.map(([dest, count], i) => {
+                      const colors = ['#0d9488','#8b5cf6','#f59e0b','#3b82f6','#ef4444']
+                      return (
+                        <div key={dest} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                          <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: colors[i % 5], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800', color: 'white', flexShrink: 0 }}>{i+1}</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>{dest}</span>
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: colors[i % 5] }}>{count} trips</span>
+                            </div>
+                            <div style={{ background: '#f1f5f9', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${(count/topDests[0][1])*100}%`, background: colors[i % 5], borderRadius: '4px' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+
+              {/* ── Recent Activity ── */}
+              <div style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginBottom: '14px' }}>Recent Activity</div>
+                {clients.slice(0, 5).map((client, i) => (
+                  <div key={client.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: i < 4 ? '1px solid #f1f5f9' : 'none' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: getColor(client.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700', color: 'white', flexShrink: 0 }}>
+                      {client.name?.charAt(0)?.toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#0f172a' }}>{client.name}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {client.trip && client.trip !== 'Not planned yet' ? client.trip : 'No plan yet'}
+                      </div>
+                    </div>
+                    <div style={{ flexShrink: 0 }}>
+                      <span style={{
+                        fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px',
+                        background: client.status === 'confirmed' ? '#f0fdf4' : client.status === 'completed' ? '#eff6ff' : '#fffbeb',
+                        color: client.status === 'confirmed' ? '#16a34a' : client.status === 'completed' ? '#1d4ed8' : '#d97706',
+                        border: `1px solid ${client.status === 'confirmed' ? '#86efac' : client.status === 'completed' ? '#bfdbfe' : '#fcd34d'}`,
+                      }}>
+                        {client.status || 'pending'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {clients.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '13px' }}>
+                    No clients yet — add your first client to see analytics
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

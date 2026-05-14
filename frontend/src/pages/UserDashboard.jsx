@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import { API_URL } from '../api'
+import FestivalAlert from '../components/FestivalAlert'
 import {
   MapPin, Search, Heart, TrendingUp, Clock, Star,
   ArrowRight, Compass, Sun, Mountain, Waves, Calendar,
@@ -151,6 +152,7 @@ export default function UserDashboard() {
 
   // Custom Plan state
   const [customText, setCustomText] = useState('')
+  const [customExtractedDate, setCustomExtractedDate] = useState(null)
   const [customCharCount, setCustomCharCount] = useState(0)
   const [showSamples, setShowSamples] = useState(false)
   const customTextRef = useRef(null)
@@ -238,7 +240,7 @@ export default function UserDashboard() {
         const response = await fetch(`${API_URL}/itinerary/generate-custom`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ free_text: customText.trim() })
+          body: JSON.stringify({ free_text: customText.trim(), start_date: customExtractedDate || null })
         })
               if (!response.ok) {
         const errData = await response.json().catch(() => ({}))
@@ -324,9 +326,19 @@ export default function UserDashboard() {
     </div>
   )
 
+  // ── Validate date is not in past ─────────────────────────
+  const isValidFutureDate = (dateStr) => {
+    if (!dateStr) return false
+    const d = new Date(dateStr)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return d >= today
+  }
+
   const quickReady = from && days && budget && !intlWarning
-  const detailedReady = from && days && budget && startDate && selectedTier && (destinationMode === 'suggest' || selectedDestination) && !intlWarning
-  const customReady = customText.trim().length >= 20 && !intlWarning
+  const detailedReady = from && days && budget && startDate && selectedTier && (destinationMode === 'suggest' || selectedDestination) && !intlWarning && isValidFutureDate(startDate)
+  const customReady = customText.trim().length >= 20 && !intlWarning &&
+    (customExtractedDate ? isValidFutureDate(customExtractedDate) : true)
   const isReady = planMode === 'quick' ? quickReady : planMode === 'detailed' ? detailedReady : customReady
 
   const modeConfig = {
@@ -334,6 +346,180 @@ export default function UserDashboard() {
     detailed: { label: '🎯 Detailed', desc: 'Full control · Dates, tier, destination' },
     custom: { label: '✍️ Custom Plan', desc: 'Any language · Multi-city circuits' },
   }
+
+  // ── Extract date from free text ─────────────────────────────
+  const extractDateFromText = (text) => {
+    try {
+      if (!text || text.length < 5) return null
+      const t = text.toLowerCase()
+      const now = new Date()
+      const year = now.getFullYear()
+
+      // BLOCK: if text contains a past year (e.g. 2023, 2024) — don't extract date
+      const pastYearMatch = t.match(/\b(20[0-2][0-9])\b/)
+      if (pastYearMatch) {
+        const yr = parseInt(pastYearMatch[1])
+        if (yr < year) return null  // past year mentioned — ignore
+      }
+
+      const months = {
+        'january':1,'jan':1,'february':2,'feb':2,
+        'march':3,'mar':3,'april':4,'apr':4,
+        'may':5,'june':6,'jun':6,'july':7,'jul':7,
+        'august':8,'aug':8,'september':9,'sep':9,
+        'october':10,'oct':10,'november':11,'nov':11,
+        'december':12,'dec':12,
+      }
+
+      // Normalise ordinal suffixes: "20th"→"20", "1st"→"1", "3rd"→"3"
+      const norm = t.replace(/\b(\d{1,2})(st|nd|rd|th)\b/g, '$1')
+
+      // PRIORITY 0: Numeric date formats — dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
+      // e.g. "15/08/2026", "15-08-2026", "15.08.2026"
+      const numericFull = norm.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/)
+      if (numericFull) {
+        const day = parseInt(numericFull[1])
+        const mon = parseInt(numericFull[2])
+        const yr  = parseInt(numericFull[3])
+        if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31 && yr >= year) {
+          return `${yr}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+        }
+      }
+
+      // dd/mm or dd-mm (no year) e.g. "15/08", "trip on 26/01"
+      const numericShort = norm.match(/\b(\d{1,2})[\/\-](\d{1,2})\b/)
+      if (numericShort) {
+        const day = parseInt(numericShort[1])
+        const mon = parseInt(numericShort[2])
+        if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
+          return makeDate(year, mon, day)
+        }
+      }
+
+      // "next month" / "this month"
+      if (t.includes('next month')) {
+        const d = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      }
+      if (t.includes('this month')) {
+        return now.toISOString().split('T')[0]
+      }
+
+      // Season keywords
+      const seasonMap = {
+        'this winter':'12','next winter':'12','winter trip':'12','winter vacation':'12',
+        'this summer':'05','next summer':'05','summer trip':'05','summer vacation':'05',
+        'this monsoon':'07','next monsoon':'07','monsoon trip':'07',
+        'this spring':'03','spring trip':'03',
+      }
+      for (const [kw, mon] of Object.entries(seasonMap)) {
+        if (t.includes(kw)) {
+          const m = parseInt(mon)
+          return makeDate(year, m, 1)
+        }
+      }
+
+      // Helper — build date string and auto-advance to next year if past
+      // NO Date object conversion — avoids IST timezone offset bug completely
+      const makeDate = (y, m, d) => {
+        const pad = n => String(n).padStart(2, '0')
+        const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`
+        const dateStr  = `${y}-${pad(m)}-${pad(d)}`
+        if (dateStr < todayStr) return `${y+1}-${pad(m)}-${pad(d)}`
+        return dateStr
+      }
+
+      // PRIORITY 1: "Month Day Year" — "Jan 10 2026", "January 10 2026"
+      const mdyMatch = norm.match(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})\s+(\d{4})/i)
+      if (mdyMatch) {
+        const mon = months[mdyMatch[1].toLowerCase()]
+        const day = parseInt(mdyMatch[2])
+        const yr  = parseInt(mdyMatch[3])
+        if (mon && day >= 1 && day <= 31 && yr >= year) {
+          return makeDate(yr, mon, day)
+        }
+      }
+
+      // PRIORITY 2: "Day Month Year" — "10 Jan 2026"
+      const dmyMatch = norm.match(/\b(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{4})/i)
+      if (dmyMatch) {
+        const day = parseInt(dmyMatch[1])
+        const mon = months[dmyMatch[2].toLowerCase()]
+        const yr  = parseInt(dmyMatch[3])
+        if (mon && day >= 1 && day <= 31 && yr >= year) {
+          return makeDate(yr, mon, day)
+        }
+      }
+
+      // PRIORITY 3: "Month Day" — "March 3", "January 20", "starting August 26"
+      const mdMatch = norm.match(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})\b/i)
+      if (mdMatch) {
+        const mon = months[mdMatch[1].toLowerCase()]
+        const day = parseInt(mdMatch[2])
+        if (mon && day >= 1 && day <= 31) {
+          return makeDate(year, mon, day)
+        }
+      }
+
+      // PRIORITY 4: "Day Month" — "20 January", "10 September se"
+      const dmMatch = norm.match(/\b(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)/i)
+      if (dmMatch) {
+        const day = parseInt(dmMatch[1])
+        const mon = months[dmMatch[2].toLowerCase()]
+        if (mon && day >= 1 && day <= 31) {
+          return makeDate(year, mon, day)
+        }
+      }
+
+      // PRIORITY 3: Festival keywords → exact date
+      const festivalMap = {
+        'republic day':`${year}-01-26`,
+        'holi':`${year}-03-03`,'होली':`${year}-03-03`,
+        'baisakhi':`${year}-04-13`,'vaisakhi':`${year}-04-13`,
+        'independence day':`${year}-08-15`,
+        'onam':`${year}-08-26`,
+        'janmashtami':`${year}-08-23`,
+        'ganesh chaturthi':`${year}-09-10`,'ganesh':`${year}-09-10`,'ganapati':`${year}-09-10`,
+        'navratri':`${year}-10-09`,'नवरात्रि':`${year}-10-09`,'garba':`${year}-10-09`,
+        'dussehra':`${year}-10-19`,'dasara':`${year}-10-19`,
+        'diwali':`${year}-11-07`,'दिवाली':`${year}-11-07`,'deepawali':`${year}-11-07`,
+        'pushkar':`${year}-11-01`,
+        'christmas':`${year}-12-24`,'xmas':`${year}-12-24`,
+        'new year':`${year}-12-31`,'new years':`${year}-12-31`,
+        'sunburn':`${year}-12-27`,
+        'buddha purnima':`${year}-05-12`,
+      }
+      for (const [kw, date] of Object.entries(festivalMap)) {
+        if (t.includes(kw)) return date
+      }
+
+      // PRIORITY 4: Month only — "October mein", "in December", "December mein"
+      const moMatch = norm.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/i)
+      if (moMatch) {
+        const mon = months[moMatch[1].toLowerCase()]
+        if (mon) {
+          return makeDate(year, mon, 1)
+        }
+      }
+
+      // Hindi month keywords
+      const hindiMap = {
+        'january mein':1,'february mein':2,'march mein':3,'april mein':4,
+        'may mein':5,'june mein':6,'july mein':7,'august mein':8,
+        'september mein':9,'october mein':10,'november mein':11,'december mein':12,
+        'अक्टूबर':10,'नवम्बर':11,'दिसम्बर':12,'मार्च':3,'अगस्त':8,
+      }
+      for (const [kw, mon] of Object.entries(hindiMap)) {
+        if (t.includes(kw)) {
+          return makeDate(year, mon, 1)
+        }
+      }
+
+      return null
+    } catch(e) { return null }
+  }
+
+
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
@@ -539,9 +725,11 @@ export default function UserDashboard() {
                       const val = e.target.value
                       setCustomText(val)
                       setCustomCharCount(val.length)
-                      // Block international destinations in custom plan
+                      // Block international destinations
                       const intlWords = ['london','paris','dubai','singapore','usa','america','europe','australia','japan','china','thailand','bali','maldives','tokyo','york','francisco','angeles','canada','italy','spain','germany','france','switzerland','korea','vietnam','indonesia','philippines','malaysia','sri lanka','nepal','bhutan','pakistan','egypt','africa','brazil','mexico','abroad','international','foreign','overseas']
                       setIntlWarning(intlWords.some(w => val.toLowerCase().includes(w)))
+                      // Auto-extract date from text
+                      setCustomExtractedDate(extractDateFromText(val))
                     }}
                     placeholder={`अपना सपनों का सफर बताइए...\n\nExamples:\n• "5 days Shimla + Manali from Delhi, ₹25,000, couple trip"\n• "Kolkata se 7 din — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, adventure"\n• "Kerala road trip — Munnar 2 days, Alleppey 2 days, Kovalam 2 days, family of 4, ₹40,000"`}
                     style={{ width: '100%', minHeight: '180px', padding: '16px', background: '#f8fafc', border: `1.5px solid ${customText.length > 0 ? '#0d9488' : '#e2e8f0'}`, borderRadius: '16px', color: '#0f172a', fontSize: '14px', fontFamily: 'Inter, sans-serif', outline: 'none', resize: 'vertical', lineHeight: 1.7, transition: 'border 0.2s' }}
@@ -562,6 +750,67 @@ export default function UserDashboard() {
                   )}
                   </div>
                 </div>
+
+                {/* Smart festival alert — date auto-extracted from text */}
+                {customText.length > 10 && !intlWarning && (
+                  <div style={{ marginBottom: '12px' }}>
+                    {customExtractedDate && (
+                      <div style={{ marginBottom: '6px' }}>
+                        {/* Show detected date — always green since makeDate already advances past dates */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '8px', width: 'fit-content' }}>
+                          <Calendar size={11} color="#0d9488" />
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#0d9488' }}>
+                            📅 Date detected: {new Date(customExtractedDate + 'T12:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                        </div>
+                        {/* Warn if original text had a past date — user mentioned e.g. "Jan 2026" but we advanced it */}
+                        {(() => {
+                          const now = new Date()
+                          const typed = customText.match(/20[0-2][0-9]/)
+                          const typedYear = typed ? parseInt(typed[0]) : null
+                          // Advanced if: typed year is past OR date was bumped to next year
+                          const detectedYear = parseInt(customExtractedDate.split('-')[0])
+                          const isAdvanced = (typedYear && typedYear < detectedYear) ||
+                                             (typedYear && typedYear === now.getFullYear() &&
+                                              new Date(typedYear + '-' + customExtractedDate.slice(5) + 'T12:00:00') < now)
+                          return isAdvanced ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', padding: '5px 10px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', width: 'fit-content' }}>
+                              <span style={{ fontSize: '11px', fontWeight: '700', color: '#92400e' }}>
+                                ⚠️ That date has passed — planning for: {new Date(customExtractedDate + 'T12:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </span>
+                            </div>
+                          ) : null
+                        })()}
+                      </div>
+                    )}
+                    <FestivalAlert
+                      destination={customText.slice(0, 120)}
+                      startDate={customExtractedDate || null}
+                      days={7}
+                      compact={true}
+                    />
+                  </div>
+                )}
+
+                {/* Soft nudge — shows when no date detected, no intl warning */}
+                {customText.length > 20 && !customExtractedDate && !intlWarning && (
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '10px',
+                    padding: '10px 14px', marginBottom: '12px',
+                    background: '#f0f9ff', border: '1px solid #bae6fd',
+                    borderRadius: '10px',
+                  }}>
+                    <span style={{ fontSize: '15px', flexShrink: 0 }}>💡</span>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>
+                        Add travel dates for festival alerts & better price planning
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '2px', lineHeight: 1.5 }}>
+                        e.g. <strong>"...starting March 3"</strong> or <strong>"...in December"</strong> or <strong>"...during Diwali"</strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Sample prompts */}
                 <div style={{ marginBottom: '24px' }}>
@@ -694,7 +943,21 @@ export default function UserDashboard() {
                             onChange={e => { setStartDate(e.target.value); setFormErrors(p => ({ ...p, startDate: '' })) }}
                             style={{ ...inputBase(formErrors.startDate), colorScheme: 'light' }} />
                           {formErrors.startDate && <p style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>⚠ {formErrors.startDate}</p>}
+                          {startDate && !isValidFutureDate(startDate) && (
+                            <p style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', fontWeight: '600' }}>
+                              ⚠️ Please select a future date
+                            </p>
+                          )}
                         </div>
+                          {/* Festival Alert — shows when date + destination selected */}
+                          {startDate && selectedDestination && (
+                            <FestivalAlert
+                              destination={selectedDestination}
+                              startDate={startDate}
+                              days={parseInt(days) || 5}
+                              compact={true}
+                            />
+                          )}
                         <div>
                           <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>Return Date</label>
                           {startDate && days ? (
@@ -841,6 +1104,15 @@ export default function UserDashboard() {
                                   </div>
                                 </div>
                               </div>
+                            )}
+                            {/* Inline festival alert — shows upcoming festivals for typed destination */}
+                            {selectedDestination && !intlWarning && (
+                              <FestivalAlert
+                                destination={selectedDestination}
+                                startDate={startDate || null}
+                                days={parseInt(days) || 5}
+                                compact={true}
+                              />
                             )}
                           </div>
                           <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>— or pick from popular —</p>

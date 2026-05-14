@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateTripPDF } from '../utils/generateItineraryHTML'
+import FestivalAlert from '../components/FestivalAlert'
 
 const tierColors = {
   bronze:   { color: '#92400e', bg: '#fef3c7', border: '#fcd34d', emoji: '🥉' },
@@ -656,7 +657,16 @@ export default function ItineraryResult() {
           <div style={{ padding: '28px' }}>
 
             {/* ── DAY PLAN ── */}
-            {activeTab === 'itinerary' && (
+            {/* ── Festival Alert ── */}
+          {data?.start_date && (
+            <FestivalAlert
+              destination={data.destination}
+              startDate={data.start_date}
+              days={data.days}
+            />
+          )}
+
+          {activeTab === 'itinerary' && (
               <div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
                   {data.day_plans?.map(d => (
