@@ -1,553 +1,543 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
-import {
-  MapPin, Zap, Users, Star, ArrowRight,
-  Globe, Shield, Clock, TrendingUp
-} from 'lucide-react'
+import Footer from '../components/Footer'
+import { MapPin, Zap, Users, ArrowRight, Globe, Shield, Clock, TrendingUp, Calendar, Star, ChevronRight, Sparkles } from 'lucide-react'
 
-const stats = [
-  { value: '500+', label: 'Destinations' },
-  { value: '10K+', label: 'Trips Planned' },
-  { value: '98%', label: 'Happy Travelers' },
-  { value: '2 min', label: 'Avg Plan Time' },
+// ── Real destination photos from Unsplash (free, no key needed) ─────────
+const DESTINATIONS = [
+  { name: 'Ladakh',      region: 'J&K',        photo: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&q=80', tag: 'Adventure' },
+  { name: 'Goa',         region: 'Goa',         photo: 'https://images.unsplash.com/photo-1587922546307-776227941871?w=800&q=80', tag: 'Beach' },
+  { name: 'Darjeeling',  region: 'West Bengal', photo: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&q=80', tag: 'Hill Station' },
+  { name: 'Varanasi',    region: 'UP',          photo: 'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=800&q=80', tag: 'Spiritual' },
+  { name: 'Kerala',      region: 'Kerala',      photo: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&q=80', tag: 'Backwaters' },
+  { name: 'Rajasthan',   region: 'Rajasthan',   photo: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&q=80', tag: 'Heritage' },
+  { name: 'Munnar',      region: 'Kerala',      photo: 'https://images.unsplash.com/photo-1605649461784-edc3f1f74920?w=800&q=80', tag: 'Nature' },
+  { name: 'Hampi',       region: 'Karnataka',   photo: 'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=800&q=80', tag: 'UNESCO' },
 ]
 
-const features = [
-  {
-    icon: <Zap size={24} color="#0ea5e9" />,
-    title: 'AI-Powered Planning',
-    desc: 'Get a complete day-by-day itinerary in seconds. Our AI understands Indian travel deeply — budgets, trains, permits, seasons.',
-    bg: '#eff6ff'
-  },
-  {
-    icon: <MapPin size={24} color="#14b8a6" />,
-    title: 'India-First Intelligence',
-    desc: 'From Leh to Kanyakumari, from ₹5,000 weekends to luxury holidays. Real Indian pricing, real Indian routes.',
-    bg: '#f0fdfa'
-  },
-  {
-    icon: <Clock size={24} color="#8b5cf6" />,
-    title: 'Real-Time Adaptive',
-    desc: 'Weather changed? Train delayed? Tripzio adapts your plan instantly so your trip never misses a beat.',
-    bg: '#f5f3ff'
-  },
-  {
-    icon: <Users size={24} color="#f59e0b" />,
-    title: 'For Travel Agents Too',
-    desc: 'Generate 3 itinerary options for your client in 2 minutes. WhatsApp-ready export. Professional invoices.',
-    bg: '#fffbeb'
-  },
-  {
-    icon: <Shield size={24} color="#22c55e" />,
-    title: 'Trusted & Accurate',
-    desc: 'Every recommendation is grounded in real data — not hallucinations. Permit rules, entry fees, seasonal closures included.',
-    bg: '#f0fdf4'
-  },
-  {
-    icon: <TrendingUp size={24} color="#ef4444" />,
-    title: 'Cost Breakdown',
-    desc: 'Transparent estimates for transport, stays, food, and activities. No surprises. Plan confidently within your budget.',
-    bg: '#fef2f2'
-  },
+const FEATURES = [
+  { icon: '⚡', color: '#0ea5e9', bg: '#eff6ff', title: 'AI Plans in 30 Seconds', desc: 'Type your trip in any language. Get a complete day-by-day itinerary instantly — budgets, routes, hotels, permits included.' },
+  { icon: '🗺️', color: '#14b8a6', bg: '#f0fdfa', title: 'All India Coverage', desc: '101+ destinations across every Indian state. From Kashmir to Kanyakumari, Kutch to Arunachal — no destination left behind.' },
+  { icon: '🎪', color: '#f59e0b', bg: '#fffbeb', title: 'Festival Intelligence', desc: 'Unique feature: Tripzio warns you about festivals near your travel dates. Know when Goa prices spike 4x for Christmas — before you book.' },
+  { icon: '💼', color: '#8b5cf6', bg: '#f5f3ff', title: 'Built for Travel Agents', desc: 'Generate 3 itinerary options in 2 minutes. White-label PDF with your agency branding. WhatsApp share in one click.' },
+  { icon: '🇮🇳', color: '#ef4444', bg: '#fef2f2', title: 'India-First Intelligence', desc: 'Real Indian pricing. Budget from ₹5,000 to ₹5 lakh. Understands trains, permits, seasons, circuits, and regional festivals.' },
+  { icon: '💰', color: '#22c55e', bg: '#f0fdf4', title: 'Transparent Budget', desc: 'Every plan includes a clear cost breakdown — transport, hotels, food, activities. No surprises. Plan confidently.' },
 ]
 
-const testimonials = [
-  {
-    name: 'Priya Sharma',
-    city: 'Mumbai',
-    text: 'Planned our Ladakh trip in literally 3 minutes. The AI knew about all the permits and suggested the perfect route. Absolutely brilliant.',
-    rating: 5,
-    avatar: 'PS'
-  },
-  {
-    name: 'Rajesh Nair',
-    city: 'Kochi',
-    text: 'As a travel agent, Tripzio has transformed my business. I send clients 3 options before they finish their morning chai.',
-    rating: 5,
-    avatar: 'RN'
-  },
-  {
-    name: 'Ananya Bose',
-    city: 'Kolkata',
-    text: 'Finally a travel app that understands ₹15,000 budgets and suggests real options — not just 5-star hotels.',
-    rating: 5,
-    avatar: 'AB'
-  },
+const SAMPLE_PLAN = {
+  destination: 'Darjeeling → Gangtok Circuit',
+  days: 5, budget: '₹18,000', from: 'Kolkata', tier: 'Silver',
+  highlights: ['Tiger Hill sunrise — Kanchenjunga views', 'Darjeeling Toy Train UNESCO ride', 'Rumtek Monastery — largest in Sikkim', 'MG Marg evening stroll Gangtok', 'Tea garden walks — fresh Darjeeling tea'],
+  days_plan: [
+    { day: 1, title: 'Arrival in Darjeeling', plan: 'NJP → taxi to Darjeeling. Mall Road, momos at Glenary\'s. Observatory Hill sunset.' },
+    { day: 2, title: 'Tiger Hill & Heritage', plan: '4AM Tiger Hill sunrise, Batasia Loop, HMI Museum, Peace Pagoda, Chowrasta.' },
+    { day: 3, title: 'Toy Train + Transfer', plan: 'Morning Toy Train joyride, drive Gangtok via Teesta River Valley, MG Marg.' },
+    { day: 4, title: 'Gangtok Monasteries', plan: 'Rumtek, Enchey Monastery, Do-Drul Chorten, Handicraft Centre, local market.' },
+    { day: 5, title: 'Return to Kolkata', plan: 'Tashi Viewpoint sunrise, drive NJP, Howrah Express evening, home by night.' },
+  ],
+  hotels: [
+    { city: 'Darjeeling', name: 'Cedar Inn', rating: 4.1, price: '₹2,500/night', real: true },
+    { city: 'Gangtok', name: 'Chumbi Residency', rating: 4.3, price: '₹3,000/night', real: true },
+  ],
+  costs: { transport: '₹5,000', hotels: '₹8,000', food: '₹3,000', activities: '₹2,000', total: '₹18,000' },
+  festival: { name: 'Republic Day', date: 'Jan 26', note: 'Falls 6 days after trip — consider extending!', emoji: '🇮🇳' }
+}
+
+const HOW_IT_WORKS = [
+  { step: '01', title: 'Describe your trip', desc: 'Type in Hindi, English, or mixed. "Goa 5 din December mein, budget 25 hajar, couple" — our AI understands it all.', icon: '✍️' },
+  { step: '02', title: 'AI builds your plan', desc: 'In under 30 seconds, get a complete itinerary with day-wise plan, hotels, cost breakdown, and festival alerts.', icon: '🤖' },
+  { step: '03', title: 'Share or export', desc: 'Share a beautiful link with family. Download a branded PDF. Send via WhatsApp. Your plan, your way.', icon: '📤' },
 ]
 
-const LandingPage = () => {
+export default function LandingPage() {
   const [showDemo, setShowDemo] = useState(false)
+  const [activePhoto, setActivePhoto] = useState(0)
+  const [isVisible, setIsVisible] = useState(false)
 
-  const samplePlan = {
-    destination: 'Darjeeling → Gangtok',
-    days: 5, budget: '₹18,000', from: 'Kolkata',
-    highlights: ['Tiger Hill sunrise — Kanchenjunga views','Darjeeling toy train UNESCO heritage ride','Rumtek Monastery — largest in Sikkim','MG Marg evening Gangtok','Tea garden walks'],
-    dayPlans: [
-      { day: 1, title: 'Arrival Darjeeling', plan: 'NJP train + taxi. Mall Road, momos at Glenary\'s.' },
-      { day: 2, title: 'Tiger Hill & Sights', plan: 'Sunrise Tiger Hill, Batasia Loop, HMI, Peace Pagoda.' },
-      { day: 3, title: 'Toy Train + Transfer', plan: 'Morning joyride, drive to Gangtok via Teesta, MG Marg.' },
-      { day: 4, title: 'Gangtok Monasteries', plan: 'Rumtek, Enchey, Do-Drul Chorten, local market.' },
-      { day: 5, title: 'Return Journey', plan: 'Tashi Viewpoint, drive NJP, evening train Kolkata.' },
-    ],
-    hotels: [
-      { city: 'Darjeeling', name: 'Cedar Inn', rating: '4.1', price: '₹2,500/night' },
-      { city: 'Gangtok', name: 'Chumbi Residency', rating: '4.3', price: '₹3,000/night' },
-    ],
-    costs: { transport: '₹5,000', hotels: '₹8,000', food: '₹3,000', activities: '₹2,000', total: '₹18,000' }
-  }
+  useEffect(() => {
+    setIsVisible(true)
+    const interval = setInterval(() => {
+      setActivePhoto(p => (p + 1) % DESTINATIONS.length)
+    }, 3500)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflowX: 'hidden' }}>
+      <style>{`
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+        @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.05);opacity:0.8} }
+        @keyframes slideIn { from{transform:translateX(-20px);opacity:0} to{transform:translateX(0);opacity:1} }
+        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+        .hero-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        .feature-card:hover { transform: translateY(-6px); box-shadow: 0 24px 48px rgba(0,0,0,0.1) !important; }
+        .dest-chip:hover { transform: scale(1.05); }
+        .step-card:hover { transform: translateY(-4px); }
+      `}</style>
+
       <Navbar />
 
-      {/* ── DEMO MODAL ── */}
+      {/* ── DEMO MODAL ─────────────────────────────────────── */}
       {showDemo && (
         <div onClick={() => setShowDemo(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: 'white', borderRadius: '24px', padding: '28px', maxWidth: '680px', width: '100%', maxHeight: '88vh', overflowY: 'auto', position: 'relative', fontFamily: 'Inter, sans-serif' }}>
+            style={{ background: 'white', borderRadius: '28px', padding: '32px', maxWidth: '700px', width: '100%', maxHeight: '90vh', overflowY: 'auto', position: 'relative', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", boxShadow: '0 40px 80px rgba(0,0,0,0.3)', animation: 'fadeUp 0.3s ease' }}>
             <button onClick={() => setShowDemo(false)}
-              style={{ position: 'absolute', top: '16px', right: '16px', background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+              style={{ position: 'absolute', top: '16px', right: '16px', background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '18px', fontWeight: '700', color: '#64748b' }}>✕</button>
 
-            <div style={{ background: 'linear-gradient(135deg,#0f172a,#134e4a)', borderRadius: '16px', padding: '22px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                <span style={{ background: 'rgba(255,255,255,0.12)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>🥈 SILVER PLAN</span>
-                <span style={{ background: 'rgba(99,102,241,0.3)', color: '#a5b4fc', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>🗺 Circuit · 2 cities</span>
+            {/* Plan header */}
+            <div style={{ background: 'linear-gradient(135deg,#0f172a 0%,#134e4a 100%)', borderRadius: '20px', padding: '24px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                <span style={{ background: 'rgba(255,255,255,0.12)', color: '#94a3b8', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>🥈 SILVER</span>
+                <span style={{ background: 'rgba(14,165,233,0.25)', color: '#7dd3fc', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>🗺️ Circuit · 2 Cities</span>
+                <span style={{ background: 'rgba(255,255,255,0.08)', color: '#94a3b8', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>⚡ AI Generated</span>
               </div>
-              <h2 style={{ fontSize: '22px', fontWeight: '900', color: 'white', margin: '0 0 12px', fontFamily: 'sans-serif' }}>Circuit: {samplePlan.destination} 🌏</h2>
-              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-                {[['From', samplePlan.from], ['Days', `${samplePlan.days} days`], ['Budget', samplePlan.budget]].map(([l, v], i) => (
-                  <div key={i}><div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{l}</div><div style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{v}</div></div>
+              <h2 style={{ fontSize: '24px', fontWeight: '900', color: 'white', margin: '0 0 16px', fontFamily: "Georgia, 'Times New Roman', serif" }}>{SAMPLE_PLAN.destination} 🏔️</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '16px' }}>
+                {[['From', SAMPLE_PLAN.from], ['Duration', `${SAMPLE_PLAN.days} Days`], ['Budget', SAMPLE_PLAN.budget]].map(([l, v]) => (
+                  <div key={l}><div style={{ fontSize: '10px', color: '#64748b', fontWeight: '600', letterSpacing: '1px', marginBottom: '3px' }}>{l.toUpperCase()}</div><div style={{ fontSize: '16px', fontWeight: '800', color: 'white' }}>{v}</div></div>
                 ))}
               </div>
             </div>
 
-            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px' }}>✨ Trip Highlights</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: '6px', marginBottom: '20px' }}>
-              {samplePlan.highlights.map((h, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '8px', padding: '7px 10px', fontSize: '12px', color: '#374151' }}>
-                  <span style={{ color: '#0d9488', fontWeight: '700' }}>✓</span>{h}
+            {/* Festival Alert */}
+            <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '14px', padding: '14px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '24px' }}>{SAMPLE_PLAN.festival.emoji}</span>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b' }}>{SAMPLE_PLAN.festival.name} · {SAMPLE_PLAN.festival.date}</div>
+                <div style={{ fontSize: '12px', color: '#b91c1c' }}>{SAMPLE_PLAN.festival.note}</div>
+              </div>
+              <span style={{ marginLeft: 'auto', background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: '800', padding: '3px 10px', borderRadius: '20px' }}>BOOK NOW</span>
+            </div>
+
+            {/* Highlights */}
+            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px', letterSpacing: '0.5px' }}>✨ TRIP HIGHLIGHTS</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: '6px', marginBottom: '20px' }}>
+              {SAMPLE_PLAN.highlights.map(h => (
+                <div key={h} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', padding: '8px 12px', fontSize: '12px', color: '#374151', fontWeight: '500' }}>
+                  <span style={{ color: '#0d9488', fontWeight: '800' }}>✓</span>{h}
                 </div>
               ))}
             </div>
 
-            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px' }}>📅 Day-wise Plan</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
-              {samplePlan.dayPlans.map((d, i) => (
-                <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#0f172a', marginBottom: '3px' }}>Day {d.day} — {d.title}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.6 }}>{d.plan}</div>
+            {/* Day plan */}
+            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px', letterSpacing: '0.5px' }}>📅 DAY-WISE PLAN</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+              {SAMPLE_PLAN.days_plan.map(d => (
+                <div key={d.day} style={{ display: 'flex', gap: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', alignItems: 'flex-start' }}>
+                  <div style={{ background: '#0d9488', color: 'white', borderRadius: '8px', padding: '4px 8px', fontSize: '10px', fontWeight: '800', flexShrink: 0, marginTop: '1px' }}>D{d.day}</div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '2px' }}>{d.title}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.6 }}>{d.plan}</div>
+                  </div>
                 </div>
               ))}
             </div>
 
-            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px' }}>🏨 Hotels</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '8px', marginBottom: '20px' }}>
-              {samplePlan.hotels.map((h, i) => (
-                <div key={i} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
-                  <div style={{ fontSize: '10px', color: '#0d9488', fontWeight: '700', marginBottom: '3px' }}>{h.city}</div>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{h.name}</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '12px', color: '#f59e0b' }}>⭐ {h.rating}</span>
+            {/* Hotels */}
+            <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px', letterSpacing: '0.5px' }}>🏨 HOTELS</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '10px', marginBottom: '20px' }}>
+              {SAMPLE_PLAN.hotels.map(h => (
+                <div key={h.name} style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '14px', padding: '14px' }}>
+                  <div style={{ fontSize: '10px', color: '#0d9488', fontWeight: '700', marginBottom: '4px' }}>{h.city}</div>
+                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>{h.name}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700' }}>⭐ {h.rating}</span>
                     <span style={{ fontSize: '12px', color: '#64748b' }}>{h.price}</span>
                   </div>
+                  {h.real && <div style={{ marginTop: '6px', fontSize: '10px', color: '#16a34a', fontWeight: '600' }}>✓ Real hotel</div>}
                 </div>
               ))}
             </div>
 
-            <div style={{ background: 'linear-gradient(135deg,#0f172a,#134e4a)', borderRadius: '16px', padding: '18px', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '13px', fontWeight: '700', color: 'white', marginBottom: '12px' }}>💰 Cost Breakdown</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))', gap: '8px', marginBottom: '12px' }}>
-                {[['🚌','Transport',samplePlan.costs.transport],['🏨','Hotels',samplePlan.costs.hotels],['🍽️','Food',samplePlan.costs.food],['🎯','Activities',samplePlan.costs.activities]].map(([e,l,v],i) => (
-                  <div key={i} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 10px' }}>
-                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{e} {l}</div>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{v}</div>
+            {/* Cost */}
+            <div style={{ background: 'linear-gradient(135deg,#0f172a,#134e4a)', borderRadius: '16px', padding: '20px', marginBottom: '24px' }}>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '14px', letterSpacing: '1px' }}>💰 COST BREAKDOWN</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px', marginBottom: '14px' }}>
+                {[['🚌','Transport',SAMPLE_PLAN.costs.transport],['🏨','Hotels',SAMPLE_PLAN.costs.hotels],['🍽️','Food',SAMPLE_PLAN.costs.food],['🎯','Activities',SAMPLE_PLAN.costs.activities]].map(([e,l,v]) => (
+                  <div key={l} style={{ background: 'rgba(255,255,255,0.07)', borderRadius: '10px', padding: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>{e} {l}</div>
+                    <div style={{ fontSize: '15px', fontWeight: '800', color: 'white' }}>{v}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: '13px' }}>Total estimated</span>
-                <span style={{ color: '#5eead4', fontSize: '20px', fontWeight: '900' }}>{samplePlan.costs.total}</span>
+              <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#94a3b8', fontSize: '14px' }}>Total estimated</span>
+                <span style={{ color: '#5eead4', fontSize: '24px', fontWeight: '900' }}>{SAMPLE_PLAN.costs.total}</span>
               </div>
+            </div>
+
+            <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '12px', padding: '12px 16px', marginBottom: '20px' }}>
+              <p style={{ fontSize: '12px', color: '#0d9488', margin: 0, lineHeight: 1.6 }}>
+                <strong>⚠️ Note:</strong> This is an AI-generated sample plan for demonstration. Hotel suggestions are based on known properties — always verify availability and current prices before booking.
+              </p>
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '14px' }}>This is a real AI-generated plan. Sign up free to create yours.</p>
               <Link to="/login" onClick={() => setShowDemo(false)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '13px 28px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', textDecoration: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
-                Plan My Trip Free →
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 32px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 20px rgba(13,148,136,0.4)' }}>
+                Plan My Trip Free <ArrowRight size={16} />
               </Link>
             </div>
           </div>
         </div>
       )}
 
-      {/* Hero Section */}
-      <section style={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f3460 100%)',
-        padding: '100px 24px',
-        textAlign: 'center',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        {/* Background decoration */}
-        <div style={{
-          position: 'absolute', top: '-100px', right: '-100px',
-          width: '400px', height: '400px',
-          background: 'radial-gradient(circle, rgba(14,165,233,0.15) 0%, transparent 70%)',
-          borderRadius: '50%'
-        }} />
-        <div style={{
-          position: 'absolute', bottom: '-80px', left: '-80px',
-          width: '300px', height: '300px',
-          background: 'radial-gradient(circle, rgba(20,184,166,0.15) 0%, transparent 70%)',
-          borderRadius: '50%'
-        }} />
+      {/* ── HERO ─────────────────────────────────────────────── */}
+      <section style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', overflow: 'hidden', background: '#0a0f1e' }}>
 
-        <div style={{ maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            background: 'rgba(14,165,233,0.15)',
-            border: '1px solid rgba(14,165,233,0.3)',
-            borderRadius: '20px', padding: '6px 16px',
-            marginBottom: '24px'
-          }}>
-            <Globe size={14} color="#0ea5e9" />
-            <span style={{ fontSize: '13px', color: '#0ea5e9', fontWeight: '500' }}>
-              India's smartest travel platform
-            </span>
+        {/* Background photo carousel */}
+        {DESTINATIONS.map((dest, i) => (
+          <div key={dest.name} style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `url(${dest.photo})`,
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            opacity: activePhoto === i ? 0.35 : 0,
+            transition: 'opacity 1.5s ease',
+          }} />
+        ))}
+
+        {/* Dark overlay with gradient */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg,rgba(10,15,30,0.95) 0%,rgba(10,15,30,0.7) 50%,rgba(10,15,30,0.9) 100%)' }} />
+
+        {/* Decorative orbs */}
+        <div style={{ position: 'absolute', top: '10%', right: '5%', width: '500px', height: '500px', background: 'radial-gradient(circle,rgba(14,165,233,0.12) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '10%', left: '0%', width: '400px', height: '400px', background: 'radial-gradient(circle,rgba(20,184,166,0.1) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
+
+        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '120px 24px 80px', position: 'relative', width: '100%' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '60px', alignItems: 'center' }}>
+
+            {/* Left — Text */}
+            <div style={{ animation: isVisible ? 'fadeUp 0.8s ease forwards' : 'none' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(14,165,233,0.12)', border: '1px solid rgba(14,165,233,0.25)', borderRadius: '24px', padding: '6px 16px', marginBottom: '28px' }}>
+                <Sparkles size={12} color="#0ea5e9" />
+                <span style={{ fontSize: '12px', color: '#0ea5e9', fontWeight: '700', letterSpacing: '1px' }}>INDIA'S AI TRAVEL PLANNER</span>
+              </div>
+
+              <h1 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 'clamp(42px,5.5vw,76px)', fontWeight: '900', color: 'white', lineHeight: 1.08, marginBottom: '24px', letterSpacing: '-1px' }}>
+                Plan your
+                <span style={{ display: 'block', background: 'linear-gradient(135deg,#0ea5e9,#14b8a6,#22c55e)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                  perfect India trip
+                </span>
+                in 30 seconds.
+              </h1>
+
+              <p style={{ fontSize: '18px', color: '#94a3b8', lineHeight: 1.7, marginBottom: '16px', maxWidth: '520px', fontWeight: '400' }}>
+                Type your trip in Hindi, English, or mixed. Get a complete day-by-day itinerary with real budgets, festival alerts, and hotel suggestions.
+              </p>
+
+              {/* Festival alert preview */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '12px', padding: '8px 14px', marginBottom: '36px' }}>
+                <span style={{ fontSize: '16px' }}>🪔</span>
+                <span style={{ fontSize: '12px', color: '#fca5a5', fontWeight: '600' }}>Diwali detected — prices surge everywhere. Book 2 months ahead.</span>
+                <span style={{ background: '#ef4444', color: 'white', fontSize: '9px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px' }}>BOOK NOW</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '32px' }}>
+                <Link to="/login" className="hero-btn"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 32px', background: 'linear-gradient(135deg,#0ea5e9,#14b8a6)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '700', boxShadow: '0 8px 32px rgba(14,165,233,0.35)', transition: 'all 0.2s' }}>
+                  Start Planning Free <ArrowRight size={18} />
+                </Link>
+                <button onClick={() => setShowDemo(true)} className="hero-btn"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 28px', background: 'rgba(255,255,255,0.07)', color: 'white', border: '1.5px solid rgba(255,255,255,0.15)', borderRadius: '14px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' }}>
+                  👀 See Sample Plan
+                </button>
+                <Link to="/agent/login" className="hero-btn"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 24px', background: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', fontSize: '14px', fontWeight: '600', textDecoration: 'none', transition: 'all 0.2s' }}>
+                  Travel Agent Login <ChevronRight size={15} />
+                </Link>
+              </div>
+
+              <p style={{ fontSize: '12px', color: '#475569' }}>Free to sign up · No credit card required · India destinations only</p>
+            </div>
+
+            {/* Right — Destination chips */}
+            <div style={{ display: 'none' }} className="dest-grid-hide" />
           </div>
 
-          <h1 style={{
-            fontSize: 'clamp(36px, 6vw, 64px)',
-            fontWeight: '800',
-            color: 'white',
-            lineHeight: '1.15',
-            marginBottom: '24px',
-            letterSpacing: '-1px'
-          }}>
-            Plan less.
-            <span style={{
-              display: 'block',
-              background: 'linear-gradient(135deg, #0ea5e9, #14b8a6)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent'
-            }}>
-              Travel more.
-            </span>
-          </h1>
-
-          <p style={{
-            fontSize: '18px', color: '#94a3b8',
-            lineHeight: '1.7', marginBottom: '40px',
-            maxWidth: '600px', margin: '0 auto 40px'
-          }}>
-            Tell Tripzio your budget, days, and vibe.
-            Get a complete personalized itinerary in seconds —
-            built specifically for Indian travelers and travel agents.
-          </p>
-
-          <div style={{
-            display: 'flex', gap: '16px',
-            justifyContent: 'center', flexWrap: 'wrap'
-          }}>
-            <Link to="/login" style={{
-              background: 'linear-gradient(135deg, #0ea5e9, #14b8a6)',
-              color: 'white', textDecoration: 'none',
-              padding: '16px 36px', borderRadius: '12px',
-              fontSize: '16px', fontWeight: '700',
-              display: 'flex', alignItems: 'center', gap: '8px',
-              transition: 'all 0.2s',
-              boxShadow: '0 8px 32px rgba(14,165,233,0.4)'
-            }}>
-              Start Planning Free
-              <ArrowRight size={18} />
-            </Link>
-            <button onClick={() => setShowDemo(true)} style={{
-              background: 'rgba(255,255,255,0.08)',
-              color: 'white',
-              padding: '16px 36px', borderRadius: '12px',
-              fontSize: '16px', fontWeight: '600',
-              border: '1.5px solid rgba(255,255,255,0.2)',
-              display: 'flex', alignItems: 'center', gap: '8px',
-              transition: 'all 0.2s', cursor: 'pointer'
-            }}>
-              👀 See Sample Plan
-            </button>
-            <Link to="/agent/login" style={{
-              background: 'rgba(255,255,255,0.05)',
-              color: '#94a3b8', textDecoration: 'none',
-              padding: '16px 36px', borderRadius: '12px',
-              fontSize: '16px', fontWeight: '600',
-              border: '1.5px solid rgba(255,255,255,0.1)',
-              display: 'flex', alignItems: 'center', gap: '8px',
-              transition: 'all 0.2s'
-            }}>
-              I am a Travel Agent
-              <ArrowRight size={18} />
-            </Link>
+          {/* Bottom — Scrolling destination photos */}
+          <div style={{ marginTop: '60px', display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', animation: 'fadeIn 1.2s ease forwards' }}>
+            {DESTINATIONS.map((dest, i) => (
+              <button key={dest.name} onClick={() => setActivePhoto(i)} className="dest-chip"
+                style={{
+                  position: 'relative', width: '110px', height: '70px', borderRadius: '14px', overflow: 'hidden', border: `2px solid ${activePhoto === i ? '#0ea5e9' : 'rgba(255,255,255,0.1)'}`, cursor: 'pointer', transition: 'all 0.3s', background: 'none', padding: 0,
+                  boxShadow: activePhoto === i ? '0 0 0 3px rgba(14,165,233,0.3)' : 'none'
+                }}>
+                <img src={dest.photo} alt={dest.name} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: activePhoto === i ? 'none' : 'brightness(0.5)' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,0.6),transparent)' }} />
+                <div style={{ position: 'absolute', bottom: '5px', left: '7px', right: '4px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: '800', color: 'white', lineHeight: 1 }}>{dest.name}</div>
+                  <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.6)', marginTop: '1px' }}>{dest.tag}</div>
+                </div>
+              </button>
+            ))}
           </div>
-
-          <p style={{
-            marginTop: '20px', fontSize: '13px',
-            color: '#475569'
-          }}>
-            Free to sign up · No credit card required
-          </p>
         </div>
       </section>
 
-      {/* Stats */}
-      <section style={{
-        background: 'white',
-        borderBottom: '1px solid #e2e8f0',
-        padding: '40px 24px'
-      }}>
-        <div style={{
-          maxWidth: '900px', margin: '0 auto',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '32px', textAlign: 'center'
-        }}>
-          {stats.map((stat, i) => (
-            <div key={i}>
-              <div style={{
-                fontSize: '36px', fontWeight: '800',
-                background: 'linear-gradient(135deg, #0ea5e9, #14b8a6)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}>
+      {/* ── REAL STATS (honest numbers) ─────────────────────── */}
+      <section style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '48px 24px' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '32px', textAlign: 'center' }}>
+          {[
+            { value: '101+', label: 'Indian Destinations', sub: 'Every state covered' },
+            { value: '30s', label: 'Average Plan Time', sub: 'Vs 3 hours manually' },
+            { value: '36', label: 'States & UTs', sub: 'No destination untouched' },
+            { value: '₹0', label: 'To Start', sub: 'Free forever plan' },
+          ].map((stat, i) => (
+            <div key={i} style={{ animation: `fadeUp ${0.2 + i * 0.1}s ease` }}>
+              <div style={{ fontSize: '42px', fontWeight: '900', fontFamily: "Georgia, 'Times New Roman', serif", background: 'linear-gradient(135deg,#0ea5e9,#14b8a6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1 }}>
                 {stat.value}
               </div>
-              <div style={{
-                fontSize: '14px', color: '#64748b',
-                fontWeight: '500', marginTop: '4px'
-              }}>
-                {stat.label}
-              </div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginTop: '6px' }}>{stat.label}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '3px' }}>{stat.sub}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Features */}
-      <section style={{ padding: '80px 24px' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '56px' }}>
-            <h2 style={{
-              fontSize: '36px', fontWeight: '800',
-              color: '#0f172a', marginBottom: '16px'
-            }}>
-              Everything you need to travel smarter
+      {/* ── DESTINATION SHOWCASE ─────────────────────────────── */}
+      <section style={{ padding: '80px 24px', background: '#0a0f1e', overflow: 'hidden' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: '20px', padding: '5px 14px', marginBottom: '16px' }}>
+              <Globe size={12} color="#0ea5e9" />
+              <span style={{ fontSize: '11px', color: '#0ea5e9', fontWeight: '700', letterSpacing: '1px' }}>EXPLORE INDIA</span>
+            </div>
+            <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 'clamp(28px,4vw,48px)', fontWeight: '900', color: 'white', marginBottom: '12px' }}>
+              From Himalayas to backwaters
             </h2>
-            <p style={{ fontSize: '17px', color: '#64748b', maxWidth: '500px', margin: '0 auto' }}>
-              Built for Indian travelers, powered by AI that understands India deeply.
+            <p style={{ fontSize: '16px', color: '#64748b', maxWidth: '480px', margin: '0 auto' }}>
+              101+ destinations across every Indian state. Click any destination to plan your trip.
             </p>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '24px'
-          }}>
-            {features.map((f, i) => (
-              <div key={i} style={{
-                background: 'white',
-                border: '1px solid #e2e8f0',
-                borderRadius: '16px',
-                padding: '28px',
-                transition: 'all 0.2s'
-              }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)'
-                  e.currentTarget.style.boxShadow = '0 12px 40px rgba(0,0,0,0.08)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              >
-                <div style={{
-                  width: '52px', height: '52px',
-                  background: f.bg, borderRadius: '12px',
-                  display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', marginBottom: '18px'
-                }}>
-                  {f.icon}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '16px' }}>
+            {DESTINATIONS.map((dest, i) => (
+              <Link key={dest.name} to="/login"
+                style={{ position: 'relative', height: '200px', borderRadius: '20px', overflow: 'hidden', textDecoration: 'none', display: 'block', animation: `fadeUp ${0.1 + i * 0.05}s ease` }}
+                onMouseEnter={e => { e.currentTarget.querySelector('img').style.transform = 'scale(1.08)' }}
+                onMouseLeave={e => { e.currentTarget.querySelector('img').style.transform = 'scale(1)' }}>
+                <img src={dest.photo} alt={dest.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,0.75) 0%,rgba(0,0,0,0.1) 60%)' }} />
+                <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', color: 'white', fontSize: '10px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
+                  {dest.tag}
                 </div>
-                <h3 style={{
-                  fontSize: '17px', fontWeight: '700',
-                  color: '#0f172a', marginBottom: '10px'
-                }}>
-                  {f.title}
-                </h3>
-                <p style={{
-                  fontSize: '14px', color: '#64748b',
-                  lineHeight: '1.7'
-                }}>
-                  {f.desc}
-                </p>
+                <div style={{ position: 'absolute', bottom: '14px', left: '14px', right: '14px' }}>
+                  <div style={{ fontSize: '18px', fontWeight: '900', color: 'white', fontFamily: "Georgia, 'Times New Roman', serif" }}>{dest.name}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={10} /> {dest.region} · Tap to plan
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '32px' }}>
+            <Link to="/explore" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '13px 28px', background: 'rgba(255,255,255,0.06)', color: 'white', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', textDecoration: 'none', fontSize: '14px', fontWeight: '600' }}>
+              View all 101+ destinations <ChevronRight size={15} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ─────────────────────────────────────── */}
+      <section style={{ padding: '80px 24px', background: '#f8fafc' }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+            <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 'clamp(28px,4vw,44px)', fontWeight: '900', color: '#0f172a', marginBottom: '12px' }}>
+              How it works
+            </h2>
+            <p style={{ fontSize: '16px', color: '#64748b' }}>Three steps to your perfect trip</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '24px' }}>
+            {HOW_IT_WORKS.map((step, i) => (
+              <div key={i} className="step-card"
+                style={{ background: 'white', borderRadius: '20px', padding: '32px', border: '1.5px solid #e2e8f0', boxShadow: '0 2px 16px rgba(0,0,0,0.04)', transition: 'all 0.25s', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '80px', opacity: 0.04, fontWeight: '900', fontFamily: "Georgia, 'Times New Roman', serif", color: '#0ea5e9', lineHeight: 1 }}>{step.step}</div>
+                <div style={{ fontSize: '40px', marginBottom: '16px' }}>{step.icon}</div>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#0ea5e9', letterSpacing: '1.5px', marginBottom: '8px' }}>STEP {step.step}</div>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', marginBottom: '10px' }}>{step.title}</h3>
+                <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.7 }}>{step.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section style={{
-        background: 'white',
-        borderTop: '1px solid #e2e8f0',
-        padding: '80px 24px'
-      }}>
+      {/* ── FEATURES ─────────────────────────────────────────── */}
+      <section style={{ padding: '80px 24px', background: 'white' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '56px' }}>
-            <h2 style={{
-              fontSize: '36px', fontWeight: '800',
-              color: '#0f172a', marginBottom: '16px'
-            }}>
-              Travelers love Tripzio
+            <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 'clamp(28px,4vw,44px)', fontWeight: '900', color: '#0f172a', marginBottom: '12px' }}>
+              Everything you need to travel smarter
             </h2>
+            <p style={{ fontSize: '16px', color: '#64748b', maxWidth: '480px', margin: '0 auto' }}>
+              Built for Indian travelers. Powered by AI that understands India deeply.
+            </p>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '24px'
-          }}>
-            {testimonials.map((t, i) => (
-              <div key={i} style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '16px',
-                padding: '28px'
-              }}>
-                <div style={{
-                  display: 'flex', gap: '4px', marginBottom: '16px'
-                }}>
-                  {[...Array(t.rating)].map((_, j) => (
-                    <Star key={j} size={16} fill="#f59e0b" color="#f59e0b" />
-                  ))}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: '20px' }}>
+            {FEATURES.map((f, i) => (
+              <div key={i} className="feature-card"
+                style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '20px', padding: '28px', transition: 'all 0.25s', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div style={{ width: '56px', height: '56px', background: f.bg, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '18px', fontSize: '26px' }}>
+                  {f.icon}
                 </div>
-                <p style={{
-                  fontSize: '15px', color: '#334155',
-                  lineHeight: '1.7', marginBottom: '20px',
-                  fontStyle: 'italic'
-                }}>
-                  "{t.text}"
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{
-                    width: '40px', height: '40px',
-                    background: 'linear-gradient(135deg, #0ea5e9, #14b8a6)',
-                    borderRadius: '50%',
-                    display: 'flex', alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '13px', fontWeight: '700', color: 'white'
-                  }}>
-                    {t.avatar}
-                  </div>
-                  <div>
-                    <div style={{
-                      fontSize: '14px', fontWeight: '600', color: '#0f172a'
-                    }}>
-                      {t.name}
-                    </div>
-                    <div style={{ fontSize: '13px', color: '#64748b' }}>
-                      {t.city}
-                    </div>
-                  </div>
-                </div>
+                <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', marginBottom: '10px' }}>{f.title}</h3>
+                <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.7 }}>{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section style={{
-        background: 'linear-gradient(135deg, #0f172a, #1e293b)',
-        padding: '80px 24px',
-        textAlign: 'center'
-      }}>
-        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-          <h2 style={{
-            fontSize: '36px', fontWeight: '800',
-            color: 'white', marginBottom: '16px'
-          }}>
-            Ready to travel smarter?
-          </h2>
-          <p style={{
-            fontSize: '17px', color: '#94a3b8',
-            marginBottom: '36px', lineHeight: '1.7'
-          }}>
-            Join thousands of Indian travelers who plan better, spend smarter, and experience more.
-          </p>
-          <div style={{
-            display: 'flex', gap: '16px',
-            justifyContent: 'center', flexWrap: 'wrap'
-          }}>
-            <Link to="/login" style={{
-              background: 'linear-gradient(135deg, #0ea5e9, #14b8a6)',
-              color: 'white', textDecoration: 'none',
-              padding: '16px 36px', borderRadius: '12px',
-              fontSize: '16px', fontWeight: '700',
-              display: 'flex', alignItems: 'center', gap: '8px',
-              boxShadow: '0 8px 32px rgba(14,165,233,0.4)'
-            }}>
-              Start for Free
-              <ArrowRight size={18} />
-            </Link>
-            <Link to="/agent/login" style={{
-              background: 'transparent',
-              color: 'white', textDecoration: 'none',
-              padding: '16px 36px', borderRadius: '12px',
-              fontSize: '16px', fontWeight: '600',
-              border: '1.5px solid rgba(255,255,255,0.2)',
-              display: 'flex', alignItems: 'center', gap: '8px',
-            }}>
-              Agent Sign Up
-              <ArrowRight size={18} />
-            </Link>
+      {/* ── FESTIVAL FEATURE HIGHLIGHT ───────────────────────── */}
+      <section style={{ padding: '80px 24px', background: 'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'center' }}>
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '20px', padding: '5px 14px', marginBottom: '20px' }}>
+              <Calendar size={12} color="#f87171" />
+              <span style={{ fontSize: '11px', color: '#f87171', fontWeight: '700', letterSpacing: '1px' }}>UNIQUE FEATURE</span>
+            </div>
+            <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 'clamp(26px,3.5vw,40px)', fontWeight: '900', color: 'white', marginBottom: '16px', lineHeight: 1.15 }}>
+              India's only travel planner with festival intelligence
+            </h2>
+            <p style={{ fontSize: '15px', color: '#94a3b8', lineHeight: 1.7, marginBottom: '28px' }}>
+              No other travel app warns you that Goa prices spike 4-5x during Christmas, or that Mysore hotels sell out 6 weeks before Dussehra. Tripzio does — automatically.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {['Automatically detects festival dates from your prompt', 'Shows price surge warnings before you book', 'Suggests extending trip to catch nearby festivals', 'Covers 50+ festivals across all India'].map(point => (
+                <div key={point} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#cbd5e1' }}>
+                  <span style={{ color: '#0d9488', fontWeight: '800', fontSize: '16px' }}>✓</span>{point}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {[
+              { emoji: '🪔', name: 'Diwali', date: 'Nov 7', note: 'Prices surge everywhere — book 2 months ahead', badge: 'BOOK NOW', badgeBg: '#ef4444' },
+              { emoji: '🎨', name: 'Holi', date: 'Mar 3', note: 'Mathura prices TRIPLE — book 6 weeks ahead', badge: 'BOOK NOW', badgeBg: '#ef4444' },
+              { emoji: '🌸', name: 'Onam', date: 'Aug 26', note: 'Kerala houseboats double in price', badge: 'URGENT', badgeBg: '#f59e0b' },
+              { emoji: '🇮🇳', name: 'Republic Day', date: 'Jan 26', note: 'Falls after your trip — consider extending!', badge: 'PLAN AHEAD', badgeBg: '#22c55e' },
+            ].map(f => (
+              <div key={f.name} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px', flexShrink: 0 }}>{f.emoji}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: '800', color: 'white' }}>{f.name} · {f.date}</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{f.note}</div>
+                </div>
+                <span style={{ background: f.badgeBg, color: 'white', fontSize: '9px', fontWeight: '800', padding: '3px 9px', borderRadius: '20px', flexShrink: 0 }}>{f.badge}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{
-        background: '#0f172a',
-        borderTop: '1px solid #1e293b',
-        padding: '32px 24px',
-        textAlign: 'center'
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'center', gap: '8px',
-          marginBottom: '12px'
-        }}>
-          <div style={{
-            width: '24px', height: '24px',
-            background: 'linear-gradient(135deg, #0ea5e9, #14b8a6)',
-            borderRadius: '6px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <MapPin size={12} color="white" />
+      {/* ── FOR TRAVEL AGENTS ────────────────────────────────── */}
+      <section style={{ padding: '80px 24px', background: '#f8fafc' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '20px', padding: '5px 14px', marginBottom: '20px' }}>
+            <Users size={12} color="#8b5cf6" />
+            <span style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: '700', letterSpacing: '1px' }}>FOR TRAVEL AGENTS</span>
           </div>
-          <span style={{
-            fontSize: '16px', fontWeight: '700',
-            background: 'linear-gradient(135deg, #0ea5e9, #14b8a6)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
-          }}>
-            Tripzio
-          </span>
+          <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 'clamp(26px,3.5vw,40px)', fontWeight: '900', color: '#0f172a', marginBottom: '16px' }}>
+            10x your client capacity
+          </h2>
+          <p style={{ fontSize: '16px', color: '#64748b', marginBottom: '40px', maxWidth: '560px', margin: '0 auto 40px', lineHeight: 1.7 }}>
+            Stop spending 3 hours per client itinerary. Generate, brand, and share a professional trip plan in under 2 minutes.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '20px', marginBottom: '40px' }}>
+            {[
+              { icon: '⚡', title: '30-second plans', desc: 'Type client requirement → complete itinerary instantly' },
+              { icon: '🎨', title: 'White-label PDF', desc: 'Your agency logo, brand color, contact details on every PDF' },
+              { icon: '📱', title: 'WhatsApp ready', desc: 'Share link or PDF directly to client in one tap' },
+              { icon: '📊', title: 'Client analytics', desc: 'Track all clients, trips, conversion — in one dashboard' },
+            ].map(item => (
+              <div key={item.title} style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '18px', padding: '24px', textAlign: 'left', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>{item.icon}</div>
+                <div style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>{item.title}</div>
+                <div style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6 }}>{item.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <Link to="/agent/login"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '15px 32px', background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '700', boxShadow: '0 8px 24px rgba(139,92,246,0.3)' }}>
+            Sign Up as Travel Agent <ArrowRight size={16} />
+          </Link>
+          <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px' }}>Agent Starter from ₹499/month · 25 clients</p>
         </div>
-        <p style={{ fontSize: '13px', color: '#475569' }}>
-          © 2026 Tripzio. Built with love for Indian travelers.
-        </p>
-      </footer>
+      </section>
+
+      {/* ── PRICING PREVIEW ──────────────────────────────────── */}
+      <section style={{ padding: '80px 24px', background: 'white' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 'clamp(26px,3.5vw,40px)', fontWeight: '900', color: '#0f172a', marginBottom: '12px' }}>
+              Simple, honest pricing
+            </h2>
+            <p style={{ fontSize: '15px', color: '#64748b' }}>Start free. Upgrade when you need more.</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '20px' }}>
+            {[
+              { name: 'Free', price: '₹0', per: 'forever', color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', features: ['3 plans/month', 'All destinations', 'Share & download', 'Festival alerts'], highlight: false },
+              { name: 'User Pro', price: '₹99', per: '/month', color: '#0ea5e9', bg: '#eff6ff', border: '#0ea5e9', features: ['Unlimited plans', 'Priority AI', 'All features', 'Email itinerary'], highlight: false },
+              { name: 'Agent Starter', price: '₹499', per: '/month', color: '#8b5cf6', bg: '#f5f3ff', border: '#8b5cf6', features: ['25 clients', 'White-label PDF', 'Client dashboard', 'WhatsApp share'], highlight: true },
+              { name: 'Agent Pro', price: '₹999', per: '/month', color: '#f59e0b', bg: '#fffbeb', border: '#f59e0b', features: ['Unlimited clients', 'All Agent features', 'Priority support', 'Custom branding'], highlight: false },
+            ].map(plan => (
+              <div key={plan.name} style={{ background: plan.highlight ? 'linear-gradient(135deg,#8b5cf6,#6d28d9)' : 'white', border: `2px solid ${plan.highlight ? '#8b5cf6' : plan.border}`, borderRadius: '20px', padding: '28px', position: 'relative', boxShadow: plan.highlight ? '0 12px 32px rgba(139,92,246,0.25)' : 'none' }}>
+                {plan.highlight && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: '#f59e0b', color: 'white', fontSize: '10px', fontWeight: '800', padding: '4px 14px', borderRadius: '20px', whiteSpace: 'nowrap' }}>MOST POPULAR</div>}
+                <div style={{ fontSize: '14px', fontWeight: '700', color: plan.highlight ? 'rgba(255,255,255,0.7)' : '#64748b', marginBottom: '8px' }}>{plan.name}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px', marginBottom: '20px' }}>
+                  <span style={{ fontSize: '32px', fontWeight: '900', color: plan.highlight ? 'white' : plan.color, fontFamily: "Georgia, 'Times New Roman', serif" }}>{plan.price}</span>
+                  <span style={{ fontSize: '13px', color: plan.highlight ? 'rgba(255,255,255,0.5)' : '#94a3b8' }}>{plan.per}</span>
+                </div>
+                {plan.features.map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: plan.highlight ? 'rgba(255,255,255,0.85)' : '#475569', marginBottom: '8px' }}>
+                    <span style={{ color: plan.highlight ? '#a78bfa' : plan.color, fontWeight: '800' }}>✓</span>{f}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA ──────────────────────────────────────────────── */}
+      <section style={{ padding: '80px 24px', background: 'linear-gradient(135deg,#0a0f1e,#0f3460)', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '600px', height: '600px', background: 'radial-gradient(circle,rgba(14,165,233,0.08) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
+        <div style={{ maxWidth: '600px', margin: '0 auto', position: 'relative' }}>
+          <div style={{ fontSize: '48px', marginBottom: '20px', animation: 'float 3s ease infinite' }}>🗺️</div>
+          <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 'clamp(28px,4vw,48px)', fontWeight: '900', color: 'white', marginBottom: '16px' }}>
+            Your next India trip starts here
+          </h2>
+          <p style={{ fontSize: '16px', color: '#94a3b8', marginBottom: '36px', lineHeight: 1.7 }}>
+            Free to start. No credit card. Plan your first trip in 30 seconds.
+          </p>
+          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link to="/login"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 36px', background: 'linear-gradient(135deg,#0ea5e9,#14b8a6)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '700', boxShadow: '0 8px 32px rgba(14,165,233,0.4)' }}>
+              Start for Free <ArrowRight size={18} />
+            </Link>
+            <Link to="/explore"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 28px', background: 'rgba(255,255,255,0.06)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '600', border: '1.5px solid rgba(255,255,255,0.12)' }}>
+              Browse Destinations <ChevronRight size={16} />
+            </Link>
+          </div>
+          <p style={{ fontSize: '12px', color: '#475569', marginTop: '16px' }}>India destinations only · AI-generated plans · Always verify before booking</p>
+        </div>
+      </section>
+
+      <Footer />
     </div>
   )
 }
-
-export default LandingPage

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
+import Footer from '../components/Footer'
 import { API_URL } from '../api'
 import {
   MapPin, Clock, ArrowLeft, Download, MessageCircle,
@@ -1354,3 +1355,4 @@ export default function ItineraryResult() {
     </div>
   )
 }
+<Footer />

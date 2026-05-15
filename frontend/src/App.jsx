@@ -19,6 +19,7 @@ import PublicTripView from './pages/PublicTripView'
 import NotFound from './pages/NotFound'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
+import Disclaimer from './pages/Disclaimer'
 
 // ── Only change: added loading check to prevent premature redirect ──
 function ProtectedRoute({ children, role }) {
