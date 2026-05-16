@@ -88,6 +88,7 @@ export default function AgentDashboard() {
   const [tier, setTier]                     = useState('silver')
   const [transport, setTransport]           = useState('balanced')
   const [customText, setCustomText]         = useState('')
+  const [promptWarning, setPromptWarning]   = useState('')
   const [showSamples, setShowSamples]       = useState(false)
   const [generating, setGenerating]         = useState(false)
   const [lastItinerary, setLastItinerary]   = useState(() => {
@@ -379,6 +380,115 @@ export default function AgentDashboard() {
   ]
 
   
+  // ── Real-time prompt validation ─────────────────────────────
+  const validatePromptRealTime = (text) => {
+    if (!text || text.length < 8) return ''
+    const t = text.toLowerCase()
+
+    const VALID_MONTHS = new Set([
+      'jan','january','feb','february','mar','march','apr','april',
+      'may','jun','june','jul','july','aug','august','sep','september',
+      'oct','october','nov','november','dec','december'
+    ])
+
+    const INDIA_LOCATIONS = new Set([
+      'delhi','mumbai','kolkata','chennai','bangalore','bengaluru','hyderabad','pune',
+      'goa','manali','shimla','dharamshala','kasol','spiti','mussoorie','nainital',
+      'rishikesh','haridwar','darjeeling','gangtok','leh','ladakh','srinagar','jammu',
+      'amritsar','chandigarh','agra','varanasi','allahabad','prayagraj','ayodhya',
+      'mathura','vrindavan','jaisalmer','jodhpur','udaipur','pushkar','ajmer','bikaner',
+      'kochi','thiruvananthapuram','munnar','alleppey','alappuzha','thrissur','mysore',
+      'mysuru','hampi','coorg','ooty','kodaikanal','andaman','port blair','lakshadweep',
+      'daman','diu','puri','bhubaneswar','konark','kaziranga','guwahati','shillong',
+      'cherrapunji','tawang','ziro','majuli','imphal','kohima','aizawl','agartala',
+      'raipur','jagdalpur','khajuraho','orchha','tirupati','lonavala','nashik',
+      'aurangabad','shirdi','mahabaleshwar','alibag','tarkarli','rajasthan','kerala',
+      'himachal','uttarakhand','karnataka','tamil nadu','maharashtra','gujarat','punjab',
+      'haryana','up','uttar pradesh','mp','madhya pradesh','odisha','west bengal','assam',
+      'meghalaya','nagaland','manipur','mizoram','tripura','arunachal','jharkhand',
+      'chhattisgarh','andhra pradesh','telangana','bihar','northeast','india','sikkim',
+      'pondicherry','puducherry','north india','south india','indore','nagpur','lucknow',
+      'patna','bhopal','surat','vadodara','rajkot','visakhapatnam','vizag','madurai',
+      'coimbatore','dehradun','nainital','chopta','kedarnath','badrinath','meerut',
+      'agartala','shillong','kolhapur','nashik','ahmadabad','ahmedabad','varanasi',
+    ])
+
+    // ── 1. Invalid numeric dates ──────────────────────────────
+    const numDates = [...t.matchAll(/\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b/g)]
+    for (const m of numDates) {
+      const day = parseInt(m[1]), mon = parseInt(m[2])
+      const yr = m[3].length === 4 ? parseInt(m[3]) : parseInt('20' + m[3])
+      if (mon < 1 || mon > 12) return `❌ Invalid date — month "${m[2]}" doesn't exist. Months are 1 to 12.`
+      const maxDays = [0,31,29,31,30,31,30,31,31,30,31,30,31]
+      if (day < 1 || day > maxDays[mon]) return `❌ Invalid date — ${m[1]}/${m[2]} doesn't exist. Please use a valid date.`
+      if (yr > 2099 || (yr > 2000 && yr < 2025)) return `❌ Invalid year "${m[3]}" — please use a future travel year.`
+    }
+
+    // ── 2. Ordinal + invalid month word (e.g. "3rd FRB") ─────
+    const ordinalMonth = [...t.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\s+([a-z]{2,15})\b/g)]
+    for (const m of ordinalMonth) {
+      const word = m[2].toLowerCase()
+      if (!VALID_MONTHS.has(word)) {
+        return `❌ "${m[2].toUpperCase()}" is not a valid month. Did you mean Jan, Feb, Mar... Dec?`
+      }
+    }
+
+    // ── 3. Written invalid dates (e.g. "Feb 30", "March 45") ─
+    const monthDays = {
+      'january':31,'jan':31,'february':29,'feb':29,'march':31,'mar':31,
+      'april':30,'apr':30,'may':31,'june':30,'jun':30,'july':31,'jul':31,
+      'august':31,'aug':31,'september':30,'sep':30,'october':31,'oct':31,
+      'november':30,'nov':30,'december':31,'dec':31
+    }
+    for (const [mon, maxD] of Object.entries(monthDays)) {
+      const r1 = new RegExp(`\\b${mon}\\s+(\\d{1,2})\\b`, 'i')
+      const r2 = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${mon}\\b`, 'i')
+      for (const r of [r1, r2]) {
+        const m = t.match(r)
+        if (m) {
+          const day = parseInt(m[1])
+          if (day > maxD) return `❌ Invalid date — ${mon.charAt(0).toUpperCase()+mon.slice(1)} ${day} doesn't exist`
+          if (day < 1) return `❌ Invalid date — day must be 1 or more`
+        }
+      }
+    }
+
+    // ── 4. Invalid source city ────────────────────────────────
+    // Extract source from "from X" or "X se"
+    const fromMatch = t.match(/(?:from|starting from|travelling from)\s+([a-zA-Z]{3,20})(?:\s|,|$|\.)/i)
+    const seMatch   = t.match(/([a-zA-Z]{3,20})\s+se\b/i)
+
+    const SKIP_SOURCE = new Set([
+      'the','and','or','for','with','my','our','a','an','this','that',
+      'trip','tour','plan','days','budget','here','there','home','base',
+    ])
+
+    const checkSource = (word) => {
+      if (!word) return ''
+      const clean = word.trim().toLowerCase()
+      if (clean.length < 3) return ''
+      if (SKIP_SOURCE.has(clean)) return ''
+      // If it contains digits — invalid
+      if (/\d/.test(clean)) return `❌ "${word.trim()}" doesn't look like a valid source city`
+      // If NOT in known India locations — warn
+      if (!INDIA_LOCATIONS.has(clean)) {
+        return `❌ "${word.trim()}" doesn't seem to be a valid Indian city. Please check the source city name.`
+      }
+      return ''
+    }
+
+    if (fromMatch) {
+      const warn = checkSource(fromMatch[1])
+      if (warn) return warn
+    }
+    if (seMatch) {
+      const warn = checkSource(seMatch[1])
+      if (warn) return warn
+    }
+
+    return ''
+  }
+
   // ── Extract date from custom plan text ───────────────────────
   const extractDateFromText = (text) => {
     try {
@@ -1171,6 +1281,7 @@ return (
                       const val = e.target.value.slice(0, 500)
                       setCustomText(val)
                       setCustomExtractedDate(extractDateFromText(val))
+                      setPromptWarning(validatePromptRealTime(val))
                     }}
                       placeholder={generateMode === 'modify'
                         ? `Describe changes to the current plan...\n\nExamples:\n• Remove Munnar, add Coorg instead\n• Extend by 2 days, add Kovalam beach\n• Change to Gold tier hotels throughout`
@@ -1179,8 +1290,19 @@ return (
                     <span style={{ position: 'absolute', bottom: '9px', right: '11px', fontSize: '10px', color: '#94a3b8' }}>{customText.length}/500</span>
                   </div>
 
+                  {/* Real-time prompt warning */}
+                  {promptWarning && generateMode === 'new' && (
+                    <div style={{ marginBottom: '10px', padding: '11px 14px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '12px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <span style={{ fontSize: '16px', flexShrink: 0 }}>⚠️</span>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#991b1b' }}>{promptWarning}</div>
+                        <div style={{ fontSize: '12px', color: '#b91c1c', marginTop: '3px' }}>Please fix this before generating the trip plan.</div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Smart festival alert — no date field needed */}
-                  {generateMode === 'new' && customText.length > 10 && (
+                  {generateMode === 'new' && customText.length > 10 && !promptWarning && (
                     <div style={{ marginBottom: '10px' }}>
                       {customExtractedDate && (
                         <div style={{ marginBottom: '6px' }}>
@@ -1259,7 +1381,7 @@ return (
 
               {/* GENERATE BUTTON */}
               <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <button className="gbtn" onClick={handleGenerate} disabled={generating || (customExtractedDate && !isValidFutureDate(customExtractedDate))}
+                <button className="gbtn" onClick={handleGenerate} disabled={generating || (customExtractedDate && !isValidFutureDate(customExtractedDate)) || !!promptWarning}
                   style={{ padding: '13px 28px', background: generating ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: generating ? '#94a3b8' : 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: generating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating ? '0 4px 16px rgba(13,148,136,0.4)' : 'none', transition: 'all 0.2s' }}>
                   {generating
                     ? <><div style={{ width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Generating...</>
