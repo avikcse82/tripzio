@@ -39,19 +39,32 @@ INDIA_SAFE_WORDS = {
     "rajasthan","kerala","himachal","uttarakhand","sikkim","india","indian",
 }
 
+# Short/ambiguous keywords need word boundary to avoid matching Indian names
+# e.g. "uk" in "Dzukou", "us" in "Munsiyari", "rio" in "Trichy"
+_WORD_BOUNDARY_KEYWORDS = {
+    "uk","us","eu","rio","iran","oman","mali","peru","laos","togo","chad",
+    "cuba","iraq","syria","ghana","milan","rome","vienna","geneva","zurich",
+    "korea","china","japan","spain","egypt","kenya","uae","abu","bali",
+}
+
 def is_international_destination(destination: str, from_city: str = ""):
     """
     Detects international destinations in text.
     IMPORTANT: Even ONE international keyword = block.
     Mixed trips like Darjeeling + London are INVALID — block them.
+    Uses word boundary matching for short keywords to avoid false positives
+    on Indian place names (e.g. 'uk' in 'Dzukou', 'us' in 'Munsiyari').
     """
+    import re as _re
     combined = (destination + " " + from_city).lower()
-    # Check every international keyword — ANY match = block
-    # We don't care if Indian destinations are also mentioned
-    # A "Darjeeling + London" circuit is still invalid
     for keyword in INTERNATIONAL_KEYWORDS:
-        if keyword in combined:
-            return True, keyword
+        if keyword in _WORD_BOUNDARY_KEYWORDS or len(keyword) <= 3:
+            # Word boundary match for short/ambiguous words
+            if _re.search(r'\b' + _re.escape(keyword) + r'\b', combined):
+                return True, keyword
+        else:
+            if keyword in combined:
+                return True, keyword
     return False, ""
 
 

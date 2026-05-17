@@ -392,39 +392,218 @@ export default function AgentDashboard() {
     ])
 
     const INDIA_LOCATIONS = new Set([
-      'delhi','mumbai','kolkata','chennai','bangalore','bengaluru','hyderabad','pune',
-      'goa','manali','shimla','dharamshala','kasol','spiti','mussoorie','nainital',
-      'rishikesh','haridwar','darjeeling','gangtok','leh','ladakh','srinagar','jammu',
-      'amritsar','chandigarh','agra','varanasi','allahabad','prayagraj','ayodhya',
-      'mathura','vrindavan','jaisalmer','jodhpur','udaipur','pushkar','ajmer','bikaner',
-      'kochi','thiruvananthapuram','munnar','alleppey','alappuzha','thrissur','mysore',
-      'mysuru','hampi','coorg','ooty','kodaikanal','andaman','port blair','lakshadweep',
-      'daman','diu','puri','bhubaneswar','konark','kaziranga','guwahati','shillong',
-      'cherrapunji','tawang','ziro','majuli','imphal','kohima','aizawl','agartala',
-      'raipur','jagdalpur','khajuraho','orchha','tirupati','lonavala','nashik',
-      'aurangabad','shirdi','mahabaleshwar','alibag','tarkarli','rajasthan','kerala',
-      'himachal','uttarakhand','karnataka','tamil nadu','maharashtra','gujarat','punjab',
-      'haryana','up','uttar pradesh','mp','madhya pradesh','odisha','west bengal','assam',
-      'meghalaya','nagaland','manipur','mizoram','tripura','arunachal','jharkhand',
-      'chhattisgarh','andhra pradesh','telangana','bihar','northeast','india','sikkim',
-      'pondicherry','puducherry','north india','south india','indore','nagpur','lucknow',
-      'patna','bhopal','surat','vadodara','rajkot','visakhapatnam','vizag','madurai',
-      'coimbatore','dehradun','nainital','chopta','kedarnath','badrinath','meerut',
-      'agartala','shillong','kolhapur','nashik','ahmadabad','ahmedabad','varanasi',
+      'abhaneri','achanakmar','adilabad','adoni','aerial bay','agar malwa','agartala','agastmuni',
+      'agatti','agonda','agra','agumbe','ahmedabad','ahmednagar','aihole','aizawl',
+      'ajanta','ajmer','akola','alappuzha','alchi','alibag','aligarh','alipore',
+      'alirajpur','allahabad','alleppey','almora','along','alwar','amadalavalasa','amaravathi',
+      'amarkantak','ambaji','ambala','ambassa','ambedkar nagar','amber','ambikapur','amethi',
+      'amini','amravati','amreli','amritsar','amroha','anamalai','anand','anandpur sahib',
+      'anantapur','anantnag','andhra pradesh','andrott','angul','anini','anjaw','anjuna',
+      'ankola','anuppur','araku valley','arambol','araria','aritar','ariyalur','arrah',
+      'arunachal','arvalli','asansol','ashoknagar','ashwem','assam','attingal','auli',
+      'auraiya','aurangabad','auroville','awadh','ayodhya','azamgarh','azhikode','badami',
+      'badrinath','baga','bagdogra','bageshwar','baghmara','baghpat','bahadurgarh','bahraich',
+      'baijnath','baijnath kumaon','bajali','bakkhali','baksa','balaghat','balasore','ballari',
+      'ballia','balod','baloda bazar','balrampur','banaskantha','banda','bandhavgarh','bandipora',
+      'bandipur','bangalore','bangaram','banka','bankura','banswara','bantwal','bapatla',
+      'barabar caves','baramulla','baran','baranagar','barasat','baratang','bardhaman','bareilly',
+      'bargarh','baripada','barmer','barnala','barnawapara','barot','barpeta','barrackpore',
+      'barren island','barwani','basgo','basirhat','bastar','basti','bathinda','begusarai',
+      'behala','bekal','belagavi','belgaum','bellary','belonia','belthangady','belum caves',
+      'belur','bemetara','benaulim','bengaluru','berhampur','betla','betul','betul goa',
+      'bhaderwah','bhadohi','bhadradri','bhagalpur','bhagwan mahavir','bhandara','bharatpur','bhatkal',
+      'bhatpara','bhavnagar','bhilai','bhilwara','bhimashankar','bhimavaram','bhimbetka','bhimbetka odisha',
+      'bhind','bhitarkanika','bhiwani','bhojpur','bhongir','bhopal','bhoramdeo','bhubaneswar',
+      'bhuj','bicholim','bidar','bihar','bijapur cg','bijnor','bikaner','bilaspur',
+      'bilaspur cg','bilikal','binsar','bir billing','birbhum','bishalgarh','bishnupur','bishnupur manipur',
+      'biswanath','biswanath chariali','bitra','blue mountain','bobbili','bodh gaya','bodoland','bokaro',
+      'bolangir','bolpur','bomdila','bongaigaon','bongaon','botad','boudh','br hills',
+      'brahmapur','braj','budgam','bulandshahr','buldana','bumla pass','bundelkhand','bundi',
+      'burdwan','burhanpur','buxar','bylakuppe','cachar','calangute','calicut','canacona',
+      'candolim','canning','capital complex','cavelossim','central india','chail','chakdaha','chakrashila',
+      'chakrata','chakratirth beach','chalakudy','chamba','chamoli','champaner','champaran','champawat',
+      'champhai','chandannagar','chandauli','chandel','chanderi','chandigarh','chandni chowk','chandrapur',
+      'chandrashila','changanassery','changlang','channapatna','chapora','charminar','chatra','chavakkad',
+      'chengalpattu','chennai','cherai','cherrapunji','cheruvathur','chetlat','chhatarpur','chhattisgarh',
+      'chhindwara','chidambaram','chikmagalur','chilika','chilling','chiplun','chirala','chirang',
+      'chitkul','chitrakoot','chitrakote','chittaurgarh','chittoor','chittorgarh','chopta','choutuppal',
+      'chungthang','chunnambar','churachandpur','churu','coastal india','coimbatore','colva','connaught place',
+      'cooch behar','coonoor','coorg','corbett','coromandel','cotigao','courtallam','cuddalore',
+      'cuttack','dadra','dakor','dalhousie','daman','damanganga','damdama lake','damoh',
+      'dampa','dandeli','dantewada','daporijo','darbhanga','daringbadi','darjeeling','dasam',
+      'dassam falls','datia','daulatabad','dausa','davangere','dawki','dayara bugyal','debrigarh',
+      'deccan plateau','deeg','deepor beel','dehradun','dehri','delhi','deogarh','deoghar',
+      'deoria','deoriatal','dera baba nanak','devprayag','dewas','dhanbad','dhankar','dhanolti',
+      'dhar','dharamshala','dharmadam island','dharmanagar','dharmapuri','dharmasthala','dharmavaram','dharwad',
+      'dhauli','dhemaji','dhenkanal','dholavira','dholpur','dhubri','dhule','diamond harbour',
+      'dibang valley','dibru saikhowa','dibrugarh','digha','diglipur','dima hasao','dimapur','dindigul',
+      'dindori','diphu','dirang','diskit','dispur','diu','diu fort','doda',
+      'dodital','dona paula','doyang','drass','dubare','dudhsagar','dum dum','dumboor lake',
+      'dumka','dungarpur','durg','durgapur','dwarahat','dwarka','dzongri','dzukou',
+      'dzukou valley','eagle nest','east india','eastern ghats','eklingji','elephant beach','elephant falls','ellora',
+      'eluru','enchey monastery','eravikulam','ernakulam','erode','etah','etawah','ettumanoor',
+      'faizabad','fakim','faridabad','faridkot','farrukhabad','fatehabad','fatehgarh sahib','fatehpur shekhawati',
+      'fatehpur sikri','firozabad','firozpur','fort kochi','fraserganj','french quarter','gadag','gadchiroli',
+      'gajapati','ganderbal','gandhinagar','ganganagar','gangasagar','gangotri','gangtok','ganjam',
+      'garhwal','gariaband','gariahat','gaumukh','gaya','ghangaria','ghaziabad','ghazipur',
+      'ghoghla beach','gingee','gir','giridih','girnar','goa','goa state','goalpara',
+      'godda','goecha la','gokarna','golaghat','golconda','gomati crocodile','gomtimata','gonda',
+      'gondia','gorakhpur','gorichen','gosaba','govindghat','greater noida','gudalur','gujarat',
+      'gulbarga','gulmarg','gumla','guna','guntakal','guntur','guptakashi','gurdaspur',
+      'gurgaon','gurudongmar','gurugram','guruvayur','guwahati','gwalior','gyalshing','hadoti',
+      'haflong','hailakandi','haldia','haldwani','halebid','hamirpur','hampi','handwara',
+      'hanumangarh','hapur','har ki dun','hardoi','haridwar','harike wetland','haryana','hasnabad',
+      'hassan','hathras','hauz khas','havelock','haveri','hazaribagh','hemis','hemkund sahib',
+      'henry island','hikkim','himachal','himalaya','himalayas','himmatnagar','hindupur','hingoli',
+      'hirni','hisar','hnahthial','hojai','honnavar','hooghly','horanadu','hornadu',
+      'horsley hills','hoshangabad','hoshiarpur','howrah','hubli','hunder','hundru','hussain sagar',
+      'hyderabad','idukki','ilambazar','imphal','india','indore','indravati','intanki',
+      'irinjalakuda','itanagar','jabalpur','jadavpur','jagatsinghapur','jagdalpur','jagitial','jaigarh',
+      'jaipur','jaisalmer','jajpur','jalandhar','jalaun','jalgaon','jalna','jalore',
+      'jalori pass','jalpaiguri','jalukbari','jammu','jammu and kashmir','jammu kashmir','jamnagar','jamshedpur',
+      'jamtara','jamui','jangaon','japfu peak','jaswant garh','jaunpur','jehanabad','jhabua',
+      'jhajjar','jhalawar','jhansi','jhargram','jharkhand','jharsuguda','jhunjhunu','jibhi',
+      'jind','jingmaham','jiribam','jodhpur','jolly buoy','jonha','jorethang','jorhat',
+      'joshimath','jowai','junagadh','junagarh','jyotisar','kadapa','kadmat','kailashahar',
+      'kaimur','kaithal','kakching','kakdwip','kakinada','kalaburagi','kalahandi','kalapathar',
+      'kalasa','kalimpong','kalna','kalpa','kalpeni','kalpeshwar','kalpetta','kalyani',
+      'kamarhati','kamjong','kamrup','kanatal','kanchipuram','kandhamal','kanger valley','kangla',
+      'kangra','kanha','kanhangad','kanker','kannauj','kannur','kanpur','kanyakumari',
+      'kapurthala','karaikal','karauli','karbi anglong','kargil','karimganj','karimnagar','karkala',
+      'karlapat','karnal','karnaprayag','karnataka','karol bagh','karur','karwar','kasaragod',
+      'kasganj','kashi','kashid','kashipur','kasol','kathua','katihar','katni',
+      'katra','katwa','kausani','kavaratti','kaza','kaziranga','kbr national park','kecheopalri',
+      'kedarnath','keibul lamjao','kendrapara','keoladeo','keonjhar','kerala','kesaria','keylong',
+      'khajjiar','khajuraho','khammam','khandagiri','khandwa','khanvel','kharagpur','khardung la',
+      'khargone','khawzawl','khecheopalri lake','kheerganga','khimsar','khonoma','khonsa','khorda',
+      'khunti','kibber','kiltan','kinnaur','kiphire','kisama','kishanganj','kishtwar',
+      'kochi','kodagu','kodaikanal','kohima','kolasib','kolhapur','kolkata','kollam',
+      'kolli hills','kollur','komic','konark','kondagaon','kondapalli','konkan','koppal',
+      'koraput','korba','kota','kotdwar','kottayam','kovalam','kozhikode','krang shuri',
+      'krishnagiri','krishnanagar','kufri','kukke subramanya','kulgam','kullu','kumaon','kumarakom',
+      'kumarghat','kumbakonam','kumbalgarh','kumta','kundapur','kunnamkulam','kupwara','kurnool',
+      'kurseong','kurukshetra','kushalnagar','kushinagar','kutch','kutralam','lachen','lachung',
+      'ladakh region','laitlum','lajpat nagar','lake madhuri','lakhimpur','lakhimpur kheri','lakhisarai','lakkidi',
+      'lakshadweep','lalitpur','lamayuru','lambasingi','langza','lansdowne','latehar','latur',
+      'lauriya nandangarh','lawngtlai','laxmanpur','leh','lepakshi','lepakshi andhra','likir','lingaraj',
+      'little andaman','lodh falls','lohardaga','lohit','loktak','loktak lake','lonavala','long island',
+      'longding','longleng','losar','lothal','lucknow','ludhiana','lumding','lunglei',
+      'madhepura','madhugiri','madhya pradesh','madhyamaheshwar','madikeri','madurai','madurantakam','mahabaleshwar',
+      'mahabalipuram','mahabodhi','mahabubabad','maharajganj','maharashtra','mahasamund','mahbubnagar','mahe',
+      'mahendragarh','maheshwar','mahisagar','mahoba','mainpuri','maithon dam','majuli','makalidurga',
+      'malabar','malappuram','malda','malhar','malkangiri','malvan','mamit','manali',
+      'mananthavady','manas','mancherial','mandarmani','mandawa','mandi','mandla','mandrem',
+      'mandsaur','mandu','mangalagiri','mangalore','mangan','manikaran','manipur','mannarkkad',
+      'manpur','mapusa','mararikulam','marathwada','maravanthe','margao','markapur','marwar',
+      'mashobra','matheran','mathura','mattancherry','mau','mawkdok','mawlynnong','mawphlang',
+      'mawsai','mayabunder','mayiladuthurai','mayurbhanj','mcleod ganj','medchal','meerut','meghalaya',
+      'mehrangarh','mehrauli','mehsana','melaghar','melkote','melli','melmaruvathur','memari',
+      'mewar','midnapore','milam','minicoy','miramar','mirik','miryalaguda','mirzapur',
+      'mizoram','mobor','modhera','moga','mohali','moirang','mokokchung','mon',
+      'moradabad','morbi','moreh','morena','morigaon','morjim','morni hills','moti daman',
+      'mount abu','mp','mud','mudumalai','mukteshwar','mukteshwar bhubaneswar','muktsar','mulbekh',
+      'mulugu','mumbai','munger','munnar','munsiyari','murarai','murdeshwar','murlen',
+      'murshidabad','murud janjira','murudeshwar','mussoorie','muvattupuzha','muzaffarnagar','muzaffarpur','mysore',
+      'mysuru','nabadwip','nabarangpur','nagaland','nagaon','nagapattinam','nagarhole','nagarjuna sagar',
+      'nagarkurnool','nagaur','nagoa','nagpur','nahan','nahargarh','naharlagun','naida caves',
+      'naihati','nainital','nalanda','nalbari','naldehra','nalgonda','nalhati','namakkal',
+      'namchi','namdapha','nameri','namkhana','namsai','nanded','nandi hills','nandprayag',
+      'nandurbar','nandyal','nangal','nangalbandh','nani daman','narasannapeta','narasaraopet','narayanpet',
+      'narayanpur','narcondam','narkanda','naroli','narsinghpur','nashik','nathdwara','nathula',
+      'navsari','nawada','nawalgarh','nayagarh','neemuch','neermahal','nehru zoological park','neil island',
+      'nelliampathi','nellikuppam','nellore','netarhat','new delhi','new town','neyyar','ngengpui',
+      'nilambur','nileshwar','nilgiris','nizamabad','nohkalikai','noida','noklak','noney',
+      'nongpoh','nongriat','nongstoin','north bay','north india','northeast','northeast india','nuapada',
+      'nubra','nuh','numaligarh','nuranang falls','odisha','old delhi','old goa','omkareshwar',
+      'ongole','ooty','orang','orchha','osian','osmanabad','ottapalam','ousteri lake',
+      'pachmarhi','padmanabhapuram','padum','pahalgam','pakur','pakyong','pala','palakkad',
+      'palamau','palampur','palani','palanpur','palasa','palghar','pali','palitana',
+      'palolem','palwal','pan bazar','panaji','panchet dam','panchgani','panchghagh','panchkula',
+      'pandharpur','pangong','pangti','panikotha fort','panipat','panna','panruti','papanasam',
+      'papum pare','parambikulam','parassinikkadavu','parasurameswara','parbhani','pasighat','patan','pathanamthitta',
+      'pathankot','patiala','patna','patnitop','pattadakal','pauri','pavagadh','pawapuri',
+      'payyanur','peddapalli','pelling','pemayangtse','pench','penukonda','perambalur','peren',
+      'periyar','phawngpui','phek','phulbani','phyang','pilibhit','pin valley','pindari',
+      'pinjore','pipli','pitampura','pithoragarh','pobitora','point calimere','pollachi','ponda',
+      'pondicherry','ponmudi','poonamallee','poonch','poovar','porbandar','port blair','prayagraj',
+      'promenade beach','puducherry','pulwama','pune','punjab','puri','purnia','purulia',
+      'purvanchal','pushkar','puttaparthi','puttur','quepem','qutb shahi tombs','rabdentse','radhanagar beach',
+      'rae bareli','raghurajpur','raichur','raigad','raiganj','raigarh','raipur','raisen',
+      'rajahmundry','rajaji','rajam','rajarani','rajarhat','rajasthan','rajgarh','rajgir',
+      'rajim','rajkot','rajnandgaon','rajouri','rajrappa','rajsamand','ramanagara','ramban',
+      'rameswaram','ramgarh','ramnagar','ramoji film city','rampur','rampurhat','ranaghat','ranakpur',
+      'ranchi','rangat','rangdum','rangpo','rani ki vav','ranikhet','rann','rann of kutch',
+      'ranthambore','ratanpur','ratlam','ratnagiri','ravangla','rayagada','reasi','recong peo',
+      'rewa','rewari','rhenock','rishikesh','rock beach pondicherry','rock garden','rohilkhand','rohini',
+      'rohru','rohtak','rohtas','roing','roorkee','ropar','ross island','rourkela',
+      'rudranath','rudraprayag','rudrapur','rumtek','rupa','rupnagar','sabarimala','sabarkantha',
+      'sabroom','sagar','sagar island','saharanpur','saharsa','sahebganj','sainj','saitual',
+      'saket','sakleshpur','salar jung','salem','salt lake','samba','sambalpur','sambhar',
+      'sanchi','sandeshkhali','sangareddy','sangla','sangli','sangrur','sangti valley','sant kabir nagar',
+      'santipur','saputara','sarahan','saranda','sariska','sarnath','sasaram','satara',
+      'satkosia','satna','satpura','savandurga','sawai madhopur','sawantwadi','sehore','sela pass',
+      'senapati','seoni','seraikela','serampore','serchhip','shahdol','shahjahanpur','shamli',
+      'shantiniketan','sheikhpura','shekhawati','sheopur','shey','shilloi lake','shillong','shimla',
+      'shimoga','shirdi','shirui peak','shivagange','shivamogga','shivpuri','shopian','shornur',
+      'shravanabelagola','shravasti','siaha','sibsagar','siddapur','siddharthnagar','siddipet','sidhi',
+      'sikar','sikkim','silchar','silent valley','siliguri','silvassa','simdega','simlipal',
+      'sindhudurg','singalila','singrauli','singtam','sinquerim','sipahijola','sirkazhi','sirmaur',
+      'sirohi','sirpur','sirsa','sirsi','sirumalai','sita kund','sitamarhi','sitapur',
+      'sivasagar','skandagiri','sohra','solan','solapur','somnath','sonamarg','sonamura',
+      'sonbhadra','sonipat','sonitpur','sopore','south india','spiti','spituk','spread eagle falls',
+      'srikakulam','srinagar','srinagar garhwal','sriperumbudur','srirangapatna','srisailam','statue of unity','stok',
+      'subarnapur','sukhna lake','sukma','sullia','sultanpur','sultanpur lodhi','sulthan bathery','sundarbans',
+      'sundargarh','sunderban','supaul','surajkund','surat','surendranagar','suri','suryapet',
+      'sweet falls','tabo','tajpur','taki','tal chhapar','tam dil','tambaram','tamenglong',
+      'tamil nadu','tamulpur','tapovan','taranga','tarkarli','tarn taran','tashiding','tattapani',
+      'tawang','tehri','telangana','teliamura','tellicherry','tengnoupal','tezpur','tezu',
+      'thalassery','thane','thangu','thanjavur','thar desert','thekkady','thembang','thiksey',
+      'thiruvallur','thiruvananthapuram','thodupuzha','thoothukudi','thoubal','thrissur','tikamgarh','tindivanam',
+      'tinsukia','tirap','tirathgarh','tirthan valley','tiruchirappalli','tirunelveli','tirupati','tiruppur',
+      'tirur','tiruvalla','tiruvannamalai','tlawng river','tonk','topslip','tosh','tribeni',
+      'trichy','trimbakeshwar','tripura','trishna','triund','triyuginarayan','tseminyu','tso moriri',
+      'tsomgo','tuensang','tuljapur','tumkur','tungnath','tura','turtuk','tuticorin',
+      'tyrshi','udagamandalam','udaipur','udaipur tripura','udalguri','udayagiri','udhampur','udupi',
+      'ujjain','ukhimath','ukhrul','umaid bhawan','umaria','umiam lake','una','unakoti',
+      'undavalli','unnao','up','ushakothi','usri falls','uttar pradesh','uttarakhand','uttarkashi',
+      'vadodara','vagator','vaishali','vaishno devi','valparai','valsad','vantawng','vantawng falls',
+      'vapi','varanasi','varkala','varsey','vasant kunj','vasco','vatakara','vedaranyam',
+      'velha goa','vellore','vidarbha','vidisha','vijay nagar','vijayawada','vikarabad','vikramshila',
+      'villupuram','vindhyachal','virajpet','virudhachalam','visakhapatnam','vishnupad','vishnuprayag','vitla',
+      'vizag','vizianagaram','vrindavan','vythiri','wagah','walong','wanaparthy','warangal',
+      'ward lake','wardha','washim','wayanad','wei sawdong','west bengal','west india','west singhbhum',
+      'western ghats','white town','williamnagar','wokha','yadadri','yadagirigutta','yamunanagar','yamunotri',
+      'yanam','yellapur','yercaud','yuksom','yumthang','zanskar','zero point','ziro',
+      'zuluk','zunheboto'
     ])
 
-    // ── 1. Invalid numeric dates ──────────────────────────────
+    // ── 1. Invalid year — only when after month name or "year" keyword ──
+    // Avoids flagging budget numbers like 20000, 25000 as years
+    const MONTH_RE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)'
+    const yearAfterMonth = t.match(new RegExp(MONTH_RE + '\\s+(\\d{5,})', 'i'))
+    const yearAfterOrdinal = t.match(/\b\d{1,2}(?:st|nd|rd|th)\s+\w+\s+(\d{5,})/i)
+    const yearKeyword = t.match(/\byear\s+(\d{4,})/i)
+    for (const m of [yearAfterMonth, yearAfterOrdinal, yearKeyword]) {
+      if (m) {
+        const yr = parseInt(m[m.length - 1])
+        if (yr > 2035 || (yr > 2000 && yr < 2025)) {
+          return `❌ "${m[m.length - 1]}" doesn't look like a valid travel year. Please use 2025 to 2035.`
+        }
+      }
+    }
+
+    // ── 2. Invalid numeric dates (dd/mm/yyyy) ─────────────────
     const numDates = [...t.matchAll(/\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b/g)]
     for (const m of numDates) {
       const day = parseInt(m[1]), mon = parseInt(m[2])
       const yr = m[3].length === 4 ? parseInt(m[3]) : parseInt('20' + m[3])
       if (mon < 1 || mon > 12) return `❌ Invalid date — month "${m[2]}" doesn't exist. Months are 1 to 12.`
       const maxDays = [0,31,29,31,30,31,30,31,31,30,31,30,31]
-      if (day < 1 || day > maxDays[mon]) return `❌ Invalid date — ${m[1]}/${m[2]} doesn't exist. Please use a valid date.`
-      if (yr > 2099 || (yr > 2000 && yr < 2025)) return `❌ Invalid year "${m[3]}" — please use a future travel year.`
+      if (day < 1 || day > maxDays[mon]) return `❌ Invalid date — ${m[1]}/${m[2]} doesn't exist.`
+      if (yr > 2035 || yr < 2025) return `❌ Invalid year "${m[3]}" — please use 2025 to 2035.`
     }
 
-    // ── 2. Ordinal + invalid month word (e.g. "3rd FRB") ─────
+    // ── 3. Ordinal + invalid month word (e.g. "3rd FRB") ──────
     const ordinalMonth = [...t.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\s+([a-z]{2,15})\b/g)]
     for (const m of ordinalMonth) {
       const word = m[2].toLowerCase()
@@ -433,7 +612,7 @@ export default function AgentDashboard() {
       }
     }
 
-    // ── 3. Written invalid dates (e.g. "Feb 30", "March 45") ─
+    // ── 4. Written invalid dates (Feb 30, March 45) ───────────
     const monthDays = {
       'january':31,'jan':31,'february':29,'feb':29,'march':31,'mar':31,
       'april':30,'apr':30,'may':31,'june':30,'jun':30,'july':31,'jul':31,
@@ -447,44 +626,35 @@ export default function AgentDashboard() {
         const m = t.match(r)
         if (m) {
           const day = parseInt(m[1])
-          if (day > maxD) return `❌ Invalid date — ${mon.charAt(0).toUpperCase()+mon.slice(1)} ${day} doesn't exist`
-          if (day < 1) return `❌ Invalid date — day must be 1 or more`
+          if (day > maxD) return `❌ Invalid date — ${mon.charAt(0).toUpperCase()+mon.slice(1)} ${day} doesn't exist.`
+          if (day < 1) return `❌ Invalid date — day must be 1 or more.`
         }
       }
     }
 
-    // ── 4. Invalid source city ────────────────────────────────
-    // Extract source from "from X" or "X se"
-    const fromMatch = t.match(/(?:from|starting from|travelling from)\s+([a-zA-Z]{3,20})(?:\s|,|$|\.)/i)
-    const seMatch   = t.match(/([a-zA-Z]{3,20})\s+se\b/i)
+    // ── 5. Invalid source city ────────────────────────────────
+    const fromMatch = t.match(/(?:from|starting from|travelling from)\s+([a-zA-Z]{3,25})(?:\s|,|$|\.)/i)
+    const seMatch   = t.match(/([a-zA-Z]{3,25})\s+se\b/i)
 
-    const SKIP_SOURCE = new Set([
+    const SKIP_WORDS = new Set([
       'the','and','or','for','with','my','our','a','an','this','that',
       'trip','tour','plan','days','budget','here','there','home','base',
+      'solo','couple','family','group','friends','adventure','holiday',
     ])
 
     const checkSource = (word) => {
       if (!word) return ''
       const clean = word.trim().toLowerCase()
-      if (clean.length < 3) return ''
-      if (SKIP_SOURCE.has(clean)) return ''
-      // If it contains digits — invalid
-      if (/\d/.test(clean)) return `❌ "${word.trim()}" doesn't look like a valid source city`
-      // If NOT in known India locations — warn
+      if (clean.length < 3 || SKIP_WORDS.has(clean)) return ''
+      if (/\d/.test(clean)) return `❌ "${word.trim()}" doesn't look like a valid source city.`
       if (!INDIA_LOCATIONS.has(clean)) {
         return `❌ "${word.trim()}" doesn't seem to be a valid Indian city. Please check the source city name.`
       }
       return ''
     }
 
-    if (fromMatch) {
-      const warn = checkSource(fromMatch[1])
-      if (warn) return warn
-    }
-    if (seMatch) {
-      const warn = checkSource(seMatch[1])
-      if (warn) return warn
-    }
+    if (fromMatch) { const w = checkSource(fromMatch[1]); if (w) return w }
+    if (seMatch)   { const w = checkSource(seMatch[1]);   if (w) return w }
 
     return ''
   }
@@ -1281,7 +1451,12 @@ return (
                       const val = e.target.value.slice(0, 500)
                       setCustomText(val)
                       setCustomExtractedDate(extractDateFromText(val))
-                      setPromptWarning(validatePromptRealTime(val))
+                      const intlWords = ['london','paris','dubai','singapore','usa','america','europe','australia','japan','china','thailand','maldives','tokyo','new york','san francisco','los angeles','canada','italy','spain','germany','france','switzerland','korea','vietnam','indonesia','philippines','malaysia','sri lanka','nepal','bhutan','pakistan','egypt','africa','brazil','mexico','abroad','international','foreign','overseas','outside india','world tour']
+                      const shortIntlWords = new Set(['uk','us','eu','rio','iran','oman','uae','cuba','iraq','seoul','rome','milan','vienna','geneva','zurich'])
+                      const t_intl = val.toLowerCase()
+                      const hasIntl = intlWords.some(w => t_intl.includes(w)) || [...shortIntlWords].some(w => new RegExp('\\b' + w + '\\b').test(t_intl))
+                      if (!hasIntl) { setPromptWarning(validatePromptRealTime(val)) }
+                      else { setPromptWarning('') }
                     }}
                       placeholder={generateMode === 'modify'
                         ? `Describe changes to the current plan...\n\nExamples:\n• Remove Munnar, add Coorg instead\n• Extend by 2 days, add Kovalam beach\n• Change to Gold tier hotels throughout`
