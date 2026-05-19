@@ -105,6 +105,7 @@ export default function ItineraryResult() {
   const [googleHotels, setGoogleHotels]         = useState({})
   const [hotelsLoading, setHotelsLoading]       = useState(false)
   const [activeHotelCity, setActiveHotelCity]   = useState(null)
+  const [activePlaceCategory, setActivePlaceCategory] = useState('all')
   const [isSaved, setIsSaved]                   = useState(false)
   const [saving, setSaving]                     = useState(false)
   const [shareUrl, setShareUrl]                 = useState(null)
@@ -1118,24 +1119,159 @@ export default function ItineraryResult() {
             )}
 
             {/* ── PLACES ── */}
-            {activeTab === 'places' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '16px' }}>
-                {data.places_to_visit?.map((place, i) => (
-                  <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', animation: `fadeUp ${0.1 + i * 0.05}s ease` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>{place.name}</h4>
-                      <span style={{ background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', marginLeft: '8px' }}>{place.type}</span>
-                    </div>
-                    <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6, marginBottom: '12px' }}>{place.description}</p>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {place.entry_fee && <span style={{ fontSize: '11px', color: '#374151', background: 'white', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>🎟 {place.entry_fee}</span>}
-                      {place.best_time && <span style={{ fontSize: '11px', color: '#374151', background: 'white', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>🕐 {place.best_time}</span>}
-                      {place.duration && <span style={{ fontSize: '11px', color: '#374151', background: 'white', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>⏱ {place.duration}</span>}
-                    </div>
+            {activeTab === 'places' && (() => {
+              const allPlaces = data.places_to_visit || []
+
+              // ── Category config ───────────────────────────────────
+              const PLACE_CATEGORIES = [
+                { id: 'all',       label: '🗺️ All',          keywords: [] },
+                { id: 'viewpoint', label: '🌄 Viewpoints',    keywords: ['viewpoint','sunrise','view','scenic','overlook','hill','peak','top','observatory','point'] },
+                { id: 'spiritual', label: '🛕 Temples',       keywords: ['temple','monastery','church','mosque','dargah','ghat','ashram','shrine','mandir','masjid','gurudwara','stupa','pagoda','gompa','religious','sacred','spiritual'] },
+                { id: 'nature',    label: '🌿 Nature',        keywords: ['lake','waterfall','park','forest','wildlife','sanctuary','river','cave','valley','garden','falls','nature','national','botanical','beach','island'] },
+                { id: 'heritage',  label: '🏯 Heritage',      keywords: ['fort','palace','monument','museum','heritage','historical','ruins','castle','historical site','archaeological','ancient'] },
+                { id: 'local',     label: '🛍️ Local',         keywords: ['market','bazaar','street','food','shopping','local','neighbourhood','village','craft','artisan','town'] },
+                { id: 'adventure', label: '🧗 Adventure',     keywords: ['trek','rafting','paragliding','climbing','adventure','skiing','snowboarding','cable car','ropeway','zip','bungee'] },
+                { id: 'daytrip',   label: '🚗 Day Trips',     keywords: ['day trip','nearby','excursion','km','kilometre','kilometer','from city','from town','from base'] },
+              ]
+
+              // Classify each place
+              const classify = (place) => {
+                const text = ((place.type || '') + ' ' + (place.name || '') + ' ' + (place.description || '')).toLowerCase()
+                for (const cat of PLACE_CATEGORIES.slice(1)) {
+                  if (cat.keywords.some(k => text.includes(k))) return cat.id
+                }
+                return 'heritage' // default fallback
+              }
+
+              const categorised = allPlaces.map(p => ({ ...p, _cat: classify(p) }))
+
+              // Count per category
+              const counts = {}
+              PLACE_CATEGORIES.forEach(cat => {
+                counts[cat.id] = cat.id === 'all'
+                  ? categorised.length
+                  : categorised.filter(p => p._cat === cat.id).length
+              })
+
+              const filtered = activePlaceCategory === 'all'
+                ? categorised
+                : categorised.filter(p => p._cat === activePlaceCategory)
+
+              // Category color map
+              const catColors = {
+                viewpoint: { bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8', badge: '#3b82f6' },
+                spiritual: { bg: '#fff7ed', border: '#fed7aa', color: '#c2410c', badge: '#f97316' },
+                nature:    { bg: '#f0fdf4', border: '#86efac', color: '#15803d', badge: '#22c55e' },
+                heritage:  { bg: '#f5f3ff', border: '#ddd6fe', color: '#7c3aed', badge: '#8b5cf6' },
+                local:     { bg: '#fffbeb', border: '#fcd34d', color: '#92400e', badge: '#f59e0b' },
+                adventure: { bg: '#fef2f2', border: '#fecaca', color: '#b91c1c', badge: '#ef4444' },
+                daytrip:   { bg: '#f0fdfa', border: '#99f6e4', color: '#0f766e', badge: '#0d9488' },
+              }
+              const getColor = (cat) => catColors[cat] || { bg: '#f0fdfa', border: '#99f6e4', color: '#0d9488', badge: '#0d9488' }
+
+              return (
+                <div>
+                  {/* Category filter tabs */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                    {PLACE_CATEGORIES.filter(cat => counts[cat.id] > 0).map(cat => (
+                      <button key={cat.id}
+                        onClick={() => setActivePlaceCategory(cat.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '5px',
+                          padding: '7px 14px', borderRadius: '24px', border: 'none',
+                          background: activePlaceCategory === cat.id
+                            ? (cat.id === 'all' ? '#0d9488' : getColor(cat.id).badge)
+                            : '#f1f5f9',
+                          color: activePlaceCategory === cat.id ? 'white' : '#64748b',
+                          fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                          fontFamily: 'inherit', transition: 'all 0.2s',
+                          boxShadow: activePlaceCategory === cat.id ? `0 3px 10px ${getColor(cat.id).badge || '#0d9488'}40` : 'none',
+                        }}>
+                        {cat.label}
+                        <span style={{
+                          background: activePlaceCategory === cat.id ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                          color: activePlaceCategory === cat.id ? 'white' : '#64748b',
+                          fontSize: '10px', fontWeight: '800',
+                          padding: '1px 6px', borderRadius: '10px',
+                        }}>{counts[cat.id]}</span>
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {/* Results count */}
+                  <div style={{ marginBottom: '14px' }}>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                      Showing {filtered.length} of {allPlaces.length} places
+                      {activePlaceCategory !== 'all' && ` · ${PLACE_CATEGORIES.find(c => c.id === activePlaceCategory)?.label}`}
+                    </span>
+                  </div>
+
+                  {/* Places grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '16px' }}>
+                    {filtered.map((place, i) => {
+                      const col = getColor(place._cat)
+                      return (
+                        <div key={i} style={{
+                          background: 'white', border: `1.5px solid ${col.border}`,
+                          borderRadius: '16px', padding: '18px',
+                          animation: `fadeUp ${0.1 + i * 0.04}s ease`,
+                          transition: 'all 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                        }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)' }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)' }}>
+
+                          {/* Header */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0, lineHeight: 1.3, flex: 1 }}>
+                              {place.name}
+                            </h4>
+                            <span style={{ background: col.bg, color: col.color, border: `1px solid ${col.border}`, padding: '3px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '700', whiteSpace: 'nowrap', marginLeft: '8px', flexShrink: 0 }}>
+                              {place.type}
+                            </span>
+                          </div>
+
+                          {/* Description */}
+                          <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6, marginBottom: '12px' }}>
+                            {place.description}
+                          </p>
+
+                          {/* Info pills */}
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {place.entry_fee && (
+                              <span style={{ fontSize: '11px', color: '#374151', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>
+                                🎟 {place.entry_fee}
+                              </span>
+                            )}
+                            {place.best_time && (
+                              <span style={{ fontSize: '11px', color: '#374151', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>
+                                🕐 {place.best_time}
+                              </span>
+                            )}
+                            {place.duration && (
+                              <span style={{ fontSize: '11px', color: '#374151', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>
+                                ⏱ {place.duration}
+                              </span>
+                            )}
+                            {place.must_see && (
+                              <span style={{ fontSize: '11px', color: 'white', background: col.badge, padding: '3px 10px', borderRadius: '20px', fontWeight: '700' }}>
+                                ⭐ Must See
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {filtered.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📍</div>
+                      <p style={{ fontSize: '14px' }}>No places in this category</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* ── THINGS TO DO ── */}
             {activeTab === 'todo' && (

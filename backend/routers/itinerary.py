@@ -39,8 +39,6 @@ INDIA_SAFE_WORDS = {
     "rajasthan","kerala","himachal","uttarakhand","sikkim","india","indian",
 }
 
-# Short/ambiguous keywords need word boundary to avoid matching Indian names
-# e.g. "uk" in "Dzukou", "us" in "Munsiyari", "rio" in "Trichy"
 _WORD_BOUNDARY_KEYWORDS = {
     "uk","us","eu","rio","iran","oman","mali","peru","laos","togo","chad",
     "cuba","iraq","syria","ghana","milan","rome","vienna","geneva","zurich",
@@ -50,16 +48,13 @@ _WORD_BOUNDARY_KEYWORDS = {
 def is_international_destination(destination: str, from_city: str = ""):
     """
     Detects international destinations in text.
-    IMPORTANT: Even ONE international keyword = block.
-    Mixed trips like Darjeeling + London are INVALID — block them.
-    Uses word boundary matching for short keywords to avoid false positives
-    on Indian place names (e.g. 'uk' in 'Dzukou', 'us' in 'Munsiyari').
+    Uses word boundary for short keywords to avoid false positives
+    e.g. 'uk' in 'Dzukou', 'us' in 'Munsiyari'
     """
     import re as _re
     combined = (destination + " " + from_city).lower()
     for keyword in INTERNATIONAL_KEYWORDS:
         if keyword in _WORD_BOUNDARY_KEYWORDS or len(keyword) <= 3:
-            # Word boundary match for short/ambiguous words
             if _re.search(r'\b' + _re.escape(keyword) + r'\b', combined):
                 return True, keyword
         else:
@@ -68,116 +63,103 @@ def is_international_destination(destination: str, from_city: str = ""):
     return False, ""
 
 
-# ── Prompt validation — detect vague/invalid prompts ──────────
 INDIA_LOCATIONS = {
-    # Major cities
     "delhi","mumbai","kolkata","chennai","bangalore","bengaluru","hyderabad","pune","ahmedabad",
-    "jaipur","lucknow","kanpur","nagpur","indore","bhopal","patna","vadodara","surat","rajkot",
-    # Popular destinations
     "goa","manali","shimla","dharamshala","kasol","spiti","mussoorie","nainital","rishikesh",
-    "haridwar","dehradun","darjeeling","gangtok","sikkim","leh","ladakh","srinagar","jammu",
-    "amritsar","chandigarh","agra","varanasi","allahabad","prayagraj","ayodhya","mathura",
-    "vrindavan","jaisalmer","jodhpur","udaipur","pushkar","ajmer","bikaner","mount abu",
-    "kochi","thiruvananthapuram","munnar","alleppey","alappuzha","thrissur","kozhikode",
-    "mysore","mysuru","hampi","coorg","ooty","kodaikanal","madurai","pondicherry","puducherry",
-    "andaman","port blair","lakshadweep","daman","diu","puri","bhubaneswar","konark",
+    "haridwar","darjeeling","gangtok","leh","ladakh","srinagar","jammu","amritsar","chandigarh",
+    "agra","varanasi","allahabad","prayagraj","ayodhya","mathura","vrindavan","jaisalmer",
+    "jodhpur","udaipur","pushkar","ajmer","bikaner","kochi","thiruvananthapuram","munnar",
+    "alleppey","alappuzha","thrissur","kozhikode","mysore","mysuru","hampi","coorg","ooty",
+    "kodaikanal","andaman","port blair","lakshadweep","daman","diu","puri","bhubaneswar",
     "kaziranga","guwahati","shillong","cherrapunji","tawang","ziro","majuli","imphal",
-    "kohima","aizawl","agartala","raipur","jagdalpur","bhopal","khajuraho","orchha",
-    "tirupati","hyderabad","vijayawada","visakhapatnam","warangal","lonavala","nashik",
-    "aurangabad","shirdi","mahabaleshwar","kolhapur","solapur","nagpur","alibag","tarkarli",
-    # States and regions
+    "kohima","aizawl","agartala","raipur","jagdalpur","khajuraho","orchha","tirupati",
+    "lonavala","nashik","aurangabad","shirdi","mahabaleshwar","alibag","tarkarli",
     "rajasthan","kerala","himachal","uttarakhand","karnataka","tamil nadu","maharashtra",
     "gujarat","punjab","haryana","up","uttar pradesh","mp","madhya pradesh","odisha",
     "west bengal","assam","meghalaya","nagaland","manipur","mizoram","tripura","arunachal",
     "jharkhand","chhattisgarh","andhra pradesh","telangana","bihar","northeast","india",
+    "sikkim","pondicherry","puducherry","kalimpong","kurseong","mirik","siliguri",
+    "pelling","ravangla","lachung","rumtek","tashiding","yuksom","dzukou","loktak",
+    "vantawng","dawki","mawlynnong","nongriat","netarhat","deoghar","phawngpui",
+    "dzukou valley","loktak lake","sela pass","bumla pass","dzongri","chopta",
+    "kedarnath","badrinath","gangotri","yamunotri","valley of flowers","hemkund",
 }
 
-import re as _re
-
-def validate_custom_prompt(text: str) -> tuple[bool, str]:
-    """
-    Validates custom plan prompt:
-    1. At least one Indian destination
-    2. Travel intent keywords
-    3. Invalid date detection (45/18/2024, Feb 30 etc)
-    4. Source city validation if mentioned
-    Returns (is_valid, error_message)
-    """
+def validate_custom_prompt(text: str) -> tuple:
     if not text or len(text.strip()) < 10:
         return False, "Please describe your trip in more detail"
-
     t = text.lower()
-
-    # ── 1. Invalid date detection ──────────────────────────────
-    # Detect numeric dates like dd/mm/yyyy or dd-mm-yyyy
-    date_patterns = _re.findall(r"\b(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{2,4})\b", t)
-    for day_s, mon_s, yr_s in date_patterns:
-        day, mon = int(day_s), int(mon_s)
-        yr = int(yr_s) if len(yr_s) == 4 else int("20" + yr_s)
+    import re as _re
+    VALID_MONTHS = {
+        'jan','january','feb','february','mar','march','apr','april',
+        'may','jun','june','jul','july','aug','august','sep','september',
+        'oct','october','nov','november','dec','december'
+    }
+    # Invalid numeric dates
+    for m in _re.findall(r'\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b', t):
+        day, mon = int(m[0]), int(m[1])
+        yr = int(m[2]) if len(m[2]) == 4 else int("20" + m[2])
         if mon < 1 or mon > 12:
-            return False, f"Invalid date detected — month '{mon_s}' does not exist. Please use a valid date (DD/MM/YYYY)."
+            return False, f"Invalid date — month \"{m[1]}\" doesn't exist (use 1-12)"
         max_days = [0,31,29,31,30,31,30,31,31,30,31,30,31]
         if day < 1 or day > max_days[mon]:
-            return False, f"Invalid date detected — {day}/{mon} does not exist. Please use a valid travel date."
-        if yr < 2024 or yr > 2030:
-            return False, f"Invalid year '{yr}' detected. Please use a future travel year (2025-2030)."
-
-    # Detect written dates like "Feb 30", "January 45", "March 32"
-    MONTH_DAYS = {
-        "january":31,"jan":31,"february":29,"feb":29,"march":31,"mar":31,
-        "april":30,"apr":30,"may":31,"june":30,"jun":30,"july":31,"jul":31,
-        "august":31,"aug":31,"september":30,"sep":30,"october":31,"oct":31,
-        "november":30,"nov":30,"december":31,"dec":31,
+            return False, f"Invalid date — {m[0]}/{m[1]} doesn't exist"
+        if yr > 2035 or (yr > 2000 and yr < 2025):
+            return False, f"Invalid year \"{m[2]}\" — use 2025-2035"
+    # Ordinal + invalid month
+    for om in _re.findall(r'\b(\d{1,2})(?:st|nd|rd|th)\s+([a-z]{2,15})\b', t):
+        if om[1] not in VALID_MONTHS:
+            return False, f"\"{om[1].upper()}\" is not a valid month. Did you mean Jan, Feb, Mar... Dec?"
+    # Written invalid dates
+    month_days = {
+        'january':31,'jan':31,'february':29,'feb':29,'march':31,'mar':31,
+        'april':30,'apr':30,'may':31,'june':30,'jun':30,'july':31,'jul':31,
+        'august':31,'aug':31,'september':30,'sep':30,'october':31,'oct':31,
+        'november':30,'nov':30,'december':31,'dec':31
     }
-    for month, max_d in MONTH_DAYS.items():
-        # "March 45" or "45 March"
-        m1 = _re.search(rf"\b{month}\s+(\d{{1,2}})\b", t)
-        m2 = _re.search(rf"\b(\d{{1,2}})\s+{month}\b", t)
+    for mon, max_d in month_days.items():
+        m1 = _re.search(rf'\b{mon}\s+(\d{{1,2}})\b', t, _re.I)
+        m2 = _re.search(rf'\b(\d{{1,2}})(?:st|nd|rd|th)?\s+{mon}\b', t, _re.I)
         for m in [m1, m2]:
             if m:
                 day = int(m.group(1))
                 if day > max_d:
-                    return False, f"Invalid date — {month.capitalize()} {day} does not exist. Please use a valid travel date."
-                if day < 1:
-                    return False, f"Invalid date detected. Please use a valid travel date."
-
-    # ── 2. Check for at least one India location ───────────────
+                    return False, f"Invalid date — {mon.capitalize()} {day} doesn't exist"
+    # Year after month context
+    MONTH_RE = r'(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)'
+    for pattern in [MONTH_RE + r'\s+(\d{5,})', r'\b\d{1,2}(?:st|nd|rd|th)\s+\w+\s+(\d{5,})']:
+        m = _re.search(pattern, t, _re.I)
+        if m:
+            yr = int(m.group(len(m.groups())))
+            if yr > 2035:
+                return False, f"\"{yr}\" doesn't look like a valid travel year. Use 2025-2035."
+    # Check destination
     has_location = any(loc in t for loc in INDIA_LOCATIONS)
-
-    # ── 3. Travel intent keywords ──────────────────────────────
     TRAVEL_KEYWORDS = {
-        "trip","travel","visit","tour","plan","days","din","night","budget","hajar","thousand",
+        "trip","travel","visit","tour","plan","days","din","night","budget","hajar",
         "honeymoon","family","couple","solo","adventure","holiday","vacation","weekend",
-        "circuit","route","from","se","jana","jaana","jao","ghoomna","explore","ke liye",
+        "circuit","route","from","se","jana","jaana","explore",
     }
     has_intent = any(kw in t for kw in TRAVEL_KEYWORDS)
-
-    # ── 4. Meaningful content check ────────────────────────────
-    words = t.split()
-    meaningful_words = [w for w in words if len(w) >= 3]
-    if len(meaningful_words) < 2:
-        return False, "Please provide more details — destination, duration, and budget help us plan better."
-
+    meaningful = [w for w in t.split() if len(w) >= 3]
+    if len(meaningful) < 2:
+        return False, "Please provide more details about your trip"
     if not has_location:
-        return False, "Please mention a destination in India — e.g. Goa, Manali, Kerala, Rajasthan, Darjeeling, Leh etc."
-
+        return False, "Please mention a destination in India — e.g. Goa, Manali, Kerala, Darjeeling etc."
     if not has_intent:
-        return False, "Please describe your trip — add details like number of days, budget, or trip type."
-
-    # ── 5. Source city hint (optional — warn not block) ────────
-    # We don't block if source is missing — AI can infer
-    # But if source is clearly invalid (just numbers, gibberish), warn
-    FROM_PATTERNS = [
-        _re.search(r"from\s+([a-zA-Z\s]{3,25})(?:,|\.|$|\s)", t),
-        _re.search(r"([a-zA-Z\s]{3,25})\s+se", t),
-    ]
-    for fp in FROM_PATTERNS:
-        if fp:
-            source = fp.group(1).strip()
-            # Check if source is all numbers or gibberish
-            if _re.match(r"^[0-9]+$", source):
-                return False, f"'{source}' doesn't look like a valid source city. Please mention where you're travelling from — e.g. 'from Mumbai' or 'Delhi se'."
-
+        return False, "Please describe your trip — add details like days, budget, or trip type"
+    # Source city check
+    SKIP = {'the','and','or','for','with','my','our','a','an','this','that',
+            'trip','tour','plan','days','budget','here','there','home','solo','couple','family'}
+    from_m = _re.search(r'(?:from|starting from)\s+([a-zA-Z]{3,25})(?:\s|,|$|\.)', t, _re.I)
+    se_m = _re.search(r'([a-zA-Z]{3,25})\s+se\b', t, _re.I)
+    for match in [from_m, se_m]:
+        if match:
+            word = match.group(1).strip().lower()
+            if word not in SKIP and _re.search(r'\d', word):
+                return False, f"\"{match.group(1)}\" doesn't look like a valid source city"
+            if word not in SKIP and len(word) >= 3 and word not in INDIA_LOCATIONS:
+                return False, f"\"{match.group(1)}\" doesn't seem to be a valid Indian city"
     return True, ""
 
 
@@ -416,12 +398,15 @@ Total budget: Rs {req.budget}
 GENERAL RULES:
 1. REAL train names and numbers always
 2. COMPLETE journey time (train + last mile)
-3. REAL named hotels matching {req.plan_tier.value} tier
+3. REAL named hotels — only names you are 100% certain exist. If unsure, describe as "Well-reviewed [type] near [area]"
 4. India-specific, culturally accurate
 5. {req.days} days realistic plan
 6. Transport specifically from {req.from_city}
 7. If Gold/Diamond/Platinum — suggest upgrades to use full budget
-8. Return ONLY valid JSON"""
+8. MINIMUM places: major destinations 15-18, medium 12-15, small 8-10, circuit 8-10 per city
+9. Cover all place categories using AI knowledge — viewpoints, temples, nature, heritage, markets, adventure
+10. Match hotels to tier AND trip type — solo→hostels, couple→boutique, family→resorts, adventure→near activity hubs
+11. Return ONLY valid JSON"""
 
 
 async def call_openai(prompt: str) -> dict:
@@ -539,6 +524,7 @@ async def generate_itinerary(
         try:
             save_trip({
                 "user_id": str(current_user["id"]),
+                "client_id": str(req.client_id) if hasattr(req, 'client_id') and req.client_id else None,
                 "title": f"{ai_response.get('destination', 'Trip')} — {req.days} days",
                 "from_city": req.from_city,
                 "destination": ai_response.get("destination", req.destination or ""),
@@ -662,6 +648,28 @@ async def get_itinerary_history(current_user: dict = Depends(get_current_user_fr
     return {"trips": trips, "total": len(trips)}
 
 
+@router.get("/history/client/{client_id}")
+async def get_client_trip_history(
+    client_id: str,
+    current_user: dict = Depends(get_current_user_from_token)
+):
+    """Get all trips generated for a specific client by this agent"""
+    try:
+        from database import get_supabase_client
+        supabase = get_supabase_client()
+        result = supabase.table("trips") \
+            .select("id,title,destination,from_city,days,budget,trip_type,plan_tier,start_date,created_at,itinerary") \
+            .eq("user_id", str(current_user["id"])) \
+            .eq("client_id", client_id) \
+            .order("created_at", desc=True) \
+            .execute()
+        trips = result.data or []
+        return {"trips": trips, "total": len(trips), "client_id": client_id}
+    except Exception as e:
+        logger.error(f"Error fetching client trips: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ── CUSTOM PLAN ENDPOINT ──────────────────────
 class CustomPlanRequest(BaseModel):
     free_text: str
@@ -676,19 +684,16 @@ async def generate_custom_itinerary(
         if len(req.free_text.strip()) < 10:
             raise HTTPException(status_code=400, detail="Please describe your trip in more detail")
 
-        # ── Layer 1B: Validate prompt has destination + intent ─
+        # Validate prompt
         is_valid, validation_msg = validate_custom_prompt(req.free_text)
         if not is_valid:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "code": "INVALID_PROMPT",
-                    "message": validation_msg,
-                    "suggestion": "Try: 'Goa 5 days from Mumbai, budget 25000, couple trip' or 'Manali circuit March mein, 7 din, solo backpacker'"
-                }
-            )
+            raise HTTPException(status_code=400, detail={
+                "code": "INVALID_PROMPT",
+                "message": validation_msg,
+                "suggestion": "Try: 'Goa 5 days from Mumbai, budget 25000, couple trip'"
+            })
 
-        # ── Layer 2: India-only validation ────────────────────
+        # ── Layer 1: India-only validation ────────────────────
         is_intl, detected = is_international_destination(req.free_text)
         if is_intl:
             raise HTTPException(
@@ -836,14 +841,12 @@ Return ONLY valid JSON in this format:
 RULES:
 - For multi-destination/circuit trips, day_plans must cover ALL cities in sequence
 - Day titles must mention the city e.g. "Shimla Day 1 — Arrival & Mall Road"
-- Use real hotel names, real train names
+- Use real hotel names, real train names — only names you are certain exist
+- Include MINIMUM 12-15 tourist places per destination covering all categories
+- For circuit trips include 8-10 places PER CITY
+- Match hotels to tier AND trip type
 - If budget not mentioned, estimate reasonable amount for the trip type
 - If departure city not mentioned, use most logical city
-- CRITICAL: If the request does not mention any real Indian destination or is too vague/gibberish, return:
-  {{"error": "INVALID_PROMPT", "message": "Please mention a specific destination in India and trip details"}}
-- CRITICAL: If date mentioned is clearly invalid (e.g. Feb 30, Jan 45), return:
-  {{"error": "INVALID_DATE", "message": "Please provide a valid travel date"}}
-- CRITICAL: Only plan trips to real places in India — if destination is fictional/nonsensical, return the error JSON
 - Return ONLY valid JSON"""
 
         ai_response = await call_openai(prompt)
@@ -874,11 +877,12 @@ RULES:
         try:
             save_trip({
                 "user_id": str(current_user["id"]),
+                "client_id": str(req.client_id) if hasattr(req, 'client_id') and req.client_id else None,
                 "title": ai_response.get("destination", "Custom Trip"),
                 "from_city": ai_response.get("from_city", ""),
                 "destination": ai_response.get("destination", ""),
-                "start_date": datetime.now().strftime("%Y-%m-%d"),
-                "end_date": datetime.now().strftime("%Y-%m-%d"),
+                "start_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
+                "end_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
                 "days": ai_response.get("days", 0),
                 "budget": ai_response.get("budget", 0),
                 "trip_type": ai_response.get("trip_type"),

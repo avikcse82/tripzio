@@ -58,6 +58,8 @@ export default function AgentDashboard() {
 
   // ── Core state ───────────────────────────────
   const [activeTab, setActiveTab]           = useState('clients')
+  const [clientTrips, setClientTrips]       = useState({})   // { clientId: [trip, ...] }
+  const [loadingTrips, setLoadingTrips]     = useState({})   // { clientId: true/false }
   const [clients, setClients]               = useState([])
   const [loading, setLoading]               = useState(true)
   const [searchQuery, setSearchQuery]       = useState('')
@@ -107,6 +109,25 @@ export default function AgentDashboard() {
 
   useEffect(() => { fetchClients() }, [])
 
+  // ── Fetch trip history for a client ──────────
+  const fetchClientTrips = async (clientId) => {
+    if (clientTrips[clientId]) return // already loaded
+    setLoadingTrips(p => ({ ...p, [clientId]: true }))
+    try {
+      const r = await fetch(`${API_URL}/itinerary/history/client/${clientId}`, {
+        headers: { Authorization: `Bearer ${token()}` }
+      })
+      if (r.ok) {
+        const d = await r.json()
+        setClientTrips(p => ({ ...p, [clientId]: d.trips || [] }))
+      }
+    } catch (e) {
+      console.log('Trip history fetch failed:', e)
+    } finally {
+      setLoadingTrips(p => ({ ...p, [clientId]: false }))
+    }
+  }
+
   // ── Fetch clients ────────────────────────────
   const fetchClients = async () => {
     setLoading(true)
@@ -132,6 +153,7 @@ export default function AgentDashboard() {
       setEditData({})
     } else {
       setExpandedId(client.id)
+      fetchClientTrips(client.id)
       setEditData({
         name: client.name,
         phone: client.phone,
@@ -276,7 +298,7 @@ export default function AgentDashboard() {
           return
         }
         endpoint = `${API_URL}/itinerary/generate-custom`
-        body = { free_text: customText.trim(), start_date: customExtractedDate || null }
+        body = { free_text: customText.trim(), start_date: customExtractedDate || null, client_id: selectedClient?.id || null }
       } else {
         if (!from.trim() || !days || !budget) {
           toast.error('Fill From city, Days and Budget')
@@ -293,6 +315,7 @@ export default function AgentDashboard() {
           destination_mode: hasDest ? 'specific' : 'suggest',
           plan_tier: tier, transport_mode: transport,
           start_date: startDate || null, is_flexible: false,
+          client_id: selectedClient?.id || null,
         }
       }
 
@@ -1296,6 +1319,55 @@ return (
                                 </a>
                               </div>
                             </div>
+
+                            {/* ── TRIP HISTORY ── */}
+                            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+                              <div style={{ fontSize: '10px', fontWeight: '700', color: '#0d9488', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <Clock size={10} /> Trip History
+                                {clientTrips[client.id]?.length > 0 && (
+                                  <span style={{ background: '#0d9488', color: 'white', borderRadius: '20px', padding: '1px 7px', fontSize: '10px', fontWeight: '800', marginLeft: '4px' }}>
+                                    {clientTrips[client.id].length}
+                                  </span>
+                                )}
+                              </div>
+                              {loadingTrips[client.id] ? (
+                                <div style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>Loading...</div>
+                              ) : clientTrips[client.id]?.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {clientTrips[client.id].map((trip, ti) => (
+                                    <div key={trip.id || ti}
+                                      style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer', transition: 'all 0.15s' }}
+                                      onMouseEnter={e => { e.currentTarget.style.background = '#f0fdfa'; e.currentTarget.style.borderColor = '#99f6e4' }}
+                                      onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0' }}
+                                      onClick={() => navigate('/itinerary/result', { state: { itinerary: trip.itinerary, clientName: client.name } })}
+                                    >
+                                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '14px' }}>
+                                        🗺️
+                                      </div>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#0f172a' }}>{trip.destination}</div>
+                                        <div style={{ fontSize: '10px', color: '#64748b', display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                          <span>📅 {trip.days} days</span>
+                                          {trip.budget > 0 && <span>💰 ₹{trip.budget?.toLocaleString('en-IN')}</span>}
+                                          {trip.plan_tier && <span style={{ textTransform: 'capitalize' }}>🏅 {trip.plan_tier}</span>}
+                                          <span style={{ color: '#94a3b8' }}>{new Date(trip.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={e => { e.stopPropagation(); navigate('/itinerary/result', { state: { itinerary: trip.itinerary, clientName: client.name } }) }}
+                                        style={{ padding: '4px 10px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '10px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                                        View
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : clientTrips[client.id] !== undefined ? (
+                                <div style={{ padding: '10px 14px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', fontSize: '11px', color: '#92400e' }}>
+                                  No trip history yet — generate a plan to start tracking
+                                </div>
+                              ) : null}
+                            </div>
+
                           </div>
                         )}
                       </div>
