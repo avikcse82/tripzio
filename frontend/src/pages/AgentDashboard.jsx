@@ -183,8 +183,8 @@ export default function AgentDashboard() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ name: newClient.name, phone: newClient.phone, city: newClient.city })
       })
-      if (!r.ok) { const e = await r.json(); throw new Error(e.detail) }
       const d = await r.json()
+      if (!r.ok) { throw new Error(d?.detail || 'Request failed') }
       setClients(p => [d.client, ...p])
       setNewClient({ name: '', phone: '', city: '' })
       setShowAddForm(false)
@@ -289,6 +289,12 @@ export default function AgentDashboard() {
   // ── Generate itinerary ───────────────────────
   const handleGenerate = async () => {
     setGenerating(true)
+    setGenStep(0)
+    const stepInterval = setInterval(() => {
+      setGenStep(p => p < 6 ? p + 1 : p)
+    }, 4000)
+    // Store interval ref to clear later
+    window._genStepInterval = stepInterval
     try {
       let endpoint, body
       if (planMode === 'custom') {
@@ -324,8 +330,8 @@ export default function AgentDashboard() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify(body)
       })
-      if (!r.ok) { const e = await r.json(); throw new Error(e.detail) }
       const data = await r.json()
+      if (!r.ok) { throw new Error(data?.detail || 'Generation failed') }
 
       // Update client trip requirement silently — never block navigation
       if (selectedClient) {
@@ -368,7 +374,11 @@ export default function AgentDashboard() {
         }, 500)
       }
     } catch (e) { toast.error(e.message || 'Generation failed') }
-    finally { setGenerating(false) }
+    finally {
+      setGenerating(false)
+      setGenStep(0)
+      if (window._genStepInterval) clearInterval(window._genStepInterval)
+    }
   }
 
   const handleWhatsApp = (client) => {
@@ -1631,10 +1641,25 @@ return (
                 <button className="gbtn" onClick={handleGenerate} disabled={generating || (customExtractedDate && !isValidFutureDate(customExtractedDate)) || !!promptWarning}
                   style={{ padding: '13px 28px', background: generating ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: generating ? '#94a3b8' : 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: generating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating ? '0 4px 16px rgba(13,148,136,0.4)' : 'none', transition: 'all 0.2s' }}>
                   {generating
-                    ? <><div style={{ width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Generating...</>
+                    ? <><div style={{ width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />{GEN_STEPS[genStep]}</>
                     : <><Zap size={15} fill="white" />{generateMode === 'modify' ? 'Regenerate Plan' : planMode === 'custom' ? 'Build Circuit Plan' : 'Generate Itinerary'}</>}
                 </button>
-                {selectedClient && (
+
+                {/* Progress bar during generation */}
+                {generating && (
+                  <div style={{ width: '100%', marginTop: '4px' }}>
+                    <div style={{ display: 'flex', gap: '3px', marginBottom: '5px' }}>
+                      {GEN_STEPS.map((_, i) => (
+                        <div key={i} style={{ flex: 1, height: '3px', borderRadius: '2px', background: i <= genStep ? '#0d9488' : '#e2e8f0', transition: 'background 0.4s' }} />
+                      ))}
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#64748b', margin: 0, textAlign: 'center' }}>
+                      Step {genStep + 1} of {GEN_STEPS.length} · Usually 15-30 seconds
+                    </p>
+                  </div>
+                )}
+
+                {selectedClient && !generating && (
                   <span style={{ fontSize: '12px', color: '#64748b' }}>
                     {generateMode === 'modify' ? 'Replaces current plan' : 'New plan'} for <strong style={{ color: '#0d9488' }}>{selectedClient.name}</strong>
                   </span>

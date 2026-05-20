@@ -106,11 +106,56 @@ export default function ItineraryResult() {
   const [hotelsLoading, setHotelsLoading]       = useState(false)
   const [activeHotelCity, setActiveHotelCity]   = useState(null)
   const [activePlaceCategory, setActivePlaceCategory] = useState('all')
+  const [activeTier, setActiveTier] = useState(null) // null = use original plan tier
   const [isSaved, setIsSaved]                   = useState(false)
   const [saving, setSaving]                     = useState(false)
   const [shareUrl, setShareUrl]                 = useState(null)
   const [shareLoading, setShareLoading]           = useState(false)
   const [copying, setCopying]                   = useState(false)
+
+  // ── Tier upgrade config ─────────────────────────────────────
+  const TIER_ORDER  = ['bronze','silver','gold','diamond','platinum']
+  const TIER_CONFIG = {
+    bronze:   { label: 'Bronze',   emoji: '🥉', color: '#92400e', bg: '#fef3c7', border: '#fcd34d', next: 'silver'   },
+    silver:   { label: 'Silver',   emoji: '🥈', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1', next: 'gold'     },
+    gold:     { label: 'Gold',     emoji: '🥇', color: '#d97706', bg: '#fffbeb', border: '#fcd34d', next: 'diamond'  },
+    diamond:  { label: 'Diamond',  emoji: '💎', color: '#0ea5e9', bg: '#eff6ff', border: '#bfdbfe', next: 'platinum' },
+    platinum: { label: 'Platinum', emoji: '🌟', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', next: null       },
+  }
+  const currentTier    = activeTier || data?.plan_tier || 'silver'
+  const originalTier   = data?.plan_tier || 'silver'
+  const tierCfg        = TIER_CONFIG[currentTier] || TIER_CONFIG.silver
+  const nextTier       = tierCfg.next
+  const nextTierCfg    = nextTier ? TIER_CONFIG[nextTier] : null
+  const isUpgraded     = activeTier && activeTier !== originalTier
+
+  // Get hotels for current active tier
+  const getTierHotels = () => {
+    const allHotels = data?.accommodation || []
+    if (!activeTier || activeTier === originalTier) return allHotels
+    // Map tier to hotel tier field
+    const tierMap = { bronze: 'budget', silver: 'budget', gold: 'recommended', diamond: 'luxury', platinum: 'luxury' }
+    const targetTierField = tierMap[activeTier] || 'recommended'
+    // Return hotels matching that tier, or all if none match
+    const filtered = allHotels.filter(h => h.tier === targetTierField || h.recommended)
+    return filtered.length > 0 ? filtered : allHotels
+  }
+
+  // Recalculate accommodation cost when tier changes
+  const getUpgradedAccomCost = () => {
+    if (!isUpgraded) return null
+    const hotels = getTierHotels()
+    const h = hotels[0]
+    if (!h?.price_range) return null
+    // Extract first complete number from price_range
+    // e.g. "₹6,000 - ₹8,000" → 6000
+    // e.g. "₹12,500 per night" → 12500
+    const match = h.price_range.match(/₹?([\d,]+)/)
+    if (!match) return null
+    const price = parseInt(match[1].replace(/,/g, ''))
+    if (!price || isNaN(price)) return null
+    return price * (data?.days || 1)
+  }
 
   const circuit = data ? isCircuit(data) : false
   const cities  = data ? parseCircuitCities(data) : []
@@ -426,7 +471,10 @@ export default function ItineraryResult() {
     maps_url: `https://www.google.com/maps/search/${encodeURIComponent(h.name + ' ' + data.destination)}`
   })) || []
 
-  const hotelsToShow = activeHotels.length > 0 ? activeHotels : fallbackHotels
+  const tierHotels    = getTierHotels ? getTierHotels() : []
+  const hotelsToShow  = isUpgraded
+    ? tierHotels
+    : (activeHotels.length > 0 ? activeHotels : fallbackHotels)
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
@@ -728,7 +776,7 @@ export default function ItineraryResult() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '0 0 4px' }}>
-                      🏨 Recommended Hotels — {tier.emoji} {data.plan_tier?.charAt(0).toUpperCase() + data.plan_tier?.slice(1)} Plan
+                      🏨 Hotels — {tierCfg.emoji} {tierCfg.label} Plan {isUpgraded ? '(Upgraded)' : ''}
                     </h3>
                     <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
                       {circuit
@@ -741,6 +789,75 @@ export default function ItineraryResult() {
                     <img src="https://www.google.com/favicon.ico" alt="" style={{ width: '14px', height: '14px' }} />
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Powered by Google</span>
                   </div>
+                </div>
+
+                {/* ── TIER UPGRADE BANNER ── */}
+                <div style={{ marginBottom: '16px' }}>
+                  {/* Current tier pills */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Plan tier:</span>
+                    {TIER_ORDER.map(t => {
+                      const cfg = TIER_CONFIG[t]
+                      const isActive = t === currentTier
+                      const isOriginal = t === originalTier
+                      const idx = TIER_ORDER.indexOf(t)
+                      const origIdx = TIER_ORDER.indexOf(originalTier)
+                      const isAvailable = idx >= origIdx // can only go up or stay
+                      return (
+                        <button key={t}
+                          onClick={() => isAvailable && setActiveTier(t === originalTier ? null : t)}
+                          style={{
+                            padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${isActive ? cfg.border : '#e2e8f0'}`,
+                            background: isActive ? cfg.bg : 'white',
+                            color: isActive ? cfg.color : isAvailable ? '#64748b' : '#cbd5e1',
+                            fontSize: '11px', fontWeight: '700', cursor: isAvailable ? 'pointer' : 'not-allowed',
+                            fontFamily: 'inherit', transition: 'all 0.2s', opacity: isAvailable ? 1 : 0.4,
+                            boxShadow: isActive ? `0 2px 8px ${cfg.border}` : 'none',
+                          }}>
+                          {cfg.emoji} {cfg.label}
+                          {isOriginal && <span style={{ fontSize: '9px', marginLeft: '4px', opacity: 0.7 }}>Your Plan</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Upgrade prompt */}
+                  {!isUpgraded && nextTier && nextTierCfg && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: `linear-gradient(135deg, ${nextTierCfg.bg}, white)`, border: `1.5px solid ${nextTierCfg.border}`, borderRadius: '14px' }}>
+                      <span style={{ fontSize: '22px' }}>{nextTierCfg.emoji}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: '800', color: nextTierCfg.color }}>
+                          Upgrade to {nextTierCfg.label} — unlock better hotels
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                          See premium hotel options for your destination
+                        </div>
+                      </div>
+                      <button onClick={() => setActiveTier(nextTier)}
+                        style={{ padding: '8px 18px', background: nextTierCfg.bg, border: `1.5px solid ${nextTierCfg.border}`, borderRadius: '10px', color: nextTierCfg.color, fontSize: '12px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                        Upgrade ✨
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Upgraded state — show downgrade option */}
+                  {isUpgraded && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: tierCfg.bg, border: `1.5px solid ${tierCfg.border}`, borderRadius: '12px' }}>
+                      <span style={{ fontSize: '18px' }}>{tierCfg.emoji}</span>
+                      <div style={{ flex: 1, fontSize: '12px', fontWeight: '700', color: tierCfg.color }}>
+                        Showing {tierCfg.label} hotels
+                        {getUpgradedAccomCost() && (
+                          <span style={{ fontWeight: '500', color: '#64748b', marginLeft: '8px' }}>
+                            · Est. accommodation: ₹{getUpgradedAccomCost()?.toLocaleString('en-IN')}
+                          </span>
+                        )}
+                      </div>
+                      <button onClick={() => setActiveTier(null)}
+                        style={{ padding: '5px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#64748b', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        ← Back to {TIER_CONFIG[originalTier]?.label}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* City selector for circuit */}
@@ -798,7 +915,7 @@ export default function ItineraryResult() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '16px' }}>
                       {hotelsToShow.length > 0 ? hotelsToShow.map((hotel, i) => (
                         <div key={i} className="hotel-card"
-                          style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
+                          style={{ background: 'white', border: `1.5px solid ${hotel.recommended ? '#0d9488' : '#e2e8f0'}`, borderRadius: '20px', overflow: 'hidden', boxShadow: hotel.recommended ? '0 4px 16px rgba(13,148,136,0.15)' : '0 2px 8px rgba(0,0,0,0.05)', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
                           <div style={{ height: '150px', background: hotel.photo_url ? 'transparent' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', position: 'relative', overflow: 'hidden' }}>
                             {hotel.photo_url ? (
                               <img src={hotel.photo_url} alt={hotel.name}
@@ -814,17 +931,42 @@ export default function ItineraryResult() {
                               <span style={{ fontSize: '12px', fontWeight: '800', color: '#92400e' }}>{hotel.rating}</span>
                               {hotel.total_ratings && <span style={{ fontSize: '10px', color: '#64748b' }}>({hotel.total_ratings > 1000 ? `${(hotel.total_ratings/1000).toFixed(1)}k` : hotel.total_ratings})</span>}
                             </div>
-                            <div style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>
-                              {hotel.price_display || '₹₹'}
+                            {/* Tier badge top left */}
+                            <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', gap: '5px' }}>
+                              {hotel.recommended && (
+                                <span style={{ background: '#0d9488', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '800' }}>
+                                  ⭐ Recommended
+                                </span>
+                              )}
+                              {!hotel.recommended && hotel.tier === 'budget' && (
+                                <span style={{ background: 'rgba(22,163,74,0.9)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '800' }}>
+                                  💰 Budget Option
+                                </span>
+                              )}
+                              {!hotel.recommended && hotel.tier === 'luxury' && (
+                                <span style={{ background: 'rgba(139,92,246,0.9)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '800' }}>
+                                  👑 Premium Upgrade
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div style={{ padding: '16px' }}>
+                            {hotel.recommended && (
+                              <div style={{ fontSize: '10px', fontWeight: '700', color: '#0d9488', letterSpacing: '0.5px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                                Best for your budget
+                              </div>
+                            )}
                             <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{hotel.name}</h4>
                             <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <MapPin size={11} /> {hotel.address || hotel.area || ''}
                             </p>
+                            {hotel.price_range && (
+                              <div style={{ fontSize: '13px', fontWeight: '700', color: '#0d9488', margin: '0 0 6px' }}>
+                                {hotel.price_range}
+                              </div>
+                            )}
                             {(hotel.why || hotel.highlight) && (
-                              <p style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5, margin: '0 0 12px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px' }}>
+                              <p style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5, margin: '0 0 12px', padding: '8px 12px', background: hotel.recommended ? '#f0fdfa' : '#f8fafc', border: hotel.recommended ? '1px solid #99f6e4' : 'none', borderRadius: '8px' }}>
                                 {hotel.why || hotel.highlight}
                               </p>
                             )}
@@ -855,6 +997,24 @@ export default function ItineraryResult() {
                         </div>
                       )}
                     </div>
+                    {data.cost_breakdown?.per_person && (
+                      <div style={{ marginTop: '12px', padding: '10px 14px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '16px' }}>👤</span>
+                        <span style={{ fontSize: '13px', color: '#0d9488', fontWeight: '700' }}>
+                          {data.cost_breakdown.per_person} per person
+                        </span>
+                        {data.cost_breakdown.budget_utilisation && (
+                          <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '8px' }}>
+                            · {data.cost_breakdown.budget_utilisation} of budget used
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {data.cost_breakdown?.savings_tip && (
+                      <div style={{ marginTop: '8px', padding: '10px 14px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px', fontSize: '12px', color: '#92400e' }}>
+                        💡 {data.cost_breakdown.savings_tip}
+                      </div>
+                    )}
                     <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '16px', textAlign: 'center' }}>
                       Powered by Google · Prices approximate · Always verify before booking
                     </p>

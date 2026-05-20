@@ -9,6 +9,7 @@ from routers.weather import get_weather
 import httpx
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -260,35 +261,61 @@ Generate ONLY valid JSON, no markdown:
   "destination": "actual destination name",
   "summary": "2-3 line engaging summary",
   "highlights": ["highlight1", "highlight2", "highlight3", "highlight4"],
-  "transport_options": [
+    "transport_options": [
     {{
-      "mode": "Cheapest Route",
-      "description": "e.g. Kolkata → NJP by Darjeeling Mail + Shared Jeep to Darjeeling",
-      "estimated_cost": "₹X,XXX per person",
-      "duration": "Total Xhrs (Train Xhrs + Last mile Xhrs)",
-      "details": [
-        "Board Darjeeling Mail 12343 from Howrah Station at 10:05 PM",
-        "Arrive New Jalpaiguri (NJP) at 8:12 AM (10hr 7min)",
-        "Take shared jeep from NJP to Darjeeling (3hrs, ₹200/person)",
-        "Total journey: ~13 hours"
-      ],
-      "booking_tip": "Book train on IRCTC 60 days in advance. Sleeper class fills fast."
-    }},
-    {{
-      "mode": "Balanced Route",
-      "description": "AC train + reserved taxi",
+      "mode": "Recommended",
+      "type": "Train/Bus/Flight/Ferry — pick best for this route",
+      "operator": "Real operator name — train number+name OR Redbus/MSRTC/WBTC/KSRTC/HRTC/SNT",
+      "description": "specific route with real names",
       "estimated_cost": "₹X,XXX per person",
       "duration": "Total Xhrs",
-      "details": ["step1", "step2", "step3"],
-      "booking_tip": "booking tip"
+      "details": ["step 1 with real operator name", "step 2", "step 3"],
+      "booking_tip": "Book on IRCTC/Redbus/Ola app",
+      "best_for": "Most travelers"
     }},
     {{
-      "mode": "Fastest Route",
-      "description": "flight or premium option",
+      "mode": "Budget Option",
+      "type": "Government Bus OR Sleeper Train",
+      "operator": "WBTC/MSRTC/KSRTC/HRTC/ASTC/SNT/RSRTC — use correct state operator",
+      "description": "cheapest way",
       "estimated_cost": "₹X,XXX per person",
       "duration": "Total Xhrs",
-      "details": ["step1", "step2", "step3"],
-      "booking_tip": "booking tip"
+      "details": ["step 1", "step 2"],
+      "booking_tip": "Book at state bus stand or redbus.in",
+      "best_for": "Budget travelers"
+    }},
+    {{
+      "mode": "Private AC Bus",
+      "type": "Volvo/AC Sleeper/Semi-sleeper Bus",
+      "operator": "Redbus/Greenline/SRS/NEETA/Orange/VRL/Dreamliner — real operators for this route",
+      "description": "comfortable overnight or day bus",
+      "estimated_cost": "₹X,XXX per person",
+      "duration": "Total Xhrs",
+      "details": ["step 1", "step 2"],
+      "booking_tip": "Book on redbus.in or abhibus.com 1 week ahead",
+      "best_for": "Couples, families wanting comfort"
+    }},
+    {{
+      "mode": "Private Taxi / Self Drive",
+      "type": "Outstation Cab / Self-drive",
+      "operator": "Ola Outstation / Uber Intercity / Zoomcar / Revv / local taxi",
+      "description": "door to door, flexible timing",
+      "estimated_cost": "₹X,XXX total for car (not per person)",
+      "duration": "Total Xhrs by road",
+      "details": ["Book Ola Outstation/Uber intercity from app", "Pick up from home/hotel"],
+      "booking_tip": "Book on Ola or Uber app 1 day ahead. Split cost among group.",
+      "best_for": "Families, groups, those with luggage"
+    }},
+    {{
+      "mode": "Fastest Option",
+      "type": "Flight (if >500km) / Fastest Train / Helicopter (if available)",
+      "operator": "IndiGo/Air India/SpiceJet OR fastest train name+number",
+      "description": "fastest way to reach",
+      "estimated_cost": "₹X,XXX per person",
+      "duration": "Total Xhrs",
+      "details": ["step 1", "step 2"],
+      "booking_tip": "Book on MakeMyTrip/Cleartrip/IRCTC",
+      "best_for": "Those short on time"
     }}
   ],
   "local_transport": {{
@@ -321,13 +348,48 @@ Generate ONLY valid JSON, no markdown:
   ],
   "accommodation": [
     {{
-      "name": "Real hotel name",
+      "name": "Best recommended hotel for this budget",
       "type": "Hotel / Resort / Homestay",
-      "area": "specific area in destination",
-      "why": "why suits this tier and trip type",
+      "area": "specific area",
+      "why": "why best for this budget, trip type, group size",
       "price_range": "₹X,XXX - ₹X,XXX per night",
-      "rating": "4.2",
-      "highlight": "one standout feature"
+      "rating": "4.X",
+      "highlight": "standout feature",
+      "recommended": true,
+      "tier": "recommended"
+    }},
+    {{
+      "name": "Budget option — save money here",
+      "type": "Hotel / Guesthouse",
+      "area": "area",
+      "why": "good basic option if wanting to save",
+      "price_range": "₹X,XXX per night",
+      "rating": "3.X",
+      "highlight": "clean, basic, good location",
+      "recommended": false,
+      "tier": "budget"
+    }},
+    {{
+      "name": "Premium upgrade option",
+      "type": "Resort / Luxury Hotel",
+      "area": "best area",
+      "why": "splurge option — best amenities, views, experience",
+      "price_range": "₹X,XXX - ₹X,XXX per night",
+      "rating": "4.X",
+      "highlight": "pool/spa/beachfront/heritage",
+      "recommended": false,
+      "tier": "luxury"
+    }},
+    {{
+      "name": "Alternative same tier as recommended",
+      "type": "Hotel / Resort / Boutique",
+      "area": "different area of destination",
+      "why": "good alternative if first choice full — different location/style",
+      "price_range": "₹X,XXX per night",
+      "rating": "4.X",
+      "highlight": "different standout feature",
+      "recommended": false,
+      "tier": "alternative"
     }}
   ],
   "places_to_visit": [
@@ -343,11 +405,15 @@ Generate ONLY valid JSON, no markdown:
   "things_to_do": [
     {{
       "category": "Adventure",
-      "activities": ["activity — ₹XXX"]
+      "activities": ["activity 1 — ₹XXX", "activity 2 — ₹XXX", "activity 3 — ₹XXX"]
     }},
     {{
       "category": "Food & Dining",
-      "activities": ["must-try dish", "restaurant name"]
+      "activities": ["Restaurant 1 — specialty dish — price range",
+                     "Restaurant 2 — local cuisine — price range",
+                     "Restaurant 3 — seafood/specialty — price range",
+                     "Street food stall — must-try item — ₹XX",
+                     "Best place for breakfast/lunch/dinner separately"]
     }},
     {{
       "category": "Shopping",
@@ -367,7 +433,10 @@ Generate ONLY valid JSON, no markdown:
     "food": "₹X,XXX ({req.days} days)",
     "activities": "₹X,XXX",
     "miscellaneous": "₹X,XXX",
-    "total": "₹X,XXX"
+    "total": "₹X,XXX",
+    "per_person": "₹X,XXX",
+    "budget_utilisation": "XX%",
+    "savings_tip": "How to use remaining budget if any — upgrade hotel / add activity / extend trip"
   }},
   "alternatives": [
     {{
@@ -396,24 +465,123 @@ Current tier: {req.plan_tier.value} — follow the rule above for this tier.
 Total budget: Rs {req.budget}
 
 GENERAL RULES:
-1. REAL train names and numbers always
-2. COMPLETE journey time (train + last mile)
+1. REAL transport operator names always — train names/numbers, bus operator (Redbus/Greenline/WBTC/MSRTC/KSRTC), taxi apps (Ola Outstation/Uber), flight operators
+2. COMPLETE journey time including last mile for every option
+3. ALWAYS suggest ALL relevant transport modes for the route:
+   - Train (if rail connectivity exists — with real train name + number)
+   - Government bus (state bus — WBTC/MSRTC/KSRTC/HRTC/ASTC/SNT/KSRTC)
+   - Private AC bus (Redbus/Greenline/Volvo/NEETA/SRS/Orange)
+   - Private taxi booked (Ola Outstation/Uber/local taxi — per car cost)
+   - Shared taxi (for hill stations — Darjeeling/Manali/Shimla/Sikkim)
+   - Self-drive (Zoomcar/Revv — if destination suitable)
+   - Flight (if distance > 500km or journey > 8hrs by train)
+   - Ferry/boat (coastal/island destinations — Andaman, Kerala, Goa, Lakshadweep)
+   - Metro (within city — Delhi, Mumbai, Bangalore, Kolkata, Chennai, Hyderabad)
+   - Skip irrelevant modes — don't suggest flight for Kolkata→Digha
 3. REAL named hotels — only names you are 100% certain exist. If unsure, describe as "Well-reviewed [type] near [area]"
+4. SOURCE CITY RULE — CRITICAL:
+   - NEVER plan activities or sightseeing in the source/from city
+   - Source city = departure point only
+   - Day 1 = travel day from source to destination + arrival activities
+   - Example: from_city=Kolkata, destination=Digha
+     Day 1: "Depart Kolkata early morning → arrive Digha → check in → beach walk"
+     NOT: "Explore Kolkata markets → evening Howrah Bridge → night stay Kolkata"
+   - The trip starts AFTER leaving the source city
 4. India-specific, culturally accurate
 5. {req.days} days realistic plan
 6. Transport specifically from {req.from_city}
-7. If Gold/Diamond/Platinum — suggest upgrades to use full budget
-8. MINIMUM places: major destinations 15-18, medium 12-15, small 8-10, circuit 8-10 per city
-9. Cover all place categories using AI knowledge — viewpoints, temples, nature, heritage, markets, adventure
-10. Match hotels to tier AND trip type — solo→hostels, couple→boutique, family→resorts, adventure→near activity hubs
-11. Return ONLY valid JSON"""
+7. ALWAYS USE THE FULL BUDGET — never leave more than 10% unused
+   IMPORTANT: budget_utilisation in cost_breakdown MUST be 90-100%
+   If total comes to less than 90% of budget:
+   → Upgrade accommodation to better option
+   → Add more activities/experiences
+   → Include a nicer restaurant for one meal
+   → Add a day excursion if dates allow
+   → Add private transport instead of shared
+   NEVER show 40-50% unused — it means you planned wrong
+   - If budget is high for the destination → upgrade hotels, add activities, private transport, fine dining
+   - Show EXACTLY how every rupee is spent in cost_breakdown
+   - Per person budget = total budget ÷ number of people → match hotel/activity quality accordingly
+   - Example: ₹40,000 for 6 people for 1 day Digha = ₹6,666/person = PREMIUM budget → book best hotel, private car, water sports, fine dining
+8. HOTEL SUGGESTIONS — always show 3-4 options across tiers:
+   Option 1: Budget option (for reference)
+   Option 2: Recommended (best value for given budget)  
+   Option 3: Premium (if budget allows)
+   Option 4: Luxury (if budget allows)
+   Mark clearly which one is recommended for THIS budget
+9. MINIMUM places: major destinations 15-18, medium 12-15, small 8-10, circuit 8-10 per city
+10. Cover all place categories using AI knowledge — viewpoints, temples, nature, heritage, markets, adventure
+11. Match hotels to tier AND trip type — solo→hostels, couple→boutique, family→resorts, adventure→near activity hubs
+12. ALWAYS return exactly 4 hotels in accommodation — recommended(true) + budget + luxury + alternative — NEVER fewer
+12. For day trips (1-2 days) with high budget → include premium experiences:
+    - Private vehicle both ways (not shared transport)
+    - Best restaurant in destination for meals
+    - All entry fees and activities included
+    - Any unique experience (sunset cruise, bonfire, horse ride etc)
+13. Return ONLY valid JSON"""
+
+
+async def call_claude(prompt: str) -> dict:
+    """Primary AI — Claude claude-sonnet-4-5 via Anthropic API. Best India knowledge + reasoning."""
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not anthropic_key:
+        return await call_openai(prompt)  # fallback
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": anthropic_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "claude-sonnet-4-5",
+                "max_tokens": 4000,
+                "temperature": 0.3,
+                "system": (
+                    "You are Tripzio's expert Indian travel AI with deep knowledge of every "
+                    "Indian destination, transport, hotels, food, culture and festivals. "
+                    "Generate detailed, accurate, budget-appropriate itineraries. "
+                    "Use real train names/numbers, real hotel names, real transport operators. "
+                    "ALWAYS respond with valid JSON only — no markdown, no explanation, just JSON."
+                ),
+                "messages": [{"role": "user", "content": prompt}]
+            }
+        )
+
+        if response.status_code != 200:
+            err = response.json().get("error", {}).get("message", "Claude API error")
+            logger.error(f"Claude API error: {err} — falling back to OpenAI")
+            return await call_openai(prompt)  # fallback to OpenAI
+
+        result = response.json()
+        content = result["content"][0]["text"]
+        # Strip any accidental markdown
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split(chr(10), 1)[1].rsplit("```", 1)[0].strip()
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            # Try to extract JSON
+            import re as _re
+            match = _re.search(r'[{].*[}]', content, _re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group())
+                except:
+                    pass
+            logger.error("Claude JSON parse failed — falling back to OpenAI")
+            return await call_openai(prompt)
 
 
 async def call_openai(prompt: str) -> dict:
+    """Fallback AI — GPT-4o. Used when Claude API not available."""
     if not settings.OPENAI_API_KEY:
-        raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+        raise HTTPException(status_code=503, detail="No AI API key configured")
 
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             "https://api.openai.com/v1/chat/completions",
             headers={
@@ -421,32 +589,261 @@ async def call_openai(prompt: str) -> dict:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gpt-4o-mini",
+                "model": "gpt-4o",
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are Tripzio's expert Indian travel AI. Generate detailed, accurate, budget-appropriate travel itineraries. Always use real train names, numbers and complete journey times. Always respond with valid JSON only."
+                        "content": "You are Tripzio's expert Indian travel AI. Always respond with valid JSON only."
                     },
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.7,
+                "temperature": 0.3,
                 "max_tokens": 4000,
                 "response_format": {"type": "json_object"}
             }
         )
-
         if response.status_code != 200:
-            error_detail = response.json().get("error", {}).get("message", "OpenAI API error")
-            logger.error(f"OpenAI error: {error_detail}")
-            raise HTTPException(status_code=503, detail=f"AI service error: {error_detail}")
-
+            err = response.json().get("error", {}).get("message", "OpenAI error")
+            raise HTTPException(status_code=503, detail=f"AI error: {err}")
         result = response.json()
         content = result["choices"][0]["message"]["content"]
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parse error: {e}")
             raise HTTPException(status_code=500, detail="Failed to parse AI response")
+
+
+def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver") -> dict:
+    """
+    Enforce critical rules AFTER AI response — deterministic, always works.
+    1. Remove source city from Day 1
+    2. Ensure 4 hotels with correct tiers
+    3. Ensure budget 85-95% utilised
+    4. Ensure transport has all modes
+    """
+    if not data or not isinstance(data, dict):
+        return data
+
+    from_city_lower = (from_city or "").lower().strip()
+
+    # ── Rule 1: Strip source city activities from Day 1 ──────────
+    day_plans = data.get("day_plans", [])
+    if day_plans and from_city_lower:
+        day1 = day_plans[0]
+        for field in ["morning", "afternoon", "evening", "title", "overnight"]:
+            val = day1.get(field, "")
+            if not val:
+                continue
+            val_lower = val.lower()
+            # If day 1 content mentions source city as activity location
+            if from_city_lower in val_lower and "depart" not in val_lower and "leave" not in val_lower and "travel" not in val_lower:
+                # Fix it to be a travel day
+                dest = data.get("destination", "destination").split("→")[-1].strip().split(":")[0].strip()
+                if field == "morning":
+                    day1[field] = f"Early morning departure from {from_city.title()} — board train/bus to {dest}. Pack snacks for the journey."
+                elif field == "afternoon":
+                    day1[field] = f"Arrive {dest} — check into hotel, freshen up, have lunch at a local restaurant near hotel."
+                elif field == "evening":
+                    day1[field] = f"Evening stroll at {dest} — explore the main area, watch sunset, light dinner."
+                elif field == "title":
+                    day1[field] = f"{dest} Day 1 — Travel & Arrival"
+        data["day_plans"][0] = day1
+
+    # ── Rule 2: Ensure 4 hotels with correct tiers ───────────────
+    TIER_ORDER = ["bronze", "silver", "gold", "diamond", "platinum"]
+    TIER_PRICES = {
+        "bronze":   (400,   1500),
+        "silver":   (1500,  4000),
+        "gold":     (4000,  12000),
+        "diamond":  (12000, 30000),
+        "platinum": (30000, 100000),
+    }
+    tier_idx = TIER_ORDER.index(plan_tier) if plan_tier in TIER_ORDER else 2
+    budget_tier = TIER_ORDER[max(0, tier_idx - 1)]
+    luxury_tier = TIER_ORDER[min(len(TIER_ORDER)-1, tier_idx + 1)]
+
+    accom = data.get("accommodation", [])
+    dest_name = data.get("destination", "the destination").split("→")[-1].strip().split(":")[0].strip()
+    days = data.get("days", 1)
+
+    # Normalize existing hotels
+    tier_map = {"recommended": True, "budget": False, "luxury": False, "alternative": False}
+    existing_tiers = {h.get("tier", "unknown") for h in accom}
+
+    # Ensure recommended hotel exists
+    if not any(h.get("recommended") == True or h.get("tier") == "recommended" for h in accom):
+        if accom:
+            accom[0]["recommended"] = True
+            accom[0]["tier"] = "recommended"
+        else:
+            lo, hi = TIER_PRICES.get(plan_tier, (2000, 5000))
+            accom.append({
+                "name": f"Well-reviewed {plan_tier.title()} hotel near {dest_name} center",
+                "type": "Hotel",
+                "area": f"Main area, {dest_name}",
+                "why": f"Best value for {plan_tier} tier",
+                "price_range": f"₹{lo:,} - ₹{hi:,} per night",
+                "rating": "4.0",
+                "highlight": "Central location, good amenities",
+                "recommended": True,
+                "tier": "recommended"
+            })
+
+    # Ensure budget hotel exists
+    if not any(h.get("tier") == "budget" for h in accom):
+        lo, hi = TIER_PRICES.get(budget_tier, (500, 1500))
+        accom.append({
+            "name": f"Budget guesthouse near {dest_name} main area",
+            "type": "Guesthouse",
+            "area": f"Central {dest_name}",
+            "why": "Cheapest clean option — good for budget travelers",
+            "price_range": f"₹{lo:,} - ₹{hi:,} per night",
+            "rating": "3.5",
+            "highlight": "Clean, basic, well-located",
+            "recommended": False,
+            "tier": "budget"
+        })
+
+    # Ensure luxury hotel exists
+    if not any(h.get("tier") == "luxury" for h in accom):
+        lo, hi = TIER_PRICES.get(luxury_tier, (8000, 20000))
+        accom.append({
+            "name": f"Premium resort near {dest_name}",
+            "type": "Resort",
+            "area": f"Best area, {dest_name}",
+            "why": "Upgrade option — best amenities, pool, premium experience",
+            "price_range": f"₹{lo:,} - ₹{hi:,} per night",
+            "rating": "4.5",
+            "highlight": "Pool, premium amenities, best views",
+            "recommended": False,
+            "tier": "luxury"
+        })
+
+    # Ensure alternative hotel exists
+    if not any(h.get("tier") == "alternative" for h in accom):
+        lo, hi = TIER_PRICES.get(plan_tier, (2000, 5000))
+        accom.append({
+            "name": f"Alternative {plan_tier.title()} hotel in {dest_name}",
+            "type": "Hotel",
+            "area": f"Different area, {dest_name}",
+            "why": "Alternative if first choice is full — different location",
+            "price_range": f"₹{lo:,} - ₹{hi:,} per night",
+            "rating": "3.8",
+            "highlight": "Good alternative option",
+            "recommended": False,
+            "tier": "alternative"
+        })
+
+    data["accommodation"] = accom[:6]  # max 6
+
+    # ── Rule 3: Ensure budget 85-95% utilised ────────────────────
+    if budget > 0:
+        cost_bd = data.get("cost_breakdown", {})
+
+        def parse_amount(val):
+            if not val:
+                return 0
+            import re
+            nums = re.findall(r'[0-9,]+', str(val))
+            return int(nums[0].replace(',', '')) if nums else 0
+
+        transport   = parse_amount(cost_bd.get("transport"))
+        accom_cost  = parse_amount(cost_bd.get("accommodation"))
+        food        = parse_amount(cost_bd.get("food"))
+        activities  = parse_amount(cost_bd.get("activities"))
+        misc        = parse_amount(cost_bd.get("miscellaneous"))
+        total       = transport + accom_cost + food + activities + misc
+
+        utilisation = (total / budget * 100) if budget > 0 else 100
+
+        if utilisation < 85:
+            # Redistribute remaining budget
+            remaining = budget - total
+            target_total = int(budget * 0.92)  # aim for 92%
+            gap = target_total - total
+
+            # Increase accommodation first (most impactful)
+            accom_increase = int(gap * 0.5)
+            activity_increase = int(gap * 0.3)
+            food_increase = int(gap * 0.2)
+
+            new_accom  = accom_cost + accom_increase
+            new_act    = activities + activity_increase
+            new_food   = food + food_increase
+            new_total  = transport + new_accom + new_food + new_act + misc
+            new_util   = int(new_total / budget * 100)
+            people     = data.get("people", 1) or 1
+
+            cost_bd["accommodation"] = f"₹{new_accom:,}"
+            cost_bd["food"]          = f"₹{new_food:,}"
+            cost_bd["activities"]    = f"₹{new_act:,}"
+            cost_bd["total"]         = f"₹{new_total:,}"
+            cost_bd["per_person"]    = f"₹{new_total // people:,}"
+            cost_bd["budget_utilisation"] = f"{new_util}%"
+            cost_bd["savings_tip"]   = f"₹{budget - new_total:,} kept as buffer for on-trip expenses"
+            data["cost_breakdown"] = cost_bd
+            logger.info(f"Budget corrected: {int(utilisation)}% → {new_util}%")
+
+    # ── Rule 4: Ensure transport has govt bus + private bus ───────
+    transport_opts = data.get("transport_options", [])
+    modes = [t.get("mode", "").lower() + t.get("type", "").lower() for t in transport_opts]
+    combined = " ".join(modes)
+
+    dest_state = dest_name.lower()
+    # Pick correct state bus operator
+    state_bus = "WBTC/SBSTC"
+    if any(x in dest_state for x in ["goa"]): state_bus = "KTC/Kadamba"
+    elif any(x in dest_state for x in ["maharashtra","mumbai","pune"]): state_bus = "MSRTC"
+    elif any(x in dest_state for x in ["kerala"]): state_bus = "KSRTC Kerala"
+    elif any(x in dest_state for x in ["karnataka","bangalore"]): state_bus = "KSRTC Karnataka"
+    elif any(x in dest_state for x in ["rajasthan","jaipur"]): state_bus = "RSRTC"
+    elif any(x in dest_state for x in ["himachal","shimla","manali"]): state_bus = "HRTC"
+    elif any(x in dest_state for x in ["uttarakhand","dehradun"]): state_bus = "UPSRTC/UTC"
+    elif any(x in dest_state for x in ["tamilnadu","chennai"]): state_bus = "TNSTC"
+    elif any(x in dest_state for x in ["andhra"]): state_bus = "APSRTC"
+    elif any(x in dest_state for x in ["telangana","hyderabad"]): state_bus = "TSRTC"
+
+    if "government bus" not in combined and "govt bus" not in combined and "state bus" not in combined:
+        transport_opts.append({
+            "mode": "Budget Option",
+            "type": "Government Bus",
+            "operator": state_bus,
+            "description": f"State government bus from {from_city} to {dest_name}",
+            "estimated_cost": "₹80 - ₹200 per person",
+            "duration": "Varies by route",
+            "details": [f"Board {state_bus} from main bus stand", "Direct or with 1 change"],
+            "booking_tip": "Available at state bus stand. Book at counter or redbus.in",
+            "best_for": "Budget travelers, locals"
+        })
+
+    if "redbus" not in combined and "volvo" not in combined and "private ac bus" not in combined and "private bus" not in combined:
+        transport_opts.append({
+            "mode": "Comfort Bus",
+            "type": "Private AC Bus",
+            "operator": "Redbus / Greenline / Volvo AC",
+            "description": f"Private AC bus from {from_city} to {dest_name}",
+            "estimated_cost": "₹300 - ₹800 per person",
+            "duration": "Varies by route",
+            "details": ["Book on redbus.in or abhibus.com", "AC sleeper/semi-sleeper available on most routes"],
+            "booking_tip": "Book 3-5 days ahead on Redbus app for best prices",
+            "best_for": "Comfortable travel, couples, families"
+        })
+
+    if "ola" not in combined and "uber" not in combined and "private taxi" not in combined:
+        transport_opts.append({
+            "mode": "Private Taxi",
+            "type": "Outstation Cab",
+            "operator": "Ola Outstation / Uber Intercity",
+            "description": f"Private cab from {from_city} to {dest_name} — door to door",
+            "estimated_cost": "₹2,500 - ₹5,000 per car (not per person)",
+            "duration": "By road — check Google Maps",
+            "details": ["Book on Ola or Uber app", "Select Outstation/Intercity option", "Split cost among group"],
+            "booking_tip": "Book 1 day ahead on Ola/Uber app. Good for groups of 4+",
+            "best_for": "Families, groups, those with luggage"
+        })
+
+    data["transport_options"] = transport_opts
+    return data
 
 
 def get_current_user_from_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -500,7 +897,7 @@ async def generate_itinerary(
             logger.warning(f"Weather fetch failed: {e}")
 
         prompt = build_itinerary_prompt(req, weather_data)
-        ai_response = await call_openai(prompt)
+        ai_response = await call_claude(prompt)
 
         if weather_data:
             ai_response["weather"] = {
@@ -542,6 +939,13 @@ async def generate_itinerary(
         except Exception as e:
             logger.warning(f"Failed to save trip: {e}")
 
+        # Post-process — enforce rules deterministically
+        ai_response = post_process_itinerary(
+            ai_response,
+            budget=req.budget or 0,
+            from_city=req.from_city or "",
+            plan_tier=req.plan_tier.value if req.plan_tier else "silver"
+        )
         logger.info(f"✓ Generated itinerary for {ai_response.get('destination')}")
         return ai_response
 
@@ -610,7 +1014,7 @@ Return ONLY JSON:
   ]
 }}"""
 
-        ai_response = await call_openai(prompt)
+        ai_response = await call_claude(prompt)
         suggestions = ai_response.get("suggestions", [])
 
         for suggestion in suggestions:
@@ -750,36 +1154,65 @@ Return ONLY valid JSON in this format:
   ],
   "transport_options": [
     {{
-      "mode": "Recommended Route",
-      "description": "specific route with real train names",
-      "estimated_cost": "₹X,XXX per person",
+      "mode": "Most Recommended Option",
+      "type": "Train/Bus/Taxi/Flight/Ferry/Metro/Self-drive",
+      "operator": "Real operator name e.g. Darjeeling Mail, WBTC, Redbus Volvo, Ola Outstation, IndiGo",
+      "description": "specific route with real names/numbers",
+      "estimated_cost": "₹X,XXX per person OR ₹X,XXX total for private",
       "duration": "Total Xhrs (breakdown per leg)",
-      "details": ["step1 with train name/number", "step2", "step3"],
-      "booking_tip": "practical tip"
+      "details": ["step1 with operator/train/bus name", "step2", "step3"],
+      "booking_tip": "Where and how to book — IRCTC/Redbus/Ola app/direct",
+      "best_for": "Who this suits — budget/comfort/speed/family/group"
     }},
     {{
-      "mode": "Alternative Route",
-      "description": "alternative option",
+      "mode": "Budget Option",
+      "type": "Government Bus/Shared Taxi/Sleeper Train",
+      "operator": "Real operator — WBTC/MSRTC/KSRTC/ASTC/HRTC/SNT or shared taxi stand name",
+      "description": "cheapest way to reach",
       "estimated_cost": "₹X,XXX per person",
       "duration": "Total Xhrs",
       "details": ["step1", "step2"],
-      "booking_tip": "tip"
+      "booking_tip": "how to book or board",
+      "best_for": "Budget travelers, solo, backpackers"
+    }},
+    {{
+      "mode": "Comfort Option",
+      "type": "Private AC Bus/Volvo/Private Taxi/Self-drive",
+      "operator": "Redbus/Greenline/Volvo AC or Ola Outstation/Uber/Zoomcar/Revv",
+      "description": "comfortable door-to-door option",
+      "estimated_cost": "₹X,XXX per person OR ₹X,XXX total",
+      "duration": "Total Xhrs",
+      "details": ["step1", "step2"],
+      "booking_tip": "Book on Redbus app / Ola app / Zoomcar app",
+      "best_for": "Families, couples, groups, those with luggage"
+    }},
+    {{
+      "mode": "Fastest Option",
+      "type": "Flight/Fastest Train/Helicopter (if applicable)",
+      "operator": "IndiGo/Air India/Vistara or real train name",
+      "description": "fastest way to reach",
+      "estimated_cost": "₹X,XXX per person",
+      "duration": "Total Xhrs",
+      "details": ["step1", "step2"],
+      "booking_tip": "Book on MakeMyTrip/Cleartrip/IRCTC",
+      "best_for": "Those short on time, long distance trips"
     }}
   ],
   "local_transport": {{
     "options": [
       {{
-        "name": "transport name",
-        "type": "type",
-        "route": "from → to",
-        "cost": "₹XX per person",
-        "duration": "X hours",
-        "tip": "practical tip",
-        "best_for": "use case"
+        "name": "Auto rickshaw/Local bus/Metro/Tuk-tuk/Shared jeep/Ferry",
+        "type": "Auto/Bus/Metro/Boat/Shared taxi",
+        "route": "from → to (specific areas)",
+        "cost": "₹XX per person or ₹XX per ride",
+        "duration": "X mins/hours",
+        "tip": "practical tip — where to board, how to negotiate, fixed fare",
+        "best_for": "specific use case"
       }}
     ],
-    "taxi_apps": ["app names"],
-    "note": "important note"
+    "taxi_apps": ["Ola/Uber if available in this city", "local app if any"],
+    "private_cab_estimate": "₹X,XXX for full day private cab in {{destination}}",
+    "note": "important local transport note — unique to this destination"
   }},
   "day_plans": [
     {{
@@ -796,13 +1229,48 @@ Return ONLY valid JSON in this format:
   ],
   "accommodation": [
     {{
-      "name": "hotel name",
-      "type": "type",
+      "name": "Best hotel for this budget and trip type",
+      "type": "Hotel/Resort/Homestay/Beach Resort",
+      "area": "specific area/locality",
+      "why": "why best for this budget, group size, trip type",
+      "price_range": "₹X,XXX - ₹X,XXX per night",
+      "rating": "4.X",
+      "highlight": "best feature — pool/beach/view/location",
+      "recommended": true,
+      "tier": "recommended"
+    }},
+    {{
+      "name": "Budget alternative",
+      "type": "Hotel/Guesthouse",
       "area": "area",
-      "why": "why it suits",
-      "price_range": "₹X,XXX - ₹X,XXX",
-      "rating": "4.2",
-      "highlight": "standout feature"
+      "why": "cheaper option if wanting to save",
+      "price_range": "₹X,XXX per night",
+      "rating": "3.X",
+      "highlight": "clean, basic, good location",
+      "recommended": false,
+      "tier": "budget"
+    }},
+    {{
+      "name": "Premium upgrade option",
+      "type": "Resort/Luxury Hotel",
+      "area": "best area",
+      "why": "best experience — premium amenities",
+      "price_range": "₹X,XXX - ₹X,XXX per night",
+      "rating": "4.X",
+      "highlight": "pool/spa/beachfront/heritage property",
+      "recommended": false,
+      "tier": "luxury"
+    }},
+    {{
+      "name": "Alternative same tier",
+      "type": "Hotel/Resort/Boutique",
+      "area": "different area",
+      "why": "alternative if first choice is full",
+      "price_range": "₹X,XXX per night",
+      "rating": "4.X",
+      "highlight": "different style or location",
+      "recommended": false,
+      "tier": "alternative"
     }}
   ],
   "places_to_visit": [
@@ -829,7 +1297,10 @@ Return ONLY valid JSON in this format:
     "food": "₹X,XXX",
     "activities": "₹X,XXX",
     "miscellaneous": "₹X,XXX",
-    "total": "₹X,XXX"
+    "total": "₹X,XXX — MUST be 90-100% of stated budget",
+    "per_person": "₹X,XXX",
+    "budget_utilisation": "XX% — MUST be 90-100%",
+    "savings_tip": "How remaining budget can be used if any"
   }},
   "alternatives": [
     {{"name": "alt1", "reason": "why", "estimated_budget": "₹X,XXX", "highlight": "unique thing"}},
@@ -838,18 +1309,48 @@ Return ONLY valid JSON in this format:
   "parsed_from": "Brief summary of what you understood from the user's request"
 }}
 
-RULES:
-- For multi-destination/circuit trips, day_plans must cover ALL cities in sequence
-- Day titles must mention the city e.g. "Shimla Day 1 — Arrival & Mall Road"
-- Use real hotel names, real train names — only names you are certain exist
-- Include MINIMUM 12-15 tourist places per destination covering all categories
-- For circuit trips include 8-10 places PER CITY
-- Match hotels to tier AND trip type
-- If budget not mentioned, estimate reasonable amount for the trip type
-- If departure city not mentioned, use most logical city
-- Return ONLY valid JSON"""
+CRITICAL RULES — FOLLOW EXACTLY:
 
-        ai_response = await call_openai(prompt)
+1. SOURCE CITY RULE:
+   NEVER plan activities in the source/from city
+   Day 1 = travel from source + arrive destination + check in + evening activity
+   Example: from Kolkata to Digha → Day 1 starts with "Depart Kolkata at 6AM by train/bus"
+   NEVER: "Explore Kolkata → travel to Digha" — source city has NO activities
+
+2. BUDGET RULE — MOST IMPORTANT:
+   total cost_breakdown MUST use 90-100% of stated budget
+   budget_utilisation MUST be 90-100%
+   Per person budget = total ÷ people — plan quality accordingly
+   Example: ₹40,000 for 6 people = ₹6,666/person = PREMIUM — book best hotel with pool
+   If under-utilised → upgrade hotel, add water sports, add private taxi, add fine dining
+   NEVER leave 40-50% unused — that is wrong planning
+
+3. HOTEL RULE:
+   Always return exactly 4 hotels: recommended + budget + luxury + alternative
+   recommended:true for best match, recommended:false for others
+   tier field: "recommended" / "budget" / "luxury" / "alternative"
+   Only use names you are 100% certain exist. Otherwise describe: "Beachfront resort near New Digha beach"
+
+4. TRANSPORT RULE:
+   Always suggest ALL relevant modes:
+   - Government bus (WBTC/MSRTC/KSRTC/HRTC — cheapest)
+   - Private AC bus (Redbus/Greenline/Volvo — comfort)
+   - Train (real name + number if exists)
+   - Private taxi (Ola Outstation/Uber Intercity — door to door)
+   - Flight only if >500km or >8hrs by train
+
+5. PLACES RULE:
+   Minimum 10-12 places for any destination
+   Cover: beaches/viewpoints, temples, nature, heritage, local markets, activities
+   For beach destinations: include ALL nearby beaches, water sports spots, fishing harbour, local markets
+
+6. For multi-destination/circuit: day_plans cover ALL cities in sequence
+7. Day titles must mention city: "Digha Day 1 — Arrival & Beach"
+8. If budget not mentioned — estimate reasonable amount
+9. If departure city not mentioned — use most logical city
+10. Return ONLY valid JSON"""
+
+        ai_response = await call_claude(prompt)
 
         # Try to get weather for main destination
         try:
@@ -899,6 +1400,21 @@ RULES:
         if req.start_date:
             ai_response['start_date'] = req.start_date
 
+        # Post-process — enforce rules deterministically
+        budget_val = 0
+        try:
+            import re as _re
+            budget_match = _re.search(r'[0-9][0-9,]*', req.free_text)
+            if budget_match:
+                budget_val = int(budget_match.group(1).replace(',',''))
+        except:
+            pass
+        ai_response = post_process_itinerary(
+            ai_response,
+            budget=budget_val or ai_response.get("budget", 0),
+            from_city=ai_response.get("from_city", ""),
+            plan_tier=ai_response.get("plan_tier", "silver")
+        )
         logger.info(f"✓ Custom plan generated: {ai_response.get('destination')}")
         return ai_response
 

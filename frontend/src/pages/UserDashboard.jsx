@@ -160,6 +160,16 @@ export default function UserDashboard() {
 
   // Shared
   const [generating, setGenerating] = useState(false)
+  const [genStep, setGenStep] = useState(0)
+  const GEN_STEPS = [
+    '🗺️ Understanding your trip...',
+    '🏨 Finding best hotels...',
+    '🚆 Planning transport routes...',
+    '📍 Discovering places to visit...',
+    '💰 Calculating budget breakdown...',
+    '🎪 Checking festival alerts...',
+    '✨ Finalising your itinerary...',
+  ]
   const [selectedDest, setSelectedDest] = useState(null)
 
   const suggestedTier = getSuggestedTier(budget, days)
@@ -232,6 +242,12 @@ export default function UserDashboard() {
                   validateCustom()
     if (!valid) return
     setGenerating(true)
+    setGenStep(0)
+    const stepInterval = setInterval(() => {
+      setGenStep(p => p < 6 ? p + 1 : p)
+    }, 4000)
+    // Store interval ref to clear later
+    window._genStepInterval = stepInterval
 
     try {
       const token = localStorage.getItem('tripzio_token')
@@ -243,19 +259,17 @@ export default function UserDashboard() {
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ free_text: customText.trim(), start_date: customExtractedDate || null })
         })
-              if (!response.ok) {
-        const errData = await response.json().catch(() => ({}))
-        if (errData?.detail?.code === 'INTERNATIONAL_DESTINATION') {
-          toast.error('Tripzio supports Indian destinations only. International coming soon! 🌍', { duration: 5000 })
-          setIntlWarning(true)
-          return
+        const customData = await response.json()
+        if (!response.ok) {
+          if (customData?.detail?.code === 'INTERNATIONAL_DESTINATION') {
+            toast.error('Tripzio supports Indian destinations only. International coming soon! 🌍', { duration: 5000 })
+            setIntlWarning(true)
+            return
+          }
+          throw new Error(customData?.detail || 'Generation failed')
         }
-          const err = await response.json()
-          throw new Error(err.detail || 'Generation failed')
-        }
-        const itinerary = await response.json()
         toast.success('Your custom itinerary is ready!')
-        navigate('/itinerary/result', { state: { itinerary } })
+        navigate('/itinerary/result', { state: { itinerary: customData } })
         return
       }
 
@@ -278,24 +292,22 @@ export default function UserDashboard() {
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify(tripParams)
         })
+        const genData = await response.json()
         if (!response.ok) {
-          const err = await response.json()
-          throw new Error(err.detail || 'Generation failed')
+          throw new Error(genData?.detail || 'Generation failed')
         }
-        const itinerary = await response.json()
-        navigate('/itinerary/result', { state: { itinerary } })
+        navigate('/itinerary/result', { state: { itinerary: genData } })
       } else {
         const response = await fetch(`${API_URL}/itinerary/suggest-destinations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify(tripParams)
         })
+        const suggestData = await response.json()
         if (!response.ok) {
-          const err = await response.json()
-          throw new Error(err.detail || 'Suggestion failed')
+          throw new Error(suggestData?.detail || 'Suggestion failed')
         }
-        const data = await response.json()
-        navigate('/destinations/suggest', { state: { suggestions: data.suggestions, tripParams } })
+        navigate('/destinations/suggest', { state: { suggestions: suggestData.suggestions, tripParams } })
       }
     } catch (err) {
       // Handle international destination error from backend
@@ -1468,12 +1480,26 @@ export default function UserDashboard() {
                 style={{ padding: '15px 36px', background: generating || !isReady ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: generating || !isReady ? '#94a3b8' : 'white', border: 'none', borderRadius: '16px', fontSize: '15px', fontWeight: '800', cursor: generating || !isReady ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '9px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating && isReady ? '0 4px 18px rgba(13,148,136,0.4)' : 'none', letterSpacing: '-0.2px' }}>
                 {generating ? (
                   <><div style={{ width: '17px', height: '17px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-                    {planMode === 'custom' ? 'Building your custom plan...' : 'Generating your trip...'}</>
+                    {GEN_STEPS[genStep]}</>
                 ) : (
                   <>{planMode === 'custom' ? <Send size={17} /> : <Zap size={17} fill="currentColor" />}
                     {planMode === 'custom' ? 'Build My Custom Plan' : `Generate ${planMode === 'quick' ? 'Quick ' : ''}Itinerary`}</>
                 )}
               </button>
+
+              {/* Progress steps during generation */}
+              {generating && (
+                <div style={{ width: '100%', maxWidth: '420px' }}>
+                  <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                    {GEN_STEPS.map((_, i) => (
+                      <div key={i} style={{ flex: 1, height: '3px', borderRadius: '2px', background: i <= genStep ? '#0d9488' : '#e2e8f0', transition: 'background 0.4s' }} />
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#64748b', margin: 0, textAlign: 'center' }}>
+                    Step {genStep + 1} of {GEN_STEPS.length} · This takes 15-30 seconds
+                  </p>
+                </div>
+              )}
 
               {!isReady && planMode !== 'custom' && (
                 <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
