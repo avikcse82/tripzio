@@ -13,7 +13,7 @@ from typing import Optional
 from database import get_supabase_client
 from datetime import date, timedelta
 import logging
-
+import os
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/festivals", tags=["Festivals"])
 
