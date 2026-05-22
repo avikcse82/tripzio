@@ -131,14 +131,13 @@ export default function ItineraryResult() {
 
   // Get hotels for current active tier
   const getTierHotels = () => {
-    const allHotels = data?.accommodation || []
-    if (!activeTier || activeTier === originalTier) return allHotels
-    // Map tier to hotel tier field
-    const tierMap = { bronze: 'budget', silver: 'budget', gold: 'recommended', diamond: 'luxury', platinum: 'luxury' }
-    const targetTierField = tierMap[activeTier] || 'recommended'
-    // Return hotels matching that tier, or all if none match
-    const filtered = allHotels.filter(h => h.tier === targetTierField || h.recommended)
-    return filtered.length > 0 ? filtered : allHotels
+    // Always use current city's SerpAPI hotels (has real photos, correct city)
+    const currentCityHotels = googleHotels[activeHotelCity] || []
+    if (!activeTier || activeTier === originalTier) return currentCityHotels
+    // For upgraded tier — sort by rating (highest first = premium feel)
+    return [...currentCityHotels].sort((a, b) =>
+      parseFloat(b.rating || 0) - parseFloat(a.rating || 0)
+    )
   }
 
   // Recalculate accommodation cost when tier changes
@@ -162,32 +161,51 @@ export default function ItineraryResult() {
 
   useEffect(() => {
     if (data && activeTab === 'hotels') fetchHotelsForAllCities()
-  }, [activeTab])
+  }, [activeTab, data])
 
   useEffect(() => {
     if (cities.length > 0) setActiveHotelCity(cities[0])
   }, [data])
 
   const fetchHotelsForAllCities = async () => {
-    if (Object.keys(googleHotels).length > 0) return
+    // Always re-fetch when city_hotels data is available
     setHotelsLoading(true)
-    const token = localStorage.getItem('tripzio_token')
     const results = {}
-    for (const city of cities) {
-      try {
-        const resp = await fetch(
-          `${API_URL}/hotels/search/${encodeURIComponent(city)}?tier=${data.plan_tier}`,
-          { headers: { 'Authorization': `Bearer ${token}` } }
-        )
-        if (resp.ok) {
-          const result = await resp.json()
-          results[city] = result.hotels || []
-        }
-      } catch (e) {
-        console.error(`Hotels fetch error for ${city}:`, e)
+    const cityHotelsMap = data.city_hotels || {}
+    const cityKeys = Object.keys(cityHotelsMap)
+
+    cities.forEach((city, index) => {
+      if (cityKeys.length === 0) {
         results[city] = []
+        return
       }
-    }
+      // Try name match first
+      const cityLower = city.trim().toLowerCase()
+      const nameMatch = cityKeys.find(k => k.toLowerCase() === cityLower)
+      if (nameMatch) {
+        results[city] = cityHotelsMap[nameMatch]
+        return
+      }
+      // Try partial match
+      const partialMatch = cityKeys.find(k =>
+        cityLower.includes(k.toLowerCase()) || k.toLowerCase().includes(cityLower)
+      )
+      if (partialMatch) {
+        results[city] = cityHotelsMap[partialMatch]
+        return
+      }
+      // Find which index this city is among non-source cities
+      // Filter out source city (first city in destination string is often source)
+      const nonSourceCities = cities.filter(c => cityKeys.some(k =>
+        c.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(c.toLowerCase())
+      ))
+      const cityPosInDest = nonSourceCities.indexOf(city)
+      if (cityPosInDest >= 0 && cityPosInDest < cityKeys.length) {
+        results[city] = cityHotelsMap[cityKeys[cityPosInDest]]
+      } else {
+        results[city] = cityHotelsMap[cityKeys[0]] || []
+      }
+    })
     setGoogleHotels(results)
     setHotelsLoading(false)
   }
@@ -455,26 +473,33 @@ export default function ItineraryResult() {
         h.area?.toLowerCase().includes(activeHotelCity.toLowerCase()) ||
         activeHotelCity.toLowerCase().includes((h.area || '').toLowerCase().split(',')[0])
       ).map(h => ({
+        ...h,
         name: h.name, rating: parseFloat(h.rating) || 4.2,
-        address: h.area, price_display: h.price_range,
+        address: h.area || h.address, price_display: h.price_range || h.price_display,
         why: h.why, highlight: h.highlight,
-        photo_url: null,
+        photo_url: h.photo_url || h.thumbnail || null,
+        tripadvisor_url: h.tripadvisor_url || h.link || null,
+        tier: h.tier, recommended: h.recommended,
         maps_url: `https://www.google.com/maps/search/${encodeURIComponent(h.name + ' ' + activeHotelCity)}`
       })))
     : []
 
   // If no city-specific hotels, show all AI accommodation
   const fallbackHotels = data.accommodation?.map(h => ({
+    ...h,
     name: h.name, rating: parseFloat(h.rating) || 4.2,
-    address: h.area, price_display: h.price_range,
-    why: h.why, highlight: h.highlight, photo_url: null,
+    address: h.area || h.address, price_display: h.price_range || h.price_display,
+    why: h.why, highlight: h.highlight,
+    photo_url: h.photo_url || h.thumbnail || null,
+    tripadvisor_url: h.tripadvisor_url || h.link || null,
+    tier: h.tier, recommended: h.recommended,
     maps_url: `https://www.google.com/maps/search/${encodeURIComponent(h.name + ' ' + data.destination)}`
   })) || []
 
   const tierHotels    = getTierHotels ? getTierHotels() : []
-  const hotelsToShow  = isUpgraded
-    ? tierHotels
-    : (activeHotels.length > 0 ? activeHotels : fallbackHotels)
+  // Use data.accommodation directly — has ALL SerpAPI hotels with photos
+  // No limits — show everything SerpAPI returned
+  const hotelsToShow  = isUpgraded ? tierHotels : activeHotels
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
@@ -921,6 +946,12 @@ export default function ItineraryResult() {
                               <img src={hotel.photo_url} alt={hotel.name}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement.style.background = 'linear-gradient(135deg,#0d9488,#0ea5e9)' }} />
+                            ) : (data.tripadvisor_places?.hotels?.[0]?.photo_url) ? (
+                              <img
+                                src={data.tripadvisor_places.hotels[0].photo_url}
+                                alt={hotel.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement.style.background = 'linear-gradient(135deg,#0d9488,#0ea5e9)' }} />
                             ) : (
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                                 <span style={{ fontSize: '44px', opacity: 0.35 }}>🏨</span>
@@ -971,11 +1002,12 @@ export default function ItineraryResult() {
                               </p>
                             )}
                             <div style={{ display: 'flex', gap: '8px' }}>
-                              <a href={hotel.maps_url} target="_blank" rel="noopener noreferrer"
+                              <a href={hotel.tripadvisor_url || hotel.maps_url || `https://www.google.com/maps/search/${encodeURIComponent((hotel.name||'') + '+' + (hotel.area || activeHotelCity || data.destination || ''))}`}
+                                target="_blank" rel="noopener noreferrer"
                                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#374151', textDecoration: 'none' }}
                                 onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.color = '#0d9488' }}
                                 onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#374151' }}>
-                                <Navigation size={12} /> Maps
+                                <Navigation size={12} /> {hotel.tripadvisor_url ? 'TripAdvisor' : 'Maps'}
                               </a>
                               <a href={`https://www.booking.com/search.html?ss=${encodeURIComponent(hotel.name + ' ' + (activeHotelCity || data.destination))}`}
                                 target="_blank" rel="noopener noreferrer"
