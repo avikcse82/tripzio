@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import auth, users, itinerary, weather, hotels, agents, trips, share, festivals
 from core.config import settings
 import os
+from routers import email_router
+
 print("SERPAPI_KEY:", os.getenv("SERPAPI_KEY", "NOT FOUND"))
 
 app = FastAPI(
@@ -44,6 +46,7 @@ app.include_router(agents.router)
 app.include_router(trips.router)   # ← Module 3: My Trips
 app.include_router(share.router)   # ← Module 4A: Trip Sharing
 app.include_router(festivals.router) # ← Module 4B: Festival Calendar
+app.include_router(email_router.router) ## ← Module 4C: Email Router
 
 @app.get("/")
 async def root():

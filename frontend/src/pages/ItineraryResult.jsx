@@ -11,7 +11,7 @@ import {
   Utensils, ShoppingBag, Camera, Compass, Tag,
   CheckCircle, Info, TrendingUp, Star, Navigation,
   ExternalLink, Zap, Heart, Share2, Route, Building2
-} from 'lucide-react'
+, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateTripPDF } from '../utils/generateItineraryHTML'
 import FestivalAlert from '../components/FestivalAlert'
@@ -75,6 +75,11 @@ export default function ItineraryResult() {
   const { user } = useAuth()
   const isAgent = user?.role === 'agent'
   const [agentProfile, setAgentProfile] = useState(null)
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [emailTo, setEmailTo] = useState('')
+  const [emailClientName, setEmailClientName] = useState('')
 
   useEffect(() => {
     if (!isAgent) return
@@ -332,7 +337,7 @@ export default function ItineraryResult() {
     }
   }
 
-    const handleWhatsApp = () => {
+  const handleWhatsApp = () => {
     const text = `🌍 *My Tripzio Trip Plan*\n\n📍 *${data.destination}*\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ *Highlights:*\n${data.highlights?.map(h => `• ${h}`).join('\n')}\n\n_Plan yours free at tripzio.io_`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
     toast.success('Opening WhatsApp!')
@@ -398,6 +403,33 @@ export default function ItineraryResult() {
 
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
     toast.success('Opening WhatsApp with full plan!')
+  }
+
+  const handleSendEmail = async () => {
+    if (!emailTo) return
+    setEmailSending(true)
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      const resp = await fetch(`${API_URL}/email/send-itinerary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ to_email: emailTo, itinerary: data, client_name: emailClientName })
+      })
+      if (resp.ok) {
+        setEmailSent(true)
+        setShowEmailModal(false)
+        toast.success('Itinerary emailed to ' + emailTo + ' 📧')
+        setEmailTo('')
+        setEmailClientName('')
+      } else {
+        const err = await resp.json()
+        toast.error(err.detail || 'Failed to send email')
+      }
+    } catch (e) {
+      toast.error('Failed to send email')
+    } finally {
+      setEmailSending(false)
+    }
   }
 
   const handleDownload = () => {
@@ -502,6 +534,7 @@ export default function ItineraryResult() {
   const hotelsToShow  = isUpgraded ? tierHotels : activeHotels
 
   return (
+    <>
     <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
@@ -629,6 +662,10 @@ export default function ItineraryResult() {
                   <button className="action-btn" onClick={handleWhatsApp}
                     style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
                     <MessageCircle size={15} /> WhatsApp
+                  </button>
+                  <button className="action-btn" onClick={() => setShowEmailModal(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <Mail size={15} /> Email
                   </button>
                   <button className="action-btn" onClick={handleDownload}
                     style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
@@ -1681,6 +1718,38 @@ export default function ItineraryResult() {
         )}
       </div>
     </div>
+
+    {/* Email Itinerary Modal */}
+    {showEmailModal && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <div style={{ background: 'white', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <h3 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>📧 Email Itinerary</h3>
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px' }}>RECIPIENT EMAIL *</label>
+            <input type="email" placeholder="client@email.com" value={emailTo}
+              onChange={e => setEmailTo(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px' }}>CLIENT NAME (optional)</label>
+            <input type="text" placeholder="e.g. Rahul Sharma" value={emailClientName}
+              onChange={e => setEmailClientName(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => setShowEmailModal(false)}
+              style={{ flex: 1, padding: '11px', border: '1.5px solid #e2e8f0', borderRadius: '10px', background: 'white', fontSize: '13px', fontWeight: '700', cursor: 'pointer', color: '#64748b' }}>
+              Cancel
+            </button>
+            <button onClick={handleSendEmail} disabled={emailSending || !emailTo}
+              style={{ flex: 2, padding: '11px', border: 'none', borderRadius: '10px', background: emailSending || !emailTo ? '#e2e8f0' : '#6366f1', color: emailSending || !emailTo ? '#94a3b8' : 'white', fontSize: '13px', fontWeight: '800', cursor: emailSending || !emailTo ? 'not-allowed' : 'pointer' }}>
+              {emailSending ? '⏳ Sending...' : '📧 Send Itinerary'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 <Footer />

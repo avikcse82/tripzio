@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "tripzio-super-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days — stay logged in
 
     # Supabase
     SUPABASE_URL: str = ""
@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     OPENWEATHERMAP_API_KEY: str = ""
     # Google Places
     GOOGLE_PLACES_API_KEY: str = ""
+    # SerpAPI
+    SERPAPI_KEY: str = ""
+    # Anthropic
+    ANTHROPIC_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
