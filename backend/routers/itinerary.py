@@ -254,14 +254,21 @@ Generate ONLY valid JSON, no markdown:
   ],
   "places_to_visit": [
     {{
-      "name": "Place name",
-      "type": "Temple/Market/Nature/Museum",
-      "description": "2 line description",
+      "name": "Place name — be specific",
+      "type": "Viewpoint/Temple/Beach/Market/Nature/Heritage/Museum/Adventure/Waterfall/Lake",
+      "description": "2 engaging lines — what makes it special and unmissable",
       "entry_fee": "₹XX or Free",
-      "best_time": "Morning/Evening",
-      "duration": "1-2 hours"
+      "best_time": "Early Morning/Morning/Afternoon/Evening/Anytime",
+      "duration": "X hours",
+      "must_see": true
     }}
   ],
+  IMPORTANT — places_to_visit RULES:
+  - Minimum 15 entries for any destination, 8-10 per city for circuit trips
+  - Include EVERY place mentioned in day_plans morning/afternoon/evening
+  - Add MORE places beyond day_plans — viewpoints, temples, markets, nature, heritage, adventure, day trips nearby
+  - Cover ALL categories — never repeat same type more than 3 times
+  - places_to_visit array MUST have MORE entries than total day_plans activities combined
   "things_to_do": [
     {{
       "category": "Adventure",
@@ -993,14 +1000,16 @@ Return ONLY valid JSON in this format:
   ],
   "places_to_visit": [
     {{
-      "name": "place",
-      "type": "type",
-      "description": "2 lines",
+      "name": "specific place name",
+      "type": "Viewpoint/Temple/Beach/Market/Nature/Heritage/Museum/Adventure/Waterfall",
+      "description": "2 engaging lines — what makes it special",
       "entry_fee": "₹XX or Free",
-      "best_time": "Morning/Evening",
-      "duration": "X hours"
+      "best_time": "Early Morning/Morning/Afternoon/Evening/Anytime",
+      "duration": "X hours",
+      "must_see": true/false
     }}
   ],
+  PLACES RULE: Minimum 15 entries. Include EVERY place from day_plans PLUS more. All categories covered.
   "things_to_do": [
     {{"category": "Adventure", "activities": ["activity — ₹XXX"]}},
     {{"category": "Food & Dining", "activities": ["dish", "restaurant"]}},
