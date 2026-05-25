@@ -557,7 +557,14 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
                     f"Then {last_mile}"
                 ]
 
-    if not any(x in combined for x in ["government","govt","state bus",state_bus.split("/")[0].lower()]):
+    # Always ensure all 3 modes exist — check by operator name specifically
+    has_govt_bus = any(
+        any(sb.lower() in (t.get("operator","") + t.get("type","")).lower()
+            for sb in state_bus.split("/"))
+        or "government bus" in (t.get("mode","") + t.get("type","")).lower()
+        for t in opts
+    )
+    if not has_govt_bus:
         if indirect:
             bus_desc = f"{from_city} → {indirect[0]} by {state_bus} → then {indirect[1]}"
             bus_details = [f"{state_bus} bus from {from_city} to {indirect[0]}", f"Then {indirect[1]}"]
@@ -576,7 +583,12 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
             "best_for": "Budget travelers"
         })
 
-    if not any(x in combined for x in ["redbus","volvo","greenline","private ac","ac bus","sleeper bus"]):
+    has_private_bus = any(
+        any(op.lower() in (t.get("operator","") + t.get("type","") + t.get("mode","")).lower()
+            for op in ["redbus","volvo","greenline","ac bus","private bus","ac sleeper","dreamliner"])
+        for t in opts
+    )
+    if not has_private_bus:
         ac_desc = f"{from_city} → {indirect[0]} by Redbus/Volvo → then {indirect[1]}" if indirect else f"Private AC bus from {from_city} to {dest}"
         opts.append({
             "mode": "Private AC Bus",
@@ -590,7 +602,12 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
             "best_for": "Comfort without booking train"
         })
 
-    if not any(x in combined for x in ["ola","uber","outstation","intercity","private taxi"]):
+    has_taxi = any(
+        any(op.lower() in (t.get("operator","") + t.get("mode","")).lower()
+            for op in ["ola","uber","outstation","intercity","private taxi","cab"])
+        for t in opts
+    )
+    if not has_taxi:
         if indirect:
             taxi_desc = f"{from_city} → {indirect[0]} by train → then {indirect[1]} (road not recommended for long distance)"
             taxi_details = [f"Train to {indirect[0]}", f"Then {indirect[1]}"]
@@ -872,6 +889,69 @@ async def get_itinerary_history(current_user: dict = Depends(get_current_user_fr
     return {"trips": trips, "total": len(trips)}
 
 
+@router.get("/history/client/{client_id}")
+async def get_client_trip_history(
+    client_id: str,
+    current_user: dict = Depends(get_current_user_from_token)
+):
+    """Get all trips for a specific client — agent only"""
+    try:
+        from database import get_supabase_client
+        supabase = get_supabase_client()
+        agent_id = current_user.get("email", str(current_user["id"]))
+        result = supabase.table("trips") \
+            .select("id,title,destination,days,budget,plan_tier,created_at,status,itinerary") \
+            .eq("agent_id", agent_id) \
+            .eq("client_id", client_id) \
+            .order("created_at", desc=True) \
+            .execute()
+        trips = result.data or []
+        # Clean up itinerary data for list view
+        for trip in trips:
+            if trip.get("itinerary"):
+                itin = trip["itinerary"]
+                trip["summary"] = itin.get("summary", "")
+                trip["from_city"] = itin.get("from_city", "")
+                trip["highlights"] = itin.get("highlights", [])[:3]
+                del trip["itinerary"]  # don't send full itinerary in list
+        return {"trips": trips, "total": len(trips), "client_id": client_id}
+    except Exception as e:
+        logger.error(f"Client trip history error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    req: dict,
+    current_user: dict = Depends(get_current_user_from_token)
+):
+    """Submit rating and feedback for a trip"""
+    try:
+        from database import get_supabase_client
+        supabase = get_supabase_client()
+        trip_id = req.get("trip_id")
+        rating = req.get("rating")
+        feedback = req.get("feedback", "")
+        if not trip_id or not rating:
+            raise HTTPException(status_code=400, detail="trip_id and rating required")
+        # Store feedback
+        supabase.table("trip_feedback").upsert({
+            "trip_id": trip_id,
+            "user_id": str(current_user["id"]),
+            "user_email": current_user.get("email",""),
+            "rating": int(rating),
+            "feedback": feedback,
+            "destination": req.get("destination",""),
+            "created_at": datetime.now().isoformat()
+        }).execute()
+        return {"message": "Thank you for your feedback! 🙏"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Feedback error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ── CUSTOM PLAN ENDPOINT ──────────────────────
 class CustomPlanRequest(BaseModel):
     free_text: str
@@ -940,7 +1020,7 @@ Return ONLY valid JSON in this format:
   "circuit_legs": [
     {{"city": "City1", "days": 2, "highlights": ["thing1", "thing2"]}},
     {{"city": "City2", "days": 3, "highlights": ["thing1", "thing2"]}}
-  ],
+  ],`
   "transport_options": [
     {{
       "mode": "Recommended Route",

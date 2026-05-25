@@ -196,3 +196,114 @@ async def send_itinerary_email(
     except Exception as e:
         logger.error(f"Email send failed: {e}")
         return {"success": False, "error": str(e)}
+
+
+async def send_welcome_email(to_email: str, full_name: str, role: str = "user") -> dict:
+    """Send welcome email on registration"""
+    if not RESEND_API_KEY:
+        return {"success": False, "error": "Email not configured"}
+
+    is_agent = role == "agent"
+
+    items_agent = [
+        "Generate AI itineraries for unlimited clients",
+        "Share branded trip plans via WhatsApp",
+        "Download professional PDF itineraries",
+        "Track all client trips in one dashboard"
+    ]
+    items_user = [
+        "Generate 3 free AI trip plans per month",
+        "Get real hotels, transport & day-by-day plans",
+        "Share itinerary with friends & family",
+        "Browse 100+ handpicked Indian destinations"
+    ]
+    items = items_agent if is_agent else items_user
+
+    steps_agent = [
+        "Add your first client in Agent Dashboard",
+        "Type their trip requirements in plain text",
+        "Generate → Share via WhatsApp or Email PDF"
+    ]
+    steps_user = [
+        "Go to Dashboard → describe your trip",
+        "AI generates full plan in 30 seconds",
+        "Explore hotels, transport, places & day plans"
+    ]
+    steps = steps_agent if is_agent else steps_user
+
+    checks = "".join([
+        f'<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">'
+        f'<span style="color:#0d9488;font-size:14px;flex-shrink:0;">✓</span>'
+        f'<span style="font-size:13px;color:#374151;">{item}</span></div>'
+        for item in items
+    ])
+
+    step_html = "".join([
+        f'<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">'
+        f'<div style="background:linear-gradient(135deg,#0d9488,#0ea5e9);color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;">{i+1}</div>'
+        f'<div style="font-size:12px;color:#64748b;line-height:1.5;">{step}</div></div>'
+        for i, step in enumerate(steps)
+    ])
+
+    agent_badge = """<div style='background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:#92400e;'><strong>🚀 Agent Starter Plan:</strong> You get 25 client slots and white-label PDF. Upgrade to Agent Pro for unlimited clients.</div>""" if is_agent else ""
+
+    cta_url = "https://tripzio.io/agent" if is_agent else "https://tripzio.io/dashboard"
+    cta_text = "🚀 Start Planning for Clients" if is_agent else "🗺️ Plan My First Trip"
+    welcome_text = "You\'re now registered as a <strong>Travel Agent</strong> on Tripzio. You can now create AI-powered itineraries for your clients in seconds." if is_agent else "You\'re all set to start planning amazing Indian trips with AI. Just describe your trip and we\'ll handle everything!"
+    what_text = "🎯 What you can do as an Agent:" if is_agent else "🎯 What you can do:"
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:20px;">
+    <div style="background:linear-gradient(135deg,#0d9488,#0ea5e9);border-radius:16px;padding:32px;text-align:center;margin-bottom:20px;">
+      <div style="font-size:48px;margin-bottom:8px;">✈️</div>
+      <div style="font-size:28px;font-weight:900;color:white;letter-spacing:-1px;">Welcome to Tripzio!</div>
+      <div style="color:rgba(255,255,255,0.8);font-size:14px;margin-top:6px;">India's AI Travel Planning Platform</div>
+    </div>
+    <div style="background:white;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <p style="font-size:16px;color:#1e293b;margin:0 0 12px;font-weight:700;">Hi {full_name}! 👋</p>
+      <p style="font-size:14px;color:#64748b;margin:0 0 16px;line-height:1.6;">{welcome_text}</p>
+      <div style="background:#f0fdfa;border-radius:12px;padding:16px;margin-bottom:16px;">
+        <div style="font-weight:800;color:#0d9488;font-size:13px;margin-bottom:10px;">{what_text}</div>
+        {checks}
+      </div>
+      {agent_badge}
+    </div>
+    <div style="text-align:center;margin-bottom:20px;">
+      <a href="{cta_url}" style="background:linear-gradient(135deg,#0d9488,#0ea5e9);color:white;padding:14px 36px;border-radius:12px;text-decoration:none;font-weight:800;font-size:15px;display:inline-block;box-shadow:0 4px 16px rgba(13,148,136,0.35);">{cta_text}</a>
+    </div>
+    <div style="background:white;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-weight:800;font-size:13px;color:#1e293b;margin-bottom:12px;">⚡ Quick Start</div>
+      {step_html}
+    </div>
+    <div style="text-align:center;font-size:11px;color:#94a3b8;padding:12px;">
+      <p style="margin:0;">Questions? Reply to this email — we're here to help.</p>
+      <p style="margin:6px 0 0;"><strong>Tripzio</strong> · tripzio.io · Made with ❤️ for Indian travelers</p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    subject = f"Welcome to Tripzio, {full_name}! 🎉 Your AI travel planner is ready"
+    if is_agent:
+        subject = f"Welcome Agent {full_name}! 🚀 Start planning trips for your clients"
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(
+                RESEND_URL,
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={"from": FROM_EMAIL, "to": [to_email], "subject": subject, "html": html}
+            )
+            result = response.json()
+            if response.status_code in (200, 201):
+                logger.info(f"Welcome email sent to {to_email}")
+                return {"success": True}
+            else:
+                logger.error(f"Welcome email failed: {result}")
+                return {"success": False}
+    except Exception as e:
+        logger.error(f"Welcome email error: {e}")
+        return {"success": False}

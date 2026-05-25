@@ -53,6 +53,18 @@ async def register(user_data: UserRegister):
 
     logger.info(f"New user registered: {created_user['email']}")
 
+    # Send welcome email (non-blocking)
+    try:
+        import asyncio
+        from services.email_service import send_welcome_email
+        asyncio.create_task(send_welcome_email(
+            to_email=created_user["email"],
+            full_name=created_user["full_name"],
+            role=created_user["role"]
+        ))
+    except Exception as _e:
+        logger.warning(f"Welcome email failed: {_e}")
+
     return Token(
         access_token=access_token,
         token_type="bearer",

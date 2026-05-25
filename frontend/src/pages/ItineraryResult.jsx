@@ -14,6 +14,7 @@ import {
 , Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateTripPDF } from '../utils/generateItineraryHTML'
+import FeedbackWidget from '../components/FeedbackWidget'
 import FestivalAlert from '../components/FestivalAlert'
 
 const tierColors = {
@@ -76,6 +77,7 @@ export default function ItineraryResult() {
   const isAgent = user?.role === 'agent'
   const [agentProfile, setAgentProfile] = useState(null)
   const [emailSending, setEmailSending] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [emailTo, setEmailTo] = useState('')
@@ -167,6 +169,14 @@ export default function ItineraryResult() {
   useEffect(() => {
     if (data && activeTab === 'hotels') fetchHotelsForAllCities()
   }, [activeTab, data])
+
+  // Show feedback widget after 45 seconds
+  useEffect(() => {
+    if (data) {
+      const timer = setTimeout(() => setShowFeedback(true), 45000)
+      return () => clearTimeout(timer)
+    }
+  }, [data])
 
   useEffect(() => {
     if (cities.length > 0) setActiveHotelCity(cities[0])
@@ -1718,6 +1728,26 @@ export default function ItineraryResult() {
         )}
       </div>
     </div>
+
+    {/* Feedback Widget — bottom right corner */}
+    {showFeedback && data && (
+      <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999, width: '320px', animation: 'slideUp 0.3s ease' }}>
+        <style>{`@keyframes slideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }`}</style>
+        <FeedbackWidget
+          tripId={data.id || data.trip_id || 'unknown'}
+          destination={data.destination || 'your trip'}
+          onClose={() => setShowFeedback(false)}
+        />
+      </div>
+    )}
+
+    {/* Feedback button — always visible */}
+    {!showFeedback && data && (
+      <button onClick={() => setShowFeedback(true)}
+        style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 998, background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '50px', padding: '10px 18px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 4px 16px rgba(13,148,136,0.4)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Star size={13} fill="white" /> Rate this plan
+      </button>
+    )}
 
     {/* Email Itinerary Modal */}
     {showEmailModal && (
