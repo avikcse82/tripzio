@@ -378,7 +378,7 @@ async def call_openai(prompt: str) -> dict:
             raise HTTPException(status_code=500, detail="Failed to parse AI response")
 
 
-def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver") -> dict:
+def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None) -> dict:
     """Enforce rules deterministically after AI response — runs every time."""
     if not data or not isinstance(data, dict):
         return data
@@ -386,6 +386,44 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
     import re as _re
     dest = data.get("destination", "destination").split("→")[-1].strip().split(":")[0].strip()
     from_city = (from_city or data.get("from_city", "")).strip()
+
+    # ── Inject cached trains — replace AI trains with real data ──
+    if cached_trains:
+        opts = data.get("transport_options", [])
+        # Keep only non-train options (bus, taxi, flight) from AI
+        non_train_opts = [o for o in opts if "train" not in (o.get("type","") + o.get("mode","")).lower()]
+        # Build real trains from cache — top 8, deduplicated
+        seen_nums = set()
+        real_trains = []
+        for t in cached_trains:
+            num = str(t.get("trainNumber", t.get("train_number", ""))).strip()
+            if not num or num in seen_nums:
+                continue
+            seen_nums.add(num)
+            name = t.get("trainName", t.get("train_name", f"Train {num}")).strip()
+            dep  = t.get("departureTime", t.get("departure_time", "")).strip()
+            arr  = t.get("arrivalTime",   t.get("arrival_time",   "")).strip()
+            dur  = t.get("duration", "").strip()
+            real_trains.append({
+                "mode":           f"Train — {name} ({num})",
+                "type":           "Train",
+                "operator":       f"{name} ({num})",
+                "description":    f"{from_city.title()} → {dest.title()} by {name}",
+                "estimated_cost": "SL: ₹200-600 | 3A: ₹600-1500 | 2A: ₹1000-2500 per person",
+                "duration":       dur,
+                "details":        [
+                    f"Dep: {dep} → Arr: {arr} ({dur})",
+                    "Book on IRCTC.co.in 60 days ahead"
+                ],
+                "booking_tip":    "Book on IRCTC.co.in — 60 days in advance for confirmed seats",
+                "train_number":   num,
+                "departure":      dep,
+                "arrival":        arr,
+            })
+
+        # Replace: real trains first, then bus/taxi
+        if real_trains:
+            data["transport_options"] = real_trains + non_train_opts
 
     # ── Fix 1: Source city in Day 1 ──────────────────────────
     from_lower = from_city.lower()
@@ -716,9 +754,28 @@ async def generate_itinerary(
             except Exception as _se:
                 logger.warning(f"SerpAPI skip: {_se}")
 
+        # Fetch LIVE train data via RapidAPI
+        train_context = ""
+        try:
+            from services.railway_service import get_trains_between_stations, build_train_context as _btc
+            dest_for_trains = req.destination or destination
+            import os as _os
+            print(f"RAILWAY API KEY SET: {bool(_os.getenv('RAPIDAPI_KEY'))}")
+            if dest_for_trains and req.from_city:
+                _live_trains = await get_trains_between_stations(req.from_city, dest_for_trains)
+                print(f"LIVE TRAINS FOUND: {len(_live_trains)} for {req.from_city}→{dest_for_trains}")
+                if _live_trains:
+                    train_context = _btc(req.from_city, dest_for_trains, _live_trains)
+                    logger.info(f"Live trains: {len(_live_trains)} for {req.from_city}→{dest_for_trains}")
+        except Exception as _te:
+            print(f"RAILWAY API ERROR: {type(_te).__name__}: {_te}")
+            logger.warning(f"Live train fetch failed: {_te}")
+
         prompt = build_itinerary_prompt(req, weather_data)
         if places_context:
             prompt = prompt + "\n\n" + places_context
+        if train_context:
+            prompt = prompt + "\n\n" + train_context
         ai_response = await call_openai(prompt)
 
         if weather_data:
@@ -764,7 +821,8 @@ async def generate_itinerary(
             ai_response,
             budget=req.budget or 0,
             from_city=req.from_city or "",
-            plan_tier=req.plan_tier.value if req.plan_tier else "silver"
+            plan_tier=req.plan_tier.value if req.plan_tier else "silver",
+            cached_trains=_live_trains if '_live_trains' in locals() else None
         )
         # Attach real TripAdvisor photos to accommodation
         if places_context:
@@ -1020,7 +1078,7 @@ Return ONLY valid JSON in this format:
   "circuit_legs": [
     {{"city": "City1", "days": 2, "highlights": ["thing1", "thing2"]}},
     {{"city": "City2", "days": 3, "highlights": ["thing1", "thing2"]}}
-  ],`
+  ],
   "transport_options": [
     {{
       "mode": "Recommended Route",
@@ -1148,9 +1206,9 @@ RULES:
                 _big_cities = {'kolkata','mumbai','delhi','bangalore','bengaluru','chennai','hyderabad','pune','ahmedabad','surat','lucknow','nagpur','indore','bhopal','patna','ranchi','guwahati','jaipur','kanpur','chandigarh'}
                 if _from_city:
                     _big_cities.add(_from_city)
-                _dest_list = [w for w in _all_words if w not in _stop and w not in _big_cities]
+                _dest_list = [w for w in _all_words if w not in _stop and w not in _big_cities and len(w) >= 4 and w.isalpha()]
                 if not _dest_list:
-                    _dest_list = [w for w in _all_words if w not in _stop]
+                    _dest_list = [w for w in _all_words if w not in _stop and len(w) >= 4 and w.isalpha()]
                 print(f"SERP FOUND: {_dest_list[:5]}")
                 if _dest_list:
                     # Fetch for each destination separately (circuit support)
@@ -1186,6 +1244,18 @@ RULES:
                         _all_ctx.append("\n".join(_ctx))
                     cust_serp_context = "\n\n".join(_all_ctx)
                     prompt = prompt + "\n\n" + cust_serp_context
+                    # Fetch live trains
+                    try:
+                        from services.railway_service import get_trains_between_stations, build_train_context as _btc2
+                        if _from_city and _dest_list:
+                            _ltrains = await get_trains_between_stations(_from_city, _dest_list[0])
+                            if _ltrains:
+                                _tctx = _btc2(_from_city, _dest_list[0], _ltrains)
+                                if _tctx:
+                                    prompt = prompt + "\n\n" + _tctx
+                                    logger.info(f"Live trains custom: {len(_ltrains)} trains {_from_city}→{_dest_list[0]}")
+                    except Exception as _lte:
+                        logger.warning(f"Live train custom skip: {_lte}")
                     # Store for photo attachment later
                     _h = _all_city_hotels.get(_dest_list[0].lower(), [])
             except Exception as _cse:
@@ -1244,7 +1314,8 @@ RULES:
             ai_response,
             budget=ai_response.get("budget", 0),
             from_city=ai_response.get("from_city", ""),
-            plan_tier=ai_response.get("plan_tier", "silver")
+            plan_tier=ai_response.get("plan_tier", "silver"),
+            cached_trains=_ltrains if '_ltrains' in locals() else None
         )
 
         # Store per-city hotels in response — each city gets its own list

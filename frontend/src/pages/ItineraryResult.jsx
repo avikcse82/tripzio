@@ -1120,50 +1120,109 @@ export default function ItineraryResult() {
                           🚆 {data.from_city} → {cities[0]}
                         </h4>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {data.transport_options?.map((opt, i) => (
-                          <div key={i} className="transport-card"
-                            style={{ background: 'white', border: `1.5px solid ${expandedTransport === i ? transportColors[i % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
-                            onClick={() => setExpandedTransport(expandedTransport === i ? -1 : i)}>
-                            <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: transportBgs[i % 3], border: `1px solid ${transportBorders[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: transportColors[i % 3] }}>
-                                  {transportIcons[i % 3]}
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.mode}</div>
-                                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>{opt.description}</div>
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                <div style={{ textAlign: 'right' }}>
-                                  <div style={{ fontSize: '16px', fontWeight: '800', color: transportColors[i % 3], fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.estimated_cost}</div>
-                                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.duration}</div>
-                                </div>
-                                {expandedTransport === i ? <ChevronUp size={15} color="#94a3b8" /> : <ChevronDown size={15} color="#94a3b8" />}
-                              </div>
-                            </div>
-                            {expandedTransport === i && (
-                              <div style={{ padding: '0 18px 16px', borderTop: '1px solid #f1f5f9' }}>
-                                <div style={{ paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  {opt.details?.map((step, j) => (
-                                    <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: transportBgs[i % 3], border: `1.5px solid ${transportColors[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800', color: transportColors[i % 3], flexShrink: 0, marginTop: '1px' }}>{j + 1}</div>
-                                      <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{step}</span>
+                      {(() => {
+                        const opts = data.transport_options || []
+                        const trains = opts.filter(o => (o.type||o.mode||'').toLowerCase().includes('train'))
+                        const others = opts.filter(o => !(o.type||o.mode||'').toLowerCase().includes('train'))
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                            {/* Train options — grouped into one card */}
+                            {trains.length > 0 && (
+                              <div style={{ background: 'white', border: `1.5px solid ${expandedTransport === 'trains' ? '#0d9488' : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+                                onClick={() => setExpandedTransport(expandedTransport === 'trains' ? -1 : 'trains')}>
+                                <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#f0fdfa', border: '1px solid #99f6e4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      🚆
                                     </div>
-                                  ))}
-                                  {opt.booking_tip && (
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px', marginTop: '4px' }}>
-                                      <Info size={13} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
-                                      <span style={{ fontSize: '12px', color: '#92400e', fontWeight: '500' }}>{opt.booking_tip}</span>
+                                    <div>
+                                      <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>Train Options</div>
+                                      <div style={{ fontSize: '12px', color: '#64748b' }}>{trains.length} trains available · Book on IRCTC</div>
                                     </div>
-                                  )}
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ background: '#f0fdfa', color: '#0d9488', fontSize: '11px', fontWeight: '800', padding: '3px 10px', borderRadius: '20px', border: '1px solid #99f6e4' }}>{trains.length} trains</span>
+                                    {expandedTransport === 'trains' ? <ChevronUp size={15} color="#94a3b8" /> : <ChevronDown size={15} color="#94a3b8" />}
+                                  </div>
                                 </div>
+                                {expandedTransport === 'trains' && (
+                                  <div style={{ borderTop: '1px solid #f1f5f9' }}>
+                                    {trains.map((opt, i) => (
+                                      <div key={i} style={{ padding: '12px 18px', borderBottom: i < trains.length-1 ? '1px solid #f8fafc' : 'none',
+                                        background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                          <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>{opt.operator || opt.mode}</div>
+                                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{opt.description}</div>
+                                            {opt.details?.slice(0,2).map((d, j) => (
+                                              <div key={j} style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>→ {d}</div>
+                                            ))}
+                                          </div>
+                                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                            <div style={{ fontSize: '13px', fontWeight: '800', color: '#0d9488' }}>{opt.estimated_cost?.split('|')[0]?.trim()}</div>
+                                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>{opt.duration}</div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    <div style={{ padding: '10px 18px', background: '#fffbeb', borderTop: '1px solid #fcd34d' }}>
+                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                        <Info size={12} color="#f59e0b" />
+                                        <span style={{ fontSize: '11px', color: '#92400e', fontWeight: '600' }}>Book on IRCTC.co.in — 60 days in advance for confirmed seats</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
+
+                            {/* Other transport options */}
+                            {others.map((opt, i) => (
+                              <div key={i} className="transport-card"
+                                style={{ background: 'white', border: `1.5px solid ${expandedTransport === i ? transportColors[i % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+                                onClick={() => setExpandedTransport(expandedTransport === i ? -1 : i)}>
+                                <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: transportBgs[i % 3], border: `1px solid ${transportBorders[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: transportColors[i % 3] }}>
+                                      {transportIcons[i % 3]}
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>{opt.mode}</div>
+                                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>{opt.description}</div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                    <div style={{ textAlign: 'right' }}>
+                                      <div style={{ fontSize: '16px', fontWeight: '800', color: transportColors[i % 3] }}>{opt.estimated_cost}</div>
+                                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.duration}</div>
+                                    </div>
+                                    {expandedTransport === i ? <ChevronUp size={15} color="#94a3b8" /> : <ChevronDown size={15} color="#94a3b8" />}
+                                  </div>
+                                </div>
+                                {expandedTransport === i && (
+                                  <div style={{ padding: '0 18px 16px', borderTop: '1px solid #f1f5f9' }}>
+                                    <div style={{ paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                      {opt.details?.map((step, j) => (
+                                        <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: transportBgs[i % 3], border: `1.5px solid ${transportColors[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800', color: transportColors[i % 3], flexShrink: 0, marginTop: '1px' }}>{j + 1}</div>
+                                          <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{step}</span>
+                                        </div>
+                                      ))}
+                                      {opt.booking_tip && (
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px', marginTop: '4px' }}>
+                                          <Info size={13} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                          <span style={{ fontSize: '12px', color: '#92400e', fontWeight: '500' }}>{opt.booking_tip}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        )
+                      })()}
                     </div>
 
                     {/* Inter-city legs for circuit */}
