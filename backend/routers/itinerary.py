@@ -336,46 +336,65 @@ GENERAL RULES:
 
 
 async def call_openai(prompt: str) -> dict:
-    if not settings.OPENAI_API_KEY:
-        raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+    """Call Claude Sonnet with streaming — fast, no timeout"""
+    import os
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Anthropic API key not configured")
 
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        response = await client.post(
-            "https://api.openai.com/v1/chat/completions",
+    content_chunks = []
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        async with client.stream(
+            "POST",
+            "https://api.anthropic.com/v1/messages",
             headers={
-                "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gpt-4o",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are Tripzio's expert Indian travel AI. Generate detailed, accurate, budget-appropriate travel itineraries. Always use real train names, numbers and complete journey times. Always respond with valid JSON only."
-                    },
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0,
-                "max_tokens": 4096,
-                "response_format": {"type": "json_object"}
+                "model": "claude-sonnet-4-5",
+                "max_tokens": 16000,
+                "stream": True,
+                "system": "You are Tripzio's expert Indian travel AI. Generate detailed, accurate, budget-appropriate travel itineraries for Indian destinations. Deep knowledge of Indian railways, hill stations, permits, acclimatization, multi-leg routes. Always use real train names and numbers. Respond with valid JSON only — no markdown, no explanation.",
+                "messages": [{"role": "user", "content": prompt}]
             }
-        )
+        ) as response:
+            if response.status_code != 200:
+                error_text = await response.aread()
+                try:
+                    error_detail = json.loads(error_text).get("error", {}).get("message", "Anthropic API error")
+                except Exception:
+                    error_detail = "Anthropic API error"
+                raise HTTPException(status_code=503, detail=f"AI service error: {error_detail}")
 
-        result = response.json()
-        if response.status_code != 200:
-            error_detail = result.get("error", {}).get("message", "OpenAI API error")
-            logger.error(f"OpenAI error: {error_detail}")
-            raise HTTPException(status_code=503, detail=f"AI service error: {error_detail}")
+            async for line in response.aiter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                data = line[6:]
+                if data == "[DONE]":
+                    break
+                try:
+                    event = json.loads(data)
+                    if event.get("type") == "content_block_delta":
+                        delta = event.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            content_chunks.append(delta.get("text", ""))
+                except Exception:
+                    continue
 
-        content = result["choices"][0]["message"]["content"]
-        content = content.strip()
-        if content.startswith("```"):
-            content = content.split(chr(10), 1)[-1].rsplit("```", 1)[0].strip()
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parse error: {e}")
-            raise HTTPException(status_code=500, detail="Failed to parse AI response")
+    content = "".join(content_chunks).strip()
+    if "```" in content:
+        content = content.split(chr(10), 1)[-1].rsplit("```", 1)[0].strip()
+    s = content.find("{")
+    e = content.rfind("}") + 1
+    if s >= 0 and e > s:
+        content = content[s:e]
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as ex:
+        logger.error(f"JSON parse error: {ex}\nContent: {content[:500]}")
+        raise HTTPException(status_code=500, detail="Failed to parse AI response")
 
 
 def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None) -> dict:
@@ -756,19 +775,16 @@ async def generate_itinerary(
 
         # Fetch LIVE train data via RapidAPI
         train_context = ""
+        _live_trains = []
         try:
             from services.railway_service import get_trains_between_stations, build_train_context as _btc
             dest_for_trains = req.destination or destination
-            import os as _os
-            print(f"RAILWAY API KEY SET: {bool(_os.getenv('RAPIDAPI_KEY'))}")
             if dest_for_trains and req.from_city:
                 _live_trains = await get_trains_between_stations(req.from_city, dest_for_trains)
-                print(f"LIVE TRAINS FOUND: {len(_live_trains)} for {req.from_city}→{dest_for_trains}")
                 if _live_trains:
                     train_context = _btc(req.from_city, dest_for_trains, _live_trains)
                     logger.info(f"Live trains: {len(_live_trains)} for {req.from_city}→{dest_for_trains}")
         except Exception as _te:
-            print(f"RAILWAY API ERROR: {type(_te).__name__}: {_te}")
             logger.warning(f"Live train fetch failed: {_te}")
 
         prompt = build_itinerary_prompt(req, weather_data)
@@ -817,12 +833,13 @@ async def generate_itinerary(
         except Exception as e:
             logger.warning(f"Failed to save trip: {e}")
 
+        _cached_trains_main = locals().get('_live_trains', None)
         ai_response = post_process_itinerary(
             ai_response,
             budget=req.budget or 0,
             from_city=req.from_city or "",
             plan_tier=req.plan_tier.value if req.plan_tier else "silver",
-            cached_trains=_live_trains if '_live_trains' in locals() else None
+            cached_trains=_cached_trains_main
         )
         # Attach real TripAdvisor photos to accommodation
         if places_context:
@@ -1184,20 +1201,29 @@ RULES:
         _skey = os.getenv("SERPAPI_KEY", "")
         if _skey:
             try:
-                print(f"SERP SCAN: {req.free_text[:60]}")
                 # Dynamic extraction — no hardcoded city list
                 _words = req.free_text.lower().replace(',', ' ').replace('—', ' ').replace('→', ' ').split()
                 _from_city = ""
+                _via_city = ""   # transit city e.g. "via Delhi"
                 _all_words = []
                 _skip_next = False
+                _skip_via = False
                 for _w in _words:
                     if _w in ('from', 'se'):
                         _skip_next = True
+                        continue
+                    if _w == 'via':
+                        _skip_via = True
                         continue
                     if _skip_next:
                         _fc = _w.strip('.,')
                         if _fc.isalpha(): _from_city = _fc
                         _skip_next = False
+                        continue
+                    if _skip_via:
+                        _vc = _w.strip('.,')
+                        if _vc.isalpha(): _via_city = _vc
+                        _skip_via = False
                         continue
                     _clean = _w.strip('.,!?-')
                     if len(_clean) >= 3 and _clean.isalpha():
@@ -1209,25 +1235,36 @@ RULES:
                 _dest_list = [w for w in _all_words if w not in _stop and w not in _big_cities and len(w) >= 4 and w.isalpha()]
                 if not _dest_list:
                     _dest_list = [w for w in _all_words if w not in _stop and len(w) >= 4 and w.isalpha()]
-                print(f"SERP FOUND: {_dest_list[:5]}")
                 if _dest_list:
                     # Fetch for each destination separately (circuit support)
                     _all_city_hotels = {}  # city -> hotels list
                     _all_ctx = []
                     for _dname in [d.title() for d in _dest_list]:
-                        print(f"SERP DEST: {_dname}")
                         # Check cache first — saves SerpAPI quota
                         _cached_h = _serp_cache_get(f"{_dname}_h")
                         _cached_r = _serp_cache_get(f"{_dname}_r")
                         _cached_a = _serp_cache_get(f"{_dname}_a")
                         if _cached_h is not None:
                             _h, _r, _a = _cached_h, _cached_r or [], _cached_a or []
-                            print(f"SERP CACHE HIT: {_dname} h={len(_h)}")
                         else:
-                            async with httpx.AsyncClient(timeout=10) as _acl:
-                                _rh = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"hotels {_dname} India","ssrc":"h","api_key":_skey})
-                                _rr = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"restaurants {_dname} India","ssrc":"r","api_key":_skey})
-                                _ra = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"things to do {_dname} India","ssrc":"A","api_key":_skey})
+                            # Retry once on timeout
+                            _serp_success = False
+                            for _attempt in range(2):
+                                try:
+                                    async with httpx.AsyncClient(timeout=20) as _acl:
+                                        _rh = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"hotels {_dname} India","ssrc":"h","api_key":_skey})
+                                        _rr = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"restaurants {_dname} India","ssrc":"r","api_key":_skey})
+                                        _ra = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"things to do {_dname} India","ssrc":"A","api_key":_skey})
+                                    _serp_success = True
+                                    break
+                                except Exception as _te:
+                                    if _attempt == 0:
+                                        import asyncio as _aio
+                                        await _aio.sleep(2)
+                                    else:
+                                        pass
+                            if not _serp_success:
+                                continue
                             _rh_j = _rh.json()
                             _h = _rh_j.get("places", _rh_j.get("results", []))
                             _r = _rr.json().get("places", _rr.json().get("results", []))
@@ -1235,7 +1272,6 @@ RULES:
                             _serp_cache_set(f"{_dname}_h", _h)
                             _serp_cache_set(f"{_dname}_r", _r)
                             _serp_cache_set(f"{_dname}_a", _a)
-                            print(f"SERP RESULT: {_dname} h={len(_h)} r={len(_r)} a={len(_a)}")
                         _all_city_hotels[_dname] = _h
                         _ctx = [f"=== REAL TripAdvisor data for {_dname} ==="]
                         if _h: _ctx += ["HOTELS:"] + [f"{i}. {x.get('title',x.get('name',''))} ⭐{x.get('rating','')}" for i,x in enumerate(_h,1)]
@@ -1244,23 +1280,56 @@ RULES:
                         _all_ctx.append("\n".join(_ctx))
                     cust_serp_context = "\n\n".join(_all_ctx)
                     prompt = prompt + "\n\n" + cust_serp_context
-                    # Fetch live trains
+                    # Fetch live trains — including via city leg
                     try:
                         from services.railway_service import get_trains_between_stations, build_train_context as _btc2
-                        if _from_city and _dest_list:
+                        _ltrains = []
+                        _train_contexts = []
+
+                        # Leg 1: from_city → via_city (top 5 trains only)
+                        if _from_city and _via_city:
+                            _leg1 = await get_trains_between_stations(_from_city, _via_city)
+                            if _leg1:
+                                _ltrains.extend(_leg1[:5])
+                                _t1 = _btc2(_from_city, _via_city, _leg1[:5])
+                                if _t1: _train_contexts.append(_t1)
+
+                        # Leg 2: via_city → first destination (top 3 trains only)
+                        _leg_from = _via_city if _via_city else _from_city
+                        if _leg_from and _dest_list:
+                            _leg2 = await get_trains_between_stations(_leg_from, _dest_list[0])
+                            if _leg2:
+                                _ltrains.extend(_leg2[:3])
+                                _t2 = _btc2(_leg_from, _dest_list[0], _leg2[:3])
+                                if _t2: _train_contexts.append(_t2)
+
+                        # Fallback: direct if no via
+                        if not _ltrains and _from_city and _dest_list:
                             _ltrains = await get_trains_between_stations(_from_city, _dest_list[0])
                             if _ltrains:
-                                _tctx = _btc2(_from_city, _dest_list[0], _ltrains)
-                                if _tctx:
-                                    prompt = prompt + "\n\n" + _tctx
-                                    logger.info(f"Live trains custom: {len(_ltrains)} trains {_from_city}→{_dest_list[0]}")
+                                _t3 = _btc2(_from_city, _dest_list[0], _ltrains[:5])
+                                if _t3: _train_contexts.append(_t3)
+
+                        if _train_contexts:
+                            prompt = prompt + "\n\n" + "\n\n".join(_train_contexts)
                     except Exception as _lte:
                         logger.warning(f"Live train custom skip: {_lte}")
                     # Store for photo attachment later
                     _h = _all_city_hotels.get(_dest_list[0].lower(), [])
             except Exception as _cse:
                 print(f"SERPAPI ERROR: {type(_cse).__name__}: {_cse}")
-                logger.error(f"SerpAPI custom FAILED: {type(_cse).__name__}: {_cse}")
+                logger.warning(f"SerpAPI custom skipped: {type(_cse).__name__}: {_cse}")
+                # Don't crash — continue without SerpAPI data
+        # Inject via city instruction if detected
+        if '_via_city' in locals() and _via_city:
+            via_instruction = f"""\n\nVIA CITY ROUTING INSTRUCTION:
+User specified travel via {_via_city.title()}.
+Route MUST be: {req.free_text.split('from')[-1].split('via')[0].strip().title() if 'from' in req.free_text.lower() else 'source'} → {_via_city.title()} → destinations.
+Show train from source to {_via_city.title()} as first transport option.
+Then show {_via_city.title()} to first destination as second transport option.
+Do NOT show direct source→destination if via city is specified."""
+            prompt = prompt + via_instruction
+
         ai_response = await call_openai(prompt)
 
         # Try to get weather for main destination
@@ -1310,12 +1379,13 @@ RULES:
         if req.start_date:
             ai_response['start_date'] = req.start_date
 
+        _cached_trains_for_post = locals().get('_ltrains', None)
         ai_response = post_process_itinerary(
             ai_response,
             budget=ai_response.get("budget", 0),
             from_city=ai_response.get("from_city", ""),
             plan_tier=ai_response.get("plan_tier", "silver"),
-            cached_trains=_ltrains if '_ltrains' in locals() else None
+            cached_trains=_cached_trains_for_post
         )
 
         # Store per-city hotels in response — each city gets its own list
@@ -1354,11 +1424,8 @@ RULES:
                 # Do NOT override ai_response["accommodation"]
 
                 total = sum(len(v) for v in city_hotels_formatted.values())
-                print(f"SerpAPI: {total} hotels across {list(city_hotels_formatted.keys())}")
-                print(f"CITY_HOTELS_KEYS: {list(city_hotels_formatted.keys())}")
-                print(f"AI_ACCOM_KEYS: {[h.get('name','') for h in ai_response.get('accommodation',[])[:3]]}")
         except Exception as _pe:
-            print(f"Hotel store error: {_pe}")
+            pass
 
         logger.info(f"✓ Custom plan generated: {ai_response.get('destination')}")
         return ai_response
@@ -1366,5 +1433,6 @@ RULES:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Custom plan error: {e}")
+        import traceback
+        logger.error(f"Custom plan error: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to generate custom plan: {str(e)}")
