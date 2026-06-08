@@ -8,6 +8,214 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _SERP_CACHE = {}  # key: "city_type" -> (timestamp, data)
 _CACHE_TTL = 86400  # 24 hours
 
+# ── Destination spelling correction ─────────────────────────
+import difflib as _difflib
+
+KNOWN_INDIAN_DESTINATIONS = {
+    # States
+    "rajasthan","himachal pradesh","uttarakhand","kerala","goa","karnataka",
+    "tamil nadu","andhra pradesh","telangana","maharashtra","gujarat","punjab",
+    "haryana","uttar pradesh","madhya pradesh","odisha","west bengal","assam",
+    "sikkim","meghalaya","arunachal pradesh","nagaland","manipur","mizoram",
+    "tripura","jharkhand","chhattisgarh","bihar","jammu kashmir","ladakh",
+    # Cities
+    "jaipur","jodhpur","jaisalmer","udaipur","pushkar","ajmer","bikaner","mount abu",
+    "shimla","manali","dharamshala","kasol","spiti","kullu","dalhousie","mcleod ganj",
+    "darjeeling","gangtok","kalimpong","pelling","siliguri",
+    "munnar","alleppey","kochi","kovalam","varkala","thekkady","wayanad","kozhikode",
+    "goa","panjim","calangute","baga","anjuna","arambol",
+    "mumbai","pune","nashik","aurangabad","lonavala","mahabaleshwar",
+    "delhi","agra","varanasi","lucknow","mathura","vrindavan","ayodhya","allahabad","prayagraj","meerut","kanpur",
+    "kolkata","digha","sundarbans","bishnupur",
+    "rishikesh","haridwar","dehradun","mussoorie","nainital","jim corbett",
+    "leh","ladakh","pangong","nubra","kargil",
+    "kashmir","srinagar","gulmarg","pahalgam","sonamarg",
+    "coorg","mysore","hampi","bangalore","ooty","kodaikanal",
+    "hyderabad","tirupati","vizag","araku","warangal",
+    "amritsar","chandigarh","shimla","dharamshala",
+    "andaman","port blair","havelock","neil island",
+    "puri","bhubaneswar","konark","chilika",
+    "kaziranga","shillong","cherrapunji","dawki","ziro","tawang",
+    "ranthambore","sariska","keoladeo","jaipur",
+    "ahmedabad","surat","vadodara","diu","daman","rann of kutch","somnath","dwarka",
+    "bhopal","khajuraho","orchha","pachmarhi","jabalpur","kanha","bandhavgarh",
+    "patna","bodh gaya","rajgir","nalanda",
+    "ranchi","netarhat","deoghar","jamshedpur",
+}
+
+def suggest_destination(word: str) -> str:
+    """Fuzzy match destination — returns suggestion or empty string"""
+    word_lower = word.lower().strip()
+    if word_lower in KNOWN_INDIAN_DESTINATIONS:
+        return ""  # correct — exact match
+    # Don't suggest if word CONTAINS a known city (e.g. prayagraj contains agra)
+    for known in KNOWN_INDIAN_DESTINATIONS:
+        if known in word_lower or word_lower in known:
+            return ""  # partial match — treat as valid
+    matches = _difflib.get_close_matches(word_lower, KNOWN_INDIAN_DESTINATIONS, n=1, cutoff=0.75)
+    if matches:
+        return matches[0].title()
+    return ""
+
+
+def get_serp_engine(city_name: str) -> str:
+    """Always start with TripAdvisor — fallback to Google handled in call"""
+    return "tripadvisor"
+
+
+def build_serp_params(engine: str, query: str, search_type: str, api_key: str) -> dict:
+    """Build SerpAPI params based on engine"""
+    if engine == "tripadvisor":
+        return {"engine": "tripadvisor", "q": query, "ssrc": search_type, "api_key": api_key}
+    else:
+        # Google local search
+        tbm_map = {"h": "lcl", "r": "lcl", "A": "lcl"}
+        return {"engine": "google", "q": query, "tbm": tbm_map.get(search_type, "lcl"), "api_key": api_key}
+
+
+def extract_serp_results(response_json: dict, engine: str) -> list:
+    """Extract results from SerpAPI response — handles both engines"""
+    if engine == "tripadvisor":
+        return response_json.get("places", response_json.get("results", []))
+    else:
+        return response_json.get("local_results", response_json.get("places", response_json.get("results", [])))
+
+
+def fmt_hotel_universal(h: dict, city: str, engine: str) -> dict:
+    """Format hotel data from either TripAdvisor or Google Local"""
+    if engine == "tripadvisor":
+        name = h.get("title", h.get("name", ""))
+        photo = h.get("thumbnail", "")
+        link = h.get("link", "")
+        price = h.get("price", "")
+        area = h.get("location", city.title())
+        why = h.get("highlighted_review", {}).get("text", "") if isinstance(h.get("highlighted_review"), dict) else ""
+        htype = h.get("place_type", "Hotel")
+    else:
+        name = h.get("title", h.get("name", ""))
+        photos = h.get("photos", [])
+        photo = photos[0].get("thumbnail", "") if photos else h.get("thumbnail", "")
+        link = h.get("link", "")
+        price = h.get("price", h.get("price_range", ""))
+        area = h.get("address", h.get("location", city.title()))
+        why = h.get("snippet", h.get("description", ""))
+        htype = h.get("type", "Hotel")
+
+    return {
+        "name":            name,
+        "type":            htype,
+        "area":            area,
+        "city":            city.title(),
+        "rating":          str(h.get("rating", "")),
+        "reviews":         h.get("reviews", h.get("reviews_original", 0)),
+        "price_range":     price,
+        "photo_url":       photo,
+        "tripadvisor_url": link,
+        "maps_url":        f"https://www.google.com/maps/search/{name.replace(' ', '+')}+{city.title()}",
+        "why":             why,
+        "highlight":       htype,
+        "recommended":     False,
+        "tier":            "recommended",
+    }
+
+
+def detect_children_in_trip(text: str) -> dict:
+    """Detect if children are travelling and their approximate age group"""
+    import re
+    text_lower = text.lower()
+    
+    result = {"has_children": False, "age_groups": [], "count": 0}
+    
+    # Patterns for children detection
+    child_patterns = [
+        r'with\s+(?:my\s+)?(?:kid|kids|child|children|baby|babies|infant|toddler|son|daughter)',
+        r'(?:kid|kids|child|children|baby|infant|toddler)s?\s+(?:aged?|age)\s+(\d+)',
+        r'(\d+)\s+(?:kid|kids|child|children)',
+        r'family\s+(?:with|of)\s+(?:kid|kids|child|children)',
+        r'(?:bachha|bachhe|bacha|bache|bacchi)',  # Hindi
+        r'travelling\s+with\s+(?:little\s+ones|toddler|infant)',
+    ]
+    
+    age_patterns = [
+        (r'(?:age[d]?\s+)?(\d+)\s*(?:year|yr|months?)\s*old', 'extract'),
+        (r'(?:kid|child|son|daughter|baby)\s+(?:of\s+)?(\d+)', 'extract'),
+        (r'(\d+)\s+(?:year|yr)\s*old\s+(?:kid|child)', 'extract'),
+    ]
+    
+    for pattern in child_patterns:
+        if re.search(pattern, text_lower):
+            result["has_children"] = True
+            break
+    
+    if result["has_children"]:
+        # Try to find ages
+        ages = []
+        for pattern, _ in age_patterns:
+            matches = re.findall(pattern, text_lower)
+            for m in matches:
+                try:
+                    age = int(m)
+                    if 0 <= age <= 17:
+                        ages.append(age)
+                except:
+                    pass
+        
+        result["count"] = len(ages) if ages else 1
+        
+        # Categorize age groups
+        age_groups = set()
+        for age in ages:
+            if age <= 2:
+                age_groups.add("infant (0-2)")
+            elif age <= 6:
+                age_groups.add("toddler (3-6)")
+            elif age <= 12:
+                age_groups.add("child (7-12)")
+            else:
+                age_groups.add("teenager (13+)")
+        
+        if not age_groups and result["has_children"]:
+            age_groups.add("child (age unspecified)")
+        
+        result["age_groups"] = list(age_groups)
+    
+    return result
+
+
+def build_child_instructions(child_info: dict) -> str:
+    """Build child-specific planning instructions for Claude"""
+    if not child_info.get("has_children"):
+        return ""
+    
+    age_groups = child_info.get("age_groups", ["child (age unspecified)"])
+    has_infant = any("infant" in ag for ag in age_groups)
+    has_toddler = any("toddler" in ag for ag in age_groups)
+    has_young_child = any("child (7" in ag for ag in age_groups)
+    
+    instructions = ["\n\nCHILD-FRIENDLY TRAVEL INSTRUCTIONS:"]
+    instructions.append(f"Travelling with: {', '.join(age_groups)}")
+    instructions.append("MANDATORY child-safe planning rules:")
+    instructions.append("1. ACCOMMODATION: Must have family rooms, safe environment, preferably with pool/play area")
+    instructions.append("2. TRAVEL TIME: Max 4-5 hours travel per day — children fatigue quickly")
+    instructions.append("3. ACTIVITIES: Include parks, zoos, theme parks, interactive museums — skip extreme adventure")
+    instructions.append("4. FOOD: Family-friendly restaurants with kids menu — avoid street food for infants/toddlers")
+    instructions.append("5. PACE: Build in rest time each afternoon — no back-to-back activities")
+    instructions.append("6. MEDICAL: Mention nearest hospital/pediatric clinic for each destination")
+    instructions.append("7. SAFETY: Note any safety concerns — busy roads, water bodies, crowd density")
+    
+    if has_infant or has_toddler:
+        instructions.append("8. INFANT/TODDLER SPECIFIC: Avoid high altitude (>6000ft), long bus journeys, crowded religious sites")
+        instructions.append("9. Add note: Carry ORS, baby food, diapers — availability may be limited at destination")
+    
+    if has_young_child:
+        instructions.append("8. CHILD ACTIVITIES: Include hands-on learning experiences — fort exploration, craft workshops, nature trails")
+    
+    instructions.append("10. Add a 'child_friendly_tips' array in response with 5 practical tips for this specific destination")
+    instructions.append("11. In packing_list add child-specific items: sunscreen, mosquito repellent, first aid kit")
+    
+    return "\n".join(instructions)
+
+
 def _serp_cache_get(key):
     if key in _SERP_CACHE:
         ts, data = _SERP_CACHE[key]
@@ -27,6 +235,7 @@ from core.config import settings
 from core.security import decode_access_token
 from database import get_user_by_email, get_user_by_id, save_trip
 from routers.weather import get_weather
+import asyncio
 import httpx
 import json
 import logging
@@ -35,6 +244,74 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/itinerary", tags=["Itinerary"])
+
+
+async def fetch_city_serp(dname: str, skey: str) -> tuple:
+    """Fetch hotels/restaurants/attractions for one city — TripAdvisor first, Google fallback"""
+    # Check cache
+    _ch = _serp_cache_get(f"{dname}_h")
+    if _ch and len(_ch) > 0:
+        _eng = _serp_cache_get(f"{dname}_eng") or "tripadvisor"
+        logger.warning(f"SerpAPI cache: {dname} h={len(_ch)}")
+        return dname, _ch, _serp_cache_get(f"{dname}_r") or [], _serp_cache_get(f"{dname}_a") or [], _eng
+
+    _h, _r, _a, _eng = [], [], [], "tripadvisor"
+    try:
+        async with httpx.AsyncClient(timeout=15) as cl:
+            _rh, _rr, _ra = await asyncio.gather(
+                cl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"hotels {dname} India","ssrc":"h","api_key":skey}),
+                cl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"restaurants {dname} India","ssrc":"r","api_key":skey}),
+                cl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"things to do {dname} India","ssrc":"A","api_key":skey})
+            )
+        _rh_j = _rh.json()
+        # Handle TripAdvisor quota/error responses
+        if _rh.status_code != 200 or "error" in _rh_j or "quota" in str(_rh_j).lower():
+            logger.warning(f"TripAdvisor quota/error for {dname}: {_rh.status_code}")
+            _h = []  # Force Google fallback
+        else:
+            _h = _rh_j.get("places", _rh_j.get("results", []))
+        _r = _rr.json().get("places", _rr.json().get("results", []))
+        _a = _ra.json().get("places", _ra.json().get("results", []))
+
+        if not _h:
+            _eng = "google"
+            async with httpx.AsyncClient(timeout=15) as cl2:
+                _rh2, _rr2, _ra2 = await asyncio.gather(
+                    cl2.get("https://serpapi.com/search.json", params={"engine":"google","q":f"hotels in {dname} India","tbm":"lcl","api_key":skey}),
+                    cl2.get("https://serpapi.com/search.json", params={"engine":"google","q":f"restaurants in {dname} India","tbm":"lcl","api_key":skey}),
+                    cl2.get("https://serpapi.com/search.json", params={"engine":"google","q":f"tourist places in {dname} India","tbm":"lcl","api_key":skey})
+                )
+            _h = _rh2.json().get("local_results", _rh2.json().get("results", []))
+            _r = _rr2.json().get("local_results", _rr2.json().get("results", []))
+            _a = _ra2.json().get("local_results", _ra2.json().get("results", []))
+
+        _serp_cache_set(f"{dname}_h", _h)
+        _serp_cache_set(f"{dname}_r", _r)
+        _serp_cache_set(f"{dname}_a", _a)
+        _serp_cache_set(f"{dname}_eng", _eng)
+        logger.warning(f"SerpAPI [{_eng}] {dname}: h={len(_h)} r={len(_r)} a={len(_a)}")
+    except Exception as _se:
+        logger.warning(f"SerpAPI tripadvisor {dname} failed: {_se} — trying Google")
+        try:
+            async with httpx.AsyncClient(timeout=15) as cl3:
+                _rh3, _rr3, _ra3 = await asyncio.gather(
+                    cl3.get("https://serpapi.com/search.json", params={"engine":"google","q":f"hotels in {dname} India","tbm":"lcl","api_key":skey}),
+                    cl3.get("https://serpapi.com/search.json", params={"engine":"google","q":f"restaurants in {dname} India","tbm":"lcl","api_key":skey}),
+                    cl3.get("https://serpapi.com/search.json", params={"engine":"google","q":f"tourist places in {dname} India","tbm":"lcl","api_key":skey})
+                )
+            _h = _rh3.json().get("local_results", _rh3.json().get("results", []))
+            _r = _rr3.json().get("local_results", _rr3.json().get("results", []))
+            _a = _ra3.json().get("local_results", _ra3.json().get("results", []))
+            _eng = "google"
+            _serp_cache_set(f"{dname}_h", _h)
+            _serp_cache_set(f"{dname}_r", _r)
+            _serp_cache_set(f"{dname}_a", _a)
+            _serp_cache_set(f"{dname}_eng", _eng)
+            logger.warning(f"SerpAPI [google fallback] {dname}: h={len(_h)}")
+        except Exception as _se2:
+            logger.warning(f"SerpAPI google fallback also failed: {_se2}")
+
+    return dname, _h, _r, _a, _eng
 security = HTTPBearer()
 
 # ── India-only destination validation ─────────────────────────
@@ -300,19 +577,26 @@ Generate ONLY valid JSON, no markdown:
   }},
   "alternatives": [
     {{
-      "name": "Alternative 1",
-      "reason": "why similar",
-      "estimated_budget": "₹X,XXX",
-      "highlight": "unique thing"
+      "name": "Alternative destination name",
+      "reason": "why similar to {destination} for {req.days} days",
+      "estimated_budget": "₹{req.budget:,}",
+      "highlight": "unique experience"
     }},
     {{
-      "name": "Alternative 2",
-      "reason": "why similar",
-      "estimated_budget": "₹X,XXX",
-      "highlight": "unique thing"
+      "name": "Alternative destination name 2",
+      "reason": "why good for {req.days} days from {req.from_city}",
+      "estimated_budget": "₹{req.budget:,}",
+      "highlight": "unique experience"
+    }},
+    {{
+      "name": "Alternative destination name 3",
+      "reason": "budget-friendly version for same duration",
+      "estimated_budget": "₹{req.budget:,}",
+      "highlight": "unique experience"
     }}
   ]
 }}
+ALTERNATIVES RULE: estimated_budget MUST be within 20% of Rs {req.budget}. Never show budgets like 9,00,000 for a {req.budget} budget trip.
 
 BUDGET UTILIZATION RULES:
 - Bronze tier: Target spending 70-80% of budget. Maximize value, use budget stays. Show savings.
@@ -340,10 +624,20 @@ async def call_openai(prompt: str) -> dict:
     import os
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
-        raise HTTPException(status_code=503, detail="Anthropic API key not configured")
+        raise HTTPException(status_code=503, detail="Our travel planner is currently under maintenance. Please try again shortly.")
 
     content_chunks = []
-    async with httpx.AsyncClient(timeout=180.0) as client:
+    # Dynamic tokens based on prompt size — longer trips need more tokens
+    _prompt_days = 7  # default
+    try:
+        import re as _re
+        _day_match = _re.search(r'(\d+)\s*days?', prompt.lower())
+        if _day_match: _prompt_days = int(_day_match.group(1))
+    except Exception:
+        pass
+    _max_tokens = min(16000, max(8000, _prompt_days * 1200))
+
+    async with httpx.AsyncClient(timeout=float(os.getenv("AI_TIMEOUT", "300"))) as client:
         async with client.stream(
             "POST",
             "https://api.anthropic.com/v1/messages",
@@ -354,9 +648,9 @@ async def call_openai(prompt: str) -> dict:
             },
             json={
                 "model": "claude-sonnet-4-5",
-                "max_tokens": 16000,
+                "max_tokens": _max_tokens,
                 "stream": True,
-                "system": "You are Tripzio's expert Indian travel AI. Generate detailed, accurate, budget-appropriate travel itineraries for Indian destinations. Deep knowledge of Indian railways, hill stations, permits, acclimatization, multi-leg routes. Always use real train names and numbers. Respond with valid JSON only — no markdown, no explanation.",
+                "system": "You are Tripzio's expert Indian travel AI. Generate accurate, budget-appropriate travel itineraries for Indian destinations. Deep knowledge of Indian railways, hill stations, permits, acclimatization, multi-leg routes. Always use real train names and numbers. Keep descriptions concise — 1 sentence max per field. Respond with valid JSON only — no markdown, no explanation.",
                 "messages": [{"role": "user", "content": prompt}]
             }
         ) as response:
@@ -366,7 +660,7 @@ async def call_openai(prompt: str) -> dict:
                     error_detail = json.loads(error_text).get("error", {}).get("message", "Anthropic API error")
                 except Exception:
                     error_detail = "Anthropic API error"
-                raise HTTPException(status_code=503, detail=f"AI service error: {error_detail}")
+                raise HTTPException(status_code=503, detail="Our AI travel planner is temporarily unavailable. Please try again in a moment.")
 
             async for line in response.aiter_lines():
                 if not line or not line.startswith("data: "):
@@ -392,9 +686,47 @@ async def call_openai(prompt: str) -> dict:
         content = content[s:e]
     try:
         return json.loads(content)
-    except json.JSONDecodeError as ex:
-        logger.error(f"JSON parse error: {ex}\nContent: {content[:500]}")
-        raise HTTPException(status_code=500, detail="Failed to parse AI response")
+    except json.JSONDecodeError:
+        # JSON truncated — retry with more tokens automatically
+        logger.warning(f"JSON truncated at {len(content)} chars — retrying with 16000 tokens")
+        try:
+            retry_chunks = []
+            async with httpx.AsyncClient(timeout=float(os.getenv("AI_TIMEOUT", "300"))) as _rc:
+                async with _rc.stream(
+                    "POST",
+                    "https://api.anthropic.com/v1/messages",
+                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                    json={
+                        "model": "claude-sonnet-4-5",
+                        "max_tokens": 16000,
+                        "stream": True,
+                        "system": "You are Tripzio's expert Indian travel AI. Respond with valid JSON only.",
+                        "messages": [{"role": "user", "content": prompt}]
+                    }
+                ) as _rr:
+                    async for _line in _rr.aiter_lines():
+                        if not _line or not _line.startswith("data: "): continue
+                        _d = _line[6:]
+                        if _d == "[DONE]": break
+                        try:
+                            _ev = json.loads(_d)
+                            if _ev.get("type") == "content_block_delta":
+                                _dt = _ev.get("delta", {})
+                                if _dt.get("type") == "text_delta":
+                                    retry_chunks.append(_dt.get("text", ""))
+                        except Exception:
+                            continue
+            retry_content = "".join(retry_chunks).strip()
+            if "```" in retry_content:
+                retry_content = retry_content.split(chr(10), 1)[-1].rsplit("```", 1)[0].strip()
+            rs = retry_content.find("{")
+            re_ = retry_content.rfind("}") + 1
+            if rs >= 0 and re_ > rs:
+                retry_content = retry_content[rs:re_]
+            return json.loads(retry_content)
+        except Exception as _re:
+            logger.error(f"Retry also failed: {_re}")
+            raise HTTPException(status_code=500, detail="We're having trouble generating your plan right now. Please try again.")
 
 
 def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None) -> dict:
@@ -788,10 +1120,11 @@ async def generate_itinerary(
             logger.warning(f"Live train fetch failed: {_te}")
 
         prompt = build_itinerary_prompt(req, weather_data)
-        if places_context:
-            prompt = prompt + "\n\n" + places_context
-        if train_context:
-            prompt = prompt + "\n\n" + train_context
+        # Detect children and add safety instructions
+        _child_info = detect_children_in_trip(str(req.trip_type or "") + " " + str(req.destination or ""))
+        _child_instructions = build_child_instructions(_child_info)
+        if _child_instructions:
+            prompt = prompt + _child_instructions
         ai_response = await call_openai(prompt)
 
         if weather_data:
@@ -1198,88 +1531,125 @@ RULES:
 
         # SerpAPI — fetch real TripAdvisor data
         cust_serp_context = ""
+        _all_city_hotels = {}  # Always defined
         _skey = os.getenv("SERPAPI_KEY", "")
         if _skey:
             try:
                 # Dynamic extraction — no hardcoded city list
                 _words = req.free_text.lower().replace(',', ' ').replace('—', ' ').replace('→', ' ').split()
                 _from_city = ""
-                _via_city = ""   # transit city e.g. "via Delhi"
+                _via_city = ""
                 _all_words = []
                 _skip_next = False
                 _skip_via = False
+                _prev_word = ""
                 for _w in _words:
-                    if _w in ('from', 'se'):
+                    if _w in ('from',):
                         _skip_next = True
+                        _prev_word = _w
+                        continue
+                    if _w == 'se':
+                        # Hindi: "Delhi se" → Delhi is BEFORE se
+                        if _prev_word and _prev_word.isalpha() and _prev_word not in ('budget','hajar','lack','lakh','thousand','trip','tour','din','days','night','nights'):
+                            _from_city = _prev_word.strip('.,')
+                        else:
+                            _skip_next = True  # fallback: next word after se
+                        _prev_word = _w
                         continue
                     if _w == 'via':
                         _skip_via = True
+                        _prev_word = _w
                         continue
                     if _skip_next:
                         _fc = _w.strip('.,')
-                        if _fc.isalpha(): _from_city = _fc
+                        if _fc.isalpha() and _fc not in ('budget','hajar','lack','lakh','thousand'):
+                            _from_city = _fc
                         _skip_next = False
+                        _prev_word = _w
                         continue
                     if _skip_via:
                         _vc = _w.strip('.,')
                         if _vc.isalpha(): _via_city = _vc
                         _skip_via = False
+                        _prev_word = _w
                         continue
                     _clean = _w.strip('.,!?-')
                     if len(_clean) >= 3 and _clean.isalpha():
                         _all_words.append(_clean)
-                _stop = {'din','day','days','trip','tour','plan','budget','hajar','thousand','and','the','for','with','from','via','to','ka','ki','ke','mein','tak','se','aur','start','date','jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec','january','february','march','april','june','july','august','september','october','november','december','adventure','couple','family','solo','group','honeymoon','circuit','road','night','nights','silver','gold','bronze','diamond','platinum'}
+                    _prev_word = _w
+                _stop = {'din','day','days','trip','tour','plan','budget','hajar','thousand','and','the','for','with','from','via','to','ka','ki','ke','mein','tak','se','aur','start','date','jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec','january','february','march','april','june','july','august','september','october','november','december','adventure','couple','family','solo','group','honeymoon','circuit','road','night','nights','silver','gold','bronze','diamond','platinum',
+                         # Hindi common words
+                         'poora','pura','sara','sab','kuch','wala','wali','lack','lakh','crore','rupee','rupees','inr',
+                         # English trip-related words
+                         'best','good','nice','great','full','complete','entire','whole','budget','cheap','luxury','moderate',
+                         'child','children','kids','baby','infant','senior','elder','adult','person','people','member',
+                         'night','nights','hotel','flight','train','bus','taxi','cab','tour','trip','travel','visit',
+                         'with','without','need','want','like','love','enjoy','plan','book','cost','price','cheap','free',
+                         'north','south','east','west','central','upper','lower','near','around','inside','outside'}
                 _big_cities = {'kolkata','mumbai','delhi','bangalore','bengaluru','chennai','hyderabad','pune','ahmedabad','surat','lucknow','nagpur','indore','bhopal','patna','ranchi','guwahati','jaipur','kanpur','chandigarh'}
                 if _from_city:
                     _big_cities.add(_from_city)
                 _dest_list = [w for w in _all_words if w not in _stop and w not in _big_cities and len(w) >= 4 and w.isalpha()]
                 if not _dest_list:
                     _dest_list = [w for w in _all_words if w not in _stop and len(w) >= 4 and w.isalpha()]
+                # Validate destinations — only words that appear near numbers/din/days
+                # e.g. "Shimla 2 din" or "2 days Shimla" — real destination pattern
+                import re as _re2
+                _raw_lower = req.free_text.lower()
+                # Find words that appear near day/din/number patterns
+                _dest_candidates = set()
+                _near_number = _re2.findall(r'(\w+)\s+\d+\s*(?:din|day|days|night|nights)|(\d+)\s*(?:din|day|days)\s+(\w+)', _raw_lower)
+                for _match in _near_number:
+                    for _word in _match:
+                        if _word and len(_word) >= 4 and _word.isalpha():
+                            _dest_candidates.add(_word)
+
+                _invalid_dests = []
+                _valid_count = 0
+                for _d in _dest_list[:4]:
+                    # Only validate if word appears as destination candidate (near number)
+                    if _d not in _dest_candidates and len(_dest_candidates) > 0:
+                        _valid_count += 1
+                        continue
+                    _sugg = suggest_destination(_d)
+                    if _sugg and _sugg.lower() != _d.lower():
+                        _invalid_dests.append((_d, _sugg))
+                    else:
+                        _valid_count += 1
+
+                if _invalid_dests:
+                    _sugg_msg = " | ".join([f"did you mean '{s}' instead of '{d}'?" for d,s in _invalid_dests])
+                    if _valid_count == 0:
+                        raise HTTPException(status_code=400, detail=f"We couldn't find that destination. {_sugg_msg} Please try again with the correct name.")
+                    else:
+                        for _d, _s in _invalid_dests:
+                            _dest_list = [_s.lower() if x == _d else x for x in _dest_list]
+                        _seen = set()
+                        _dedup = []
+                        for _x in _dest_list:
+                            if _x not in _seen:
+                                _seen.add(_x)
+                                _dedup.append(_x)
+                        _dest_list = _dedup
+                        logger.warning(f"Auto-corrected: {_invalid_dests}")
+
                 if _dest_list:
                     # Fetch for each destination separately (circuit support)
-                    _all_city_hotels = {}  # city -> hotels list
                     _all_ctx = []
-                    for _dname in [d.title() for d in _dest_list]:
-                        # Check cache first — saves SerpAPI quota
-                        _cached_h = _serp_cache_get(f"{_dname}_h")
-                        _cached_r = _serp_cache_get(f"{_dname}_r")
-                        _cached_a = _serp_cache_get(f"{_dname}_a")
-                        if _cached_h is not None:
-                            _h, _r, _a = _cached_h, _cached_r or [], _cached_a or []
-                        else:
-                            # Retry once on timeout
-                            _serp_success = False
-                            for _attempt in range(2):
-                                try:
-                                    async with httpx.AsyncClient(timeout=20) as _acl:
-                                        _rh = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"hotels {_dname} India","ssrc":"h","api_key":_skey})
-                                        _rr = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"restaurants {_dname} India","ssrc":"r","api_key":_skey})
-                                        _ra = await _acl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"things to do {_dname} India","ssrc":"A","api_key":_skey})
-                                    _serp_success = True
-                                    break
-                                except Exception as _te:
-                                    if _attempt == 0:
-                                        import asyncio as _aio
-                                        await _aio.sleep(2)
-                                    else:
-                                        pass
-                            if not _serp_success:
-                                continue
-                            _rh_j = _rh.json()
-                            _h = _rh_j.get("places", _rh_j.get("results", []))
-                            _r = _rr.json().get("places", _rr.json().get("results", []))
-                            _a = _ra.json().get("places", _ra.json().get("results", []))
-                            _serp_cache_set(f"{_dname}_h", _h)
-                            _serp_cache_set(f"{_dname}_r", _r)
-                            _serp_cache_set(f"{_dname}_a", _a)
+                    logger.warning(f"SERP STARTING: cities={_dest_list} skey={bool(_skey)}")
+                    # Parallel SerpAPI — all cities fetched simultaneously
+                    _serp_results = await asyncio.gather(
+                        *[fetch_city_serp(d.title(), _skey) for d in _dest_list]
+                    )
+                    for _dname, _h, _r, _a, _eng in _serp_results:
                         _all_city_hotels[_dname] = _h
-                        _ctx = [f"=== REAL TripAdvisor data for {_dname} ==="]
-                        if _h: _ctx += ["HOTELS:"] + [f"{i}. {x.get('title',x.get('name',''))} ⭐{x.get('rating','')}" for i,x in enumerate(_h,1)]
-                        if _r: _ctx += ["RESTAURANTS:"] + [f"{i}. {x.get('title',x.get('name',''))} ⭐{x.get('rating','')}" for i,x in enumerate(_r,1)]
-                        if _a: _ctx += ["ATTRACTIONS:"] + [f"{i}. {x.get('title',x.get('name',''))} ⭐{x.get('rating','')}" for i,x in enumerate(_a,1)]
+                        _ctx = [f"=== Places for {_dname} ==="]
+                        if _h: _ctx += ["HOTELS:"] + [f"{i}. {x.get('title',x.get('name',''))} ⭐{x.get('rating','')}" for i,x in enumerate(_h[:5],1)]
+                        if _r: _ctx += ["RESTAURANTS:"] + [f"{i}. {x.get('title',x.get('name',''))}" for i,x in enumerate(_r[:5],1)]
+                        if _a: _ctx += ["ATTRACTIONS:"] + [f"{i}. {x.get('title',x.get('name',''))}" for i,x in enumerate(_a[:5],1)]
                         _all_ctx.append("\n".join(_ctx))
-                    cust_serp_context = "\n\n".join(_all_ctx)
-                    prompt = prompt + "\n\n" + cust_serp_context
+                    # SerpAPI context NOT sent to Claude — post-processor attaches hotels directly
+                    # This keeps prompt lean and Claude fast
                     # Fetch live trains — including via city leg
                     try:
                         from services.railway_service import get_trains_between_stations, build_train_context as _btc2
@@ -1311,15 +1681,19 @@ RULES:
                                 if _t3: _train_contexts.append(_t3)
 
                         if _train_contexts:
-                            prompt = prompt + "\n\n" + "\n\n".join(_train_contexts)
+                            pass  # Train context NOT sent to Claude — post-processor injects trains directly
                     except Exception as _lte:
                         logger.warning(f"Live train custom skip: {_lte}")
-                    # Store for photo attachment later
-                    _h = _all_city_hotels.get(_dest_list[0].lower(), [])
+                    # Hotels stored in _all_city_hotels per city
             except Exception as _cse:
-                print(f"SERPAPI ERROR: {type(_cse).__name__}: {_cse}")
                 logger.warning(f"SerpAPI custom skipped: {type(_cse).__name__}: {_cse}")
                 # Don't crash — continue without SerpAPI data
+        # Detect children in trip
+        _child_info = detect_children_in_trip(req.free_text or "")
+        _child_instructions = build_child_instructions(_child_info)
+        if _child_instructions:
+            prompt = prompt + _child_instructions
+
         # Inject via city instruction if detected
         if '_via_city' in locals() and _via_city:
             via_instruction = f"""\n\nVIA CITY ROUTING INSTRUCTION:
@@ -1392,22 +1766,8 @@ Do NOT show direct source→destination if via city is specified."""
         try:
             if _all_city_hotels:
                 def fmt_hotel(h, city):
-                    return {
-                        "name":            h.get("title", h.get("name", "")),
-                        "type":            h.get("place_type", "Hotel"),
-                        "area":            h.get("location", city.title()),
-                        "city":            city.title(),
-                        "rating":          str(h.get("rating", "")),
-                        "reviews":         h.get("reviews", 0),
-                        "price_range":     h.get("price", ""),
-                        "photo_url":       h.get("thumbnail", ""),
-                        "tripadvisor_url": h.get("link", ""),
-                        "maps_url":        f"https://www.google.com/maps/search/{h.get('title','').replace(' ','+')}+{city.title()}",
-                        "why":             h.get("highlighted_review", {}).get("text", "") if isinstance(h.get("highlighted_review"), dict) else "",
-                        "highlight":       h.get("place_type", ""),
-                        "recommended":     False,
-                        "tier":            "recommended",
-                    }
+                    _ce = _serp_cache_get(f"{city.title()}_eng") or "tripadvisor"
+                    return fmt_hotel_universal(h, city, _ce)
 
                 # Per-city hotels dict — key is city name
                 city_hotels_formatted = {}
@@ -1425,7 +1785,7 @@ Do NOT show direct source→destination if via city is specified."""
 
                 total = sum(len(v) for v in city_hotels_formatted.values())
         except Exception as _pe:
-            pass
+            logger.warning(f"Hotel formatting error: {_pe}")
 
         logger.info(f"✓ Custom plan generated: {ai_response.get('destination')}")
         return ai_response
