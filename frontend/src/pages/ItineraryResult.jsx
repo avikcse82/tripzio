@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import { API_URL } from '../api'
+import { Analytics } from '../utils/analytics'
 import {
   MapPin, Clock, ArrowLeft, Download, MessageCircle,
   Calendar, Thermometer, Wind, Umbrella, AlertTriangle,
@@ -166,8 +167,15 @@ export default function ItineraryResult() {
   const circuit = data ? isCircuit(data) : false
   const cities  = data ? parseCircuitCities(data) : []
 
+  // Track itinerary view
   useEffect(() => {
-    if (data && activeTab === 'hotels') fetchHotelsForAllCities()
+    if (data?.destination) {
+      Analytics.itineraryGenerated(data.destination, data.days, data.budget, data.plan_tier)
+    }
+  }, [data?.destination])
+
+  useEffect(() => {
+    if (data && activeTab === 'hotels') { fetchHotelsForAllCities(); Analytics.hotelsViewed(data?.destination) }
   }, [activeTab, data])
 
   // Show feedback widget after 45 seconds
@@ -347,16 +355,59 @@ export default function ItineraryResult() {
     }
   }
 
-  const handleWhatsApp = () => {
-    const text = `🌍 *My Tripzio Trip Plan*\n\n📍 *${data.destination}*\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ *Highlights:*\n${data.highlights?.map(h => `• ${h}`).join('\n')}\n\n_Plan yours free at tripzio.io_`
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
-    toast.success('Opening WhatsApp!')
+  const handleWhatsApp = async () => {
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      const res = await fetch(`${API_URL}/share/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ trip_data: data, title: `${data.destination} · ${data.days} Days`, destination: data.destination, days: data.days, plan_tier: data.plan_tier })
+      })
+      const result = await res.json()
+      const tripUrl = res.ok ? `${window.location.origin}/trip/${result.slug}` : 'https://tripzio.io'
+      const text = [
+        `🌍 *My Tripzio Trip Plan*`,
+        ``,
+        `📍 *${data.destination}*`,
+        `📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}`,
+        ``,
+        data.summary,
+        ``,
+        `✨ *Highlights:*`,
+        data.highlights?.map(h => `• ${h}`).join('\n'),
+        ``,
+        `📲 *View full itinerary:*`,
+        tripUrl,
+        ``,
+        `_Plan yours free at tripzio.io_`
+      ].join('\n')
+      Analytics.whatsappShared(data?.destination, false)
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+      toast.success('Opening WhatsApp!')
+    } catch (e) {
+      const text = `🌍 *My Tripzio Trip Plan*\n\n📍 *${data.destination}*\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ *Highlights:*\n${data.highlights?.map(h => `• ${h}`).join('\n')}\n\n_Plan yours free at tripzio.io_`
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+      toast.success('Opening WhatsApp!')
+    }
   }
 
   // ── Agent: rich WhatsApp to client ──────────
-  const handleAgentWhatsApp = () => {
+  const handleAgentWhatsApp = async () => {
     const agentName = user?.business_name || user?.full_name || 'Your Travel Agent'
     const to = clientName ? `Hi ${clientName}! 👋` : 'Hi! 👋'
+
+    // Create share link
+    let shareUrl = 'https://tripzio.io'
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      const res = await fetch(`${API_URL}/share/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ trip_data: data, title: `${data.destination} · ${data.days} Days`, destination: data.destination, days: data.days, plan_tier: data.plan_tier, is_agent: true })
+      })
+      const result = await res.json()
+      if (res.ok) shareUrl = `${window.location.origin}/trip/${result.slug}`
+    } catch (e) { /* fallback to tripzio.io */ }
 
     // Day plan summary — one line per day
     const dayLines = data.day_plans?.slice(0, 5).map(d =>
@@ -404,6 +455,9 @@ export default function ItineraryResult() {
       `💰 *Cost Breakdown*`,
       costLines,
       ``,
+      `📲 *View Complete Itinerary:*`,
+      shareUrl,
+      ``,
       `━━━━━━━━━━━━━━━━━━━━`,
       `Reply *YES* to confirm your booking! ✈️`,
       ``,
@@ -412,6 +466,7 @@ export default function ItineraryResult() {
     ].filter(l => l !== undefined).join('\n')
 
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+    Analytics.whatsappShared(data?.destination, true)
     toast.success('Opening WhatsApp with full plan!')
   }
 
@@ -445,6 +500,7 @@ export default function ItineraryResult() {
   const handleDownload = () => {
     try {
       generateTripPDF({ data, user, isAgent, clientName, agentProfile })
+      Analytics.pdfDownloaded(data?.destination)
       toast.success('PDF downloaded! 🎉')
     } catch (e) {
       console.error('PDF error:', e)
