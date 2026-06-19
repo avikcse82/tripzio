@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _SERP_CACHE = {}  # key: "city_type" -> (timestamp, data)
 _CACHE_TTL = 86400  # 24 hours
 
-
 def detect_children_in_trip(text: str) -> dict:
     """Detect if children are travelling and their approximate age group"""
     import re
