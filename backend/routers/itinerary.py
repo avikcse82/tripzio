@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _SERP_CACHE = {}  # key: "city_type" -> (timestamp, data)
 _CACHE_TTL = 86400  # 24 hours
 
+
 def detect_children_in_trip(text: str) -> dict:
     """Detect if children are travelling and their approximate age group"""
     import re
@@ -1658,7 +1659,39 @@ Do NOT show direct source→destination if via city is specified."""
             if _all_city_hotels:
                 def fmt_hotel(h, city):
                     _ce = _serp_cache_get(f"{city.title()}_eng") or "tripadvisor"
-                    return fmt_hotel_universal(h, city, _ce)
+                    if _ce == "tripadvisor":
+                        name = h.get("title", h.get("name", ""))
+                        photo = h.get("thumbnail", "")
+                        link = h.get("link", "")
+                        price = h.get("price", "")
+                        area = h.get("location", city.title())
+                        why = h.get("highlighted_review", {}).get("text", "") if isinstance(h.get("highlighted_review"), dict) else ""
+                        htype = h.get("place_type", "Hotel")
+                    else:  # google
+                        name = h.get("title", h.get("name", ""))
+                        photos = h.get("photos", [])
+                        photo = photos[0].get("thumbnail", "") if photos else h.get("thumbnail", "")
+                        link = h.get("link", "")
+                        price = h.get("price", h.get("price_range", ""))
+                        area = h.get("address", h.get("location", city.title()))
+                        why = h.get("snippet", h.get("description", ""))
+                        htype = h.get("type", "Hotel")
+                    return {
+                        "name": name,
+                        "type": htype,
+                        "area": area,
+                        "city": city.title(),
+                        "rating": str(h.get("rating", "")),
+                        "reviews": h.get("reviews", h.get("reviews_original", 0)),
+                        "price_range": price,
+                        "photo_url": photo,
+                        "tripadvisor_url": link,
+                        "maps_url": f"https://www.google.com/maps/search/{name.replace(' ', '+')}+{city.title()}",
+                        "why": why,
+                        "highlight": htype,
+                        "recommended": False,
+                        "tier": "recommended",
+                    }
 
                 # Per-city hotels dict — key is city name
                 city_hotels_formatted = {}
