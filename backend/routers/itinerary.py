@@ -8,116 +8,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _SERP_CACHE = {}  # key: "city_type" -> (timestamp, data)
 _CACHE_TTL = 86400  # 24 hours
 
-# ── Destination spelling correction ─────────────────────────
-import difflib as _difflib
-
-KNOWN_INDIAN_DESTINATIONS = {
-    # States
-    "rajasthan","himachal pradesh","uttarakhand","kerala","goa","karnataka",
-    "tamil nadu","andhra pradesh","telangana","maharashtra","gujarat","punjab",
-    "haryana","uttar pradesh","madhya pradesh","odisha","west bengal","assam",
-    "sikkim","meghalaya","arunachal pradesh","nagaland","manipur","mizoram",
-    "tripura","jharkhand","chhattisgarh","bihar","jammu kashmir","ladakh",
-    # Cities
-    "jaipur","jodhpur","jaisalmer","udaipur","pushkar","ajmer","bikaner","mount abu",
-    "shimla","manali","dharamshala","kasol","spiti","kullu","dalhousie","mcleod ganj",
-    "darjeeling","gangtok","kalimpong","pelling","siliguri",
-    "munnar","alleppey","kochi","kovalam","varkala","thekkady","wayanad","kozhikode",
-    "goa","panjim","calangute","baga","anjuna","arambol",
-    "mumbai","pune","nashik","aurangabad","lonavala","mahabaleshwar",
-    "delhi","agra","varanasi","lucknow","mathura","vrindavan","ayodhya","allahabad","prayagraj","meerut","kanpur",
-    "kolkata","digha","sundarbans","bishnupur",
-    "rishikesh","haridwar","dehradun","mussoorie","nainital","jim corbett",
-    "leh","ladakh","pangong","nubra","kargil",
-    "kashmir","srinagar","gulmarg","pahalgam","sonamarg",
-    "coorg","mysore","hampi","bangalore","ooty","kodaikanal",
-    "hyderabad","tirupati","vizag","araku","warangal",
-    "amritsar","chandigarh","shimla","dharamshala",
-    "andaman","port blair","havelock","neil island",
-    "puri","bhubaneswar","konark","chilika",
-    "kaziranga","shillong","cherrapunji","dawki","ziro","tawang",
-    "ranthambore","sariska","keoladeo","jaipur",
-    "ahmedabad","surat","vadodara","diu","daman","rann of kutch","somnath","dwarka",
-    "bhopal","khajuraho","orchha","pachmarhi","jabalpur","kanha","bandhavgarh",
-    "patna","bodh gaya","rajgir","nalanda",
-    "ranchi","netarhat","deoghar","jamshedpur",
-}
-
-def suggest_destination(word: str) -> str:
-    """Fuzzy match destination — returns suggestion or empty string"""
-    word_lower = word.lower().strip()
-    if word_lower in KNOWN_INDIAN_DESTINATIONS:
-        return ""  # correct — exact match
-    # Don't suggest if word CONTAINS a known city (e.g. prayagraj contains agra)
-    for known in KNOWN_INDIAN_DESTINATIONS:
-        if known in word_lower or word_lower in known:
-            return ""  # partial match — treat as valid
-    matches = _difflib.get_close_matches(word_lower, KNOWN_INDIAN_DESTINATIONS, n=1, cutoff=0.75)
-    if matches:
-        return matches[0].title()
-    return ""
-
-
-def get_serp_engine(city_name: str) -> str:
-    """Always start with TripAdvisor — fallback to Google handled in call"""
-    return "tripadvisor"
-
-
-def build_serp_params(engine: str, query: str, search_type: str, api_key: str) -> dict:
-    """Build SerpAPI params based on engine"""
-    if engine == "tripadvisor":
-        return {"engine": "tripadvisor", "q": query, "ssrc": search_type, "api_key": api_key}
-    else:
-        # Google local search
-        tbm_map = {"h": "lcl", "r": "lcl", "A": "lcl"}
-        return {"engine": "google", "q": query, "tbm": tbm_map.get(search_type, "lcl"), "api_key": api_key}
-
-
-def extract_serp_results(response_json: dict, engine: str) -> list:
-    """Extract results from SerpAPI response — handles both engines"""
-    if engine == "tripadvisor":
-        return response_json.get("places", response_json.get("results", []))
-    else:
-        return response_json.get("local_results", response_json.get("places", response_json.get("results", [])))
-
-
-def fmt_hotel_universal(h: dict, city: str, engine: str) -> dict:
-    """Format hotel data from either TripAdvisor or Google Local"""
-    if engine == "tripadvisor":
-        name = h.get("title", h.get("name", ""))
-        photo = h.get("thumbnail", "")
-        link = h.get("link", "")
-        price = h.get("price", "")
-        area = h.get("location", city.title())
-        why = h.get("highlighted_review", {}).get("text", "") if isinstance(h.get("highlighted_review"), dict) else ""
-        htype = h.get("place_type", "Hotel")
-    else:
-        name = h.get("title", h.get("name", ""))
-        photos = h.get("photos", [])
-        photo = photos[0].get("thumbnail", "") if photos else h.get("thumbnail", "")
-        link = h.get("link", "")
-        price = h.get("price", h.get("price_range", ""))
-        area = h.get("address", h.get("location", city.title()))
-        why = h.get("snippet", h.get("description", ""))
-        htype = h.get("type", "Hotel")
-
-    return {
-        "name":            name,
-        "type":            htype,
-        "area":            area,
-        "city":            city.title(),
-        "rating":          str(h.get("rating", "")),
-        "reviews":         h.get("reviews", h.get("reviews_original", 0)),
-        "price_range":     price,
-        "photo_url":       photo,
-        "tripadvisor_url": link,
-        "maps_url":        f"https://www.google.com/maps/search/{name.replace(' ', '+')}+{city.title()}",
-        "why":             why,
-        "highlight":       htype,
-        "recommended":     False,
-        "tier":            "recommended",
-    }
-
 
 def detect_children_in_trip(text: str) -> dict:
     """Detect if children are travelling and their approximate age group"""
@@ -244,6 +134,50 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/itinerary", tags=["Itinerary"])
+
+
+async def extract_trip_info(free_text: str, api_key: str) -> dict:
+    """Use Claude Haiku to extract from_city, via_city, destinations.
+    Zero hardcoding — works for any language, any city worldwide.
+    Falls back to empty dict on failure.
+    """
+    prompt = f"""Extract travel information from this text. Return ONLY a JSON object, nothing else.
+
+Text: "{free_text}"
+
+Return exactly this JSON:
+{{"from_city": "departure city lowercase or empty", "via_city": "transit city lowercase or empty", "destinations": ["destination1", "destination2"]}}
+
+Rules:
+- from_city: departure city (after from/se/starting)
+- via_city: transit city (after via)  
+- destinations: ONLY actual places to visit — cities, towns, tourist spots
+- Exclude: trip type, budget, day counts, dates, common words
+- Include short names: goa, leh, puri, ooty
+- Handle Hindi/Hinglish naturally"""
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as _ec:
+            _er = await _ec.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 150,
+                    "temperature": 0.0,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+            )
+        if _er.status_code != 200:
+            return {}
+        _et = _er.json()["content"][0]["text"].strip()
+        _es = _et.find("{"); _ee = _et.rfind("}") + 1
+        if _es >= 0 and _ee > _es:
+            return json.loads(_et[_es:_ee])
+        return {}
+    except Exception as _ex:
+        logger.warning(f"Trip info extraction failed: {_ex}")
+        return {}
 
 
 async def fetch_city_serp(dname: str, skey: str) -> tuple:
@@ -651,6 +585,7 @@ async def call_openai(prompt: str) -> dict:
                 "max_tokens": _max_tokens,
                 "stream": True,
                 "system": "You are Tripzio's expert Indian travel AI. Generate accurate, budget-appropriate travel itineraries for Indian destinations. Deep knowledge of Indian railways, hill stations, permits, acclimatization, multi-leg routes. Always use real train names and numbers. Keep descriptions concise — 1 sentence max per field. Respond with valid JSON only — no markdown, no explanation.",
+                "temperature": 0.4,
                 "messages": [{"role": "user", "content": prompt}]
             }
         ) as response:
@@ -1536,102 +1471,59 @@ RULES:
         if _skey:
             try:
                 # Dynamic extraction — no hardcoded city list
-                _words = req.free_text.lower().replace(',', ' ').replace('—', ' ').replace('→', ' ').split()
-                _from_city = ""
-                _via_city = ""
-                _all_words = []
-                _skip_next = False
-                _skip_via = False
-                _prev_word = ""
-                for _w in _words:
-                    if _w in ('from',):
-                        _skip_next = True
-                        _prev_word = _w
-                        continue
-                    if _w == 'se':
-                        # Hindi: "Delhi se" → Delhi is BEFORE se
-                        if _prev_word and _prev_word.isalpha() and _prev_word not in ('budget','hajar','lack','lakh','thousand','trip','tour','din','days','night','nights'):
-                            _from_city = _prev_word.strip('.,')
-                        else:
-                            _skip_next = True  # fallback: next word after se
-                        _prev_word = _w
-                        continue
-                    if _w == 'via':
-                        _skip_via = True
-                        _prev_word = _w
-                        continue
-                    if _skip_next:
-                        _fc = _w.strip('.,')
-                        if _fc.isalpha() and _fc not in ('budget','hajar','lack','lakh','thousand'):
-                            _from_city = _fc
-                        _skip_next = False
-                        _prev_word = _w
-                        continue
-                    if _skip_via:
-                        _vc = _w.strip('.,')
-                        if _vc.isalpha(): _via_city = _vc
-                        _skip_via = False
-                        _prev_word = _w
-                        continue
-                    _clean = _w.strip('.,!?-')
-                    if len(_clean) >= 3 and _clean.isalpha():
-                        _all_words.append(_clean)
-                    _prev_word = _w
-                _stop = {'din','day','days','trip','tour','plan','budget','hajar','thousand','and','the','for','with','from','via','to','ka','ki','ke','mein','tak','se','aur','start','date','jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec','january','february','march','april','june','july','august','september','october','november','december','adventure','couple','family','solo','group','honeymoon','circuit','road','night','nights','silver','gold','bronze','diamond','platinum',
-                         # Hindi common words
-                         'poora','pura','sara','sab','kuch','wala','wali','lack','lakh','crore','rupee','rupees','inr',
-                         # English trip-related words
-                         'best','good','nice','great','full','complete','entire','whole','budget','cheap','luxury','moderate',
-                         'child','children','kids','baby','infant','senior','elder','adult','person','people','member',
-                         'night','nights','hotel','flight','train','bus','taxi','cab','tour','trip','travel','visit',
-                         'with','without','need','want','like','love','enjoy','plan','book','cost','price','cheap','free',
-                         'north','south','east','west','central','upper','lower','near','around','inside','outside'}
-                _big_cities = {'kolkata','mumbai','delhi','bangalore','bengaluru','chennai','hyderabad','pune','ahmedabad','surat','lucknow','nagpur','indore','bhopal','patna','ranchi','guwahati','jaipur','kanpur','chandigarh'}
-                if _from_city:
-                    _big_cities.add(_from_city)
-                _dest_list = [w for w in _all_words if w not in _stop and w not in _big_cities and len(w) >= 4 and w.isalpha()]
+                # Use Claude Haiku to extract destinations — no hardcoding, any language
+                _api_key = os.getenv("ANTHROPIC_API_KEY", "")
+                _extracted = await extract_trip_info(req.free_text, _api_key)
+
+                _from_city = _extracted.get("from_city", "").lower().strip()
+                _via_city = _extracted.get("via_city", "").lower().strip()
+                _dest_list = [d.lower().strip() for d in _extracted.get("destinations", []) if d.strip()]
+
+                # Fallback: if Claude extraction failed, use regex
                 if not _dest_list:
-                    _dest_list = [w for w in _all_words if w not in _stop and len(w) >= 4 and w.isalpha()]
-                # Validate destinations — only words that appear near numbers/din/days
-                # e.g. "Shimla 2 din" or "2 days Shimla" — real destination pattern
-                import re as _re2
-                _raw_lower = req.free_text.lower()
-                # Find words that appear near day/din/number patterns
-                _dest_candidates = set()
-                _near_number = _re2.findall(r'(\w+)\s+\d+\s*(?:din|day|days|night|nights)|(\d+)\s*(?:din|day|days)\s+(\w+)', _raw_lower)
-                for _match in _near_number:
-                    for _word in _match:
-                        if _word and len(_word) >= 4 and _word.isalpha():
-                            _dest_candidates.add(_word)
+                    logger.warning("Claude extraction failed — using regex fallback")
+                    _words = req.free_text.lower().replace(',', ' ').replace('—', ' ').replace('→', ' ').split()
+                    _all_words = []
+                    _skip_next = False
+                    _prev_word = ""
+                    for _w in _words:
+                        if _w in ('from',):
+                            _skip_next = True; _prev_word = _w; continue
+                        if _w == 'se':
+                            if _prev_word and _prev_word.isalpha():
+                                _from_city = _prev_word.strip('.,')
+                            _prev_word = _w; continue
+                        if _skip_next:
+                            _fc = _w.strip('.,')
+                            if _fc.isalpha(): _from_city = _fc
+                            _skip_next = False; _prev_word = _w; continue
+                        _clean = _w.strip('.,!?-')
+                        if len(_clean) >= 3 and _clean.isalpha():
+                            _all_words.append(_clean)
+                        _prev_word = _w
+                    _stop = {'din','day','days','trip','tour','plan','budget','solo','group','from',
+                             'start','date','travel','hotel','flight','train','night','nights',
+                             'couple','family','child','kids','people','total','there','and','the',
+                             'for','with','via','north','south','east','west','january','february',
+                             'march','april','may','june','july','august','september','october',
+                             'november','december','silver','gold','bronze','diamond','platinum'}
+                    # Only exclude metro hubs that are RARELY destinations themselves
+                    # (removed pune — it's a popular weekend destination too)
+                    _big = {'kolkata','mumbai','delhi','bangalore','bengaluru','chennai',
+                            'hyderabad','ahmedabad','surat','lucknow','nagpur',
+                            'indore','bhopal','patna','ranchi','guwahati','kanpur','chandigarh'}
+                    if _from_city: _big.add(_from_city)
+                    _dest_list = [w for w in _all_words if w not in _stop and w not in _big and len(w) >= 3]
 
-                _invalid_dests = []
-                _valid_count = 0
-                for _d in _dest_list[:4]:
-                    # Only validate if word appears as destination candidate (near number)
-                    if _d not in _dest_candidates and len(_dest_candidates) > 0:
-                        _valid_count += 1
-                        continue
-                    _sugg = suggest_destination(_d)
-                    if _sugg and _sugg.lower() != _d.lower():
-                        _invalid_dests.append((_d, _sugg))
-                    else:
-                        _valid_count += 1
-
-                if _invalid_dests:
-                    _sugg_msg = " | ".join([f"did you mean '{s}' instead of '{d}'?" for d,s in _invalid_dests])
-                    if _valid_count == 0:
-                        raise HTTPException(status_code=400, detail=f"We couldn't find that destination. {_sugg_msg} Please try again with the correct name.")
-                    else:
-                        for _d, _s in _invalid_dests:
-                            _dest_list = [_s.lower() if x == _d else x for x in _dest_list]
-                        _seen = set()
-                        _dedup = []
-                        for _x in _dest_list:
-                            if _x not in _seen:
-                                _seen.add(_x)
-                                _dedup.append(_x)
-                        _dest_list = _dedup
-                        logger.warning(f"Auto-corrected: {_invalid_dests}")
+                # Deduplicate preserving order
+                _seen = set()
+                _dedup = []
+                for _x in _dest_list:
+                    if _x not in _seen:
+                        _seen.add(_x)
+                        _dedup.append(_x)
+                _dest_list = _dedup
+                logger.warning(f"Trip extracted — from={_from_city} via={_via_city} dests={_dest_list[:5]}")
 
                 if _dest_list:
                     # Fetch for each destination separately (circuit support)
