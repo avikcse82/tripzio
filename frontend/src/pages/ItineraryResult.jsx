@@ -71,6 +71,62 @@ const isCircuit = (data) => {
     (data.circuit_legs && data.circuit_legs.length > 1)
 }
 
+// ── Shared train card — used in BOTH circuit and single-destination
+// views. Single source of truth so the availability button (or any
+// future train-card change) only ever needs to be added ONE place.
+function TrainCard({ opt, isExpanded, onToggle, colorIndex = 0, colors, bgs, borders, icons }) {
+  return (
+    <div className="transport-card"
+      style={{ background: 'white', border: `1.5px solid ${isExpanded ? colors[colorIndex % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+      onClick={onToggle}>
+      <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: bgs[colorIndex % 3], border: `1px solid ${borders[colorIndex % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors[colorIndex % 3] }}>
+            {icons[colorIndex % 3]}
+          </div>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>{opt.operator || opt.mode}</div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>{opt.description}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '16px', fontWeight: '800', color: colors[colorIndex % 3] }}>{opt.estimated_cost?.split('|')[0]?.trim() || opt.estimated_cost}</div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.duration}</div>
+          </div>
+          {isExpanded ? <ChevronUp size={15} color="#94a3b8" /> : <ChevronDown size={15} color="#94a3b8" />}
+        </div>
+      </div>
+      {isExpanded && (
+        <div style={{ padding: '0 18px 16px', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {opt.details?.map((step, j) => (
+              <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: bgs[colorIndex % 3], border: `1.5px solid ${colors[colorIndex % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800', color: colors[colorIndex % 3], flexShrink: 0, marginTop: '1px' }}>{j + 1}</div>
+                <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{step}</span>
+              </div>
+            ))}
+            {opt.booking_tip && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px', marginTop: '4px' }}>
+                <Info size={13} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
+                <span style={{ fontSize: '12px', color: '#92400e', fontWeight: '500' }}>{opt.booking_tip}</span>
+              </div>
+            )}
+            {opt.check_availability_url && (
+              <a href={opt.check_availability_url} target="_blank" rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '8px', padding: '9px 14px', background: '#0f172a', color: 'white', borderRadius: '10px', fontSize: '12px', fontWeight: '700', textDecoration: 'none' }}>
+                🚂 Check Live Seat Availability →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 export default function ItineraryResult() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -1214,6 +1270,13 @@ export default function ItineraryResult() {
                                             {opt.details?.slice(0,2).map((d, j) => (
                                               <div key={j} style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>→ {d}</div>
                                             ))}
+                                            {opt.check_availability_url && (
+                                              <a href={opt.check_availability_url} target="_blank" rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '6px', padding: '6px 11px', background: '#0f172a', color: 'white', borderRadius: '8px', fontSize: '11px', fontWeight: '700', textDecoration: 'none' }}>
+                                                🚂 Check Live Seat Availability →
+                                              </a>
+                                            )}
                                           </div>
                                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                             <div style={{ fontSize: '13px', fontWeight: '800', color: '#0d9488' }}>{opt.estimated_cost?.split('|')[0]?.trim()}</div>
@@ -1388,46 +1451,10 @@ export default function ItineraryResult() {
                     <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', marginBottom: '14px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>🚆 Getting There</h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
                       {data.transport_options?.map((opt, i) => (
-                        <div key={i} className="transport-card"
-                          style={{ background: 'white', border: `1.5px solid ${expandedTransport === i ? transportColors[i % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
-                          onClick={() => setExpandedTransport(expandedTransport === i ? -1 : i)}>
-                          <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: transportBgs[i % 3], border: `1px solid ${transportBorders[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: transportColors[i % 3] }}>
-                                {transportIcons[i % 3]}
-                              </div>
-                              <div>
-                                <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.mode}</div>
-                                <div style={{ fontSize: '12px', color: '#64748b' }}>{opt.description}</div>
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: '16px', fontWeight: '800', color: transportColors[i % 3], fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{opt.estimated_cost}</div>
-                                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.duration}</div>
-                              </div>
-                              {expandedTransport === i ? <ChevronUp size={15} color="#94a3b8" /> : <ChevronDown size={15} color="#94a3b8" />}
-                            </div>
-                          </div>
-                          {expandedTransport === i && (
-                            <div style={{ padding: '0 18px 16px', borderTop: '1px solid #f1f5f9' }}>
-                              <div style={{ paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {opt.details?.map((step, j) => (
-                                  <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: transportBgs[i % 3], border: `1.5px solid ${transportColors[i % 3]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800', color: transportColors[i % 3], flexShrink: 0, marginTop: '1px' }}>{j + 1}</div>
-                                    <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{step}</span>
-                                  </div>
-                                ))}
-                                {opt.booking_tip && (
-                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px', marginTop: '4px' }}>
-                                    <Info size={13} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
-                                    <span style={{ fontSize: '12px', color: '#92400e', fontWeight: '500' }}>{opt.booking_tip}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                        <TrainCard key={i} opt={opt} isExpanded={expandedTransport === i}
+                          onToggle={() => setExpandedTransport(expandedTransport === i ? -1 : i)}
+                          colorIndex={i} colors={transportColors} bgs={transportBgs}
+                          borders={transportBorders} icons={transportIcons} />
                       ))}
                     </div>
                     {data.local_transport && (

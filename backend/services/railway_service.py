@@ -21,7 +21,8 @@ _CACHE_TTL = 86400
 # Monthly API call protection
 _CALL_LOG = []
 _MONTHLY_LIMIT = 450
-_QUOTA_EXCEEDED = False  # Set to True when 429 received — skip irctc27 for rest of month
+_QUOTA_EXCEEDED = False
+print("🔥🔥🔥 RAILWAY_SERVICE LOADED — VERSION WITH STATION CODE FIX 🔥🔥🔥")  # Set to True when 429 received — skip irctc27 for rest of month
 
 def _can_make_api_call() -> bool:
     """Check if we can make an API call this month"""
@@ -39,6 +40,7 @@ def _can_make_api_call() -> bool:
 def _log_api_call():
     _CALL_LOG.append(__import__("time").time())
     remaining = _MONTHLY_LIMIT - len(_CALL_LOG)
+    print(f"RAILWAY API CALLS: {len(_CALL_LOG)}/{_MONTHLY_LIMIT} ({remaining} remaining)")
 
 # Multiple source stations for major cities
 MULTI_STATION_CITIES = {
@@ -253,6 +255,15 @@ async def get_trains_between_stations(from_city: str, to_city: str) -> list:
         if not _can_make_api_call():
             break
         trains = await _fetch_trains(fc, to_code)
+        # Always attach the EXACT station codes queried for THIS leg — guarantees
+        # check_availability_url can be built downstream regardless of whether
+        # IRCTC27 or erail.in provided the raw data (IRCTC27's response format
+        # doesn't include these fields natively). Uses 'fc' (per-iteration source
+        # station, e.g. SDAH not just HWH for multi-station cities like Kolkata).
+        for _t in trains:
+            _t.setdefault("fromStnCode", fc)
+            _t.setdefault("toStnCode", to_code)
+        print(f"🔥 STATION CODES STAMPED: {len(trains)} trains, fromStnCode={fc}, toStnCode={to_code}")
         all_trains.extend(trains)
 
     # Deduplicate by train number
@@ -298,10 +309,14 @@ async def _fetch_trains(from_code: str, to_code: str) -> list:
                 }
             )
 
+            print(f"RAILWAY API: {from_code}→{to_code} status={response.status_code}")
             data = response.json()
+            print(f"RAILWAY RAW KEYS: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+            print(f"RAILWAY RAW SAMPLE: {str(data)[:300]}")
 
             if response.status_code == 429:
                 _QUOTA_EXCEEDED = True
+                print(f"RAILWAY QUOTA EXCEEDED — switching to erail.in permanently this month")
                 return await _fetch_trains_erail(from_code, to_code)
             if response.status_code != 200:
                 logger.error(f"RapidAPI error: {data}")
@@ -322,6 +337,7 @@ async def _fetch_trains(from_code: str, to_code: str) -> list:
                 )
 
             logger.info(f"Live trains: {len(trains)} for {from_code}→{to_code}")
+            print(f"RAILWAY TRAINS FOUND: {len(trains)}")
             if trains:
                 print(f"RAILWAY TRAIN KEYS: {list(trains[0].keys()) if isinstance(trains[0], dict) else trains[0]}")
             _TRAIN_CACHE[cache_key] = (time.time(), trains)
@@ -329,6 +345,7 @@ async def _fetch_trains(from_code: str, to_code: str) -> list:
 
     except Exception as e:
         logger.error(f"Railway API error: {e}")
+        print(f"RAILWAY ERROR: {e} — trying erail.in fallback")
         return await _fetch_trains_erail(from_code, to_code)
 
 
@@ -392,6 +409,7 @@ async def _fetch_trains_erail(from_code: str, to_code: str) -> list:
     if cache_key in _TRAIN_CACHE:
         ts, data = _TRAIN_CACHE[cache_key]
         if time.time() - ts < _CACHE_TTL:
+            print(f"ERAIL CACHE HIT: {from_code}→{to_code}")
             return data
 
     try:
@@ -408,6 +426,7 @@ async def _fetch_trains_erail(from_code: str, to_code: str) -> list:
             response = await client.get(url, params=params, headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             })
+            print(f"ERAIL: {from_code}→{to_code} status={response.status_code}")
 
             if response.status_code != 200:
                 return []
@@ -444,10 +463,12 @@ async def _fetch_trains_erail(from_code: str, to_code: str) -> list:
                     "avlClasses":    ["SL", "3A", "2A", "1A"],
                 })
 
+            print(f"ERAIL TRAINS: {len(trains)} for {from_code}→{to_code}")
             if trains:
                 _TRAIN_CACHE[cache_key] = (time.time(), trains)
             return trains
 
     except Exception as e:
+        print(f"ERAIL ERROR: {e}")
         logger.error(f"erail.in fallback error: {e}")
         return []

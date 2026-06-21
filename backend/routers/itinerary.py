@@ -169,14 +169,16 @@ Rules:
                 }
             )
         if _er.status_code != 200:
+            logger.warning(f"Haiku extraction HTTP {_er.status_code}: {_er.text[:300]}")
             return {}
         _et = _er.json()["content"][0]["text"].strip()
         _es = _et.find("{"); _ee = _et.rfind("}") + 1
         if _es >= 0 and _ee > _es:
             return json.loads(_et[_es:_ee])
+        logger.warning(f"Haiku extraction returned no valid JSON: {_et[:200]}")
         return {}
     except Exception as _ex:
-        logger.warning(f"Trip info extraction failed: {_ex}")
+        logger.warning(f"Trip info extraction failed: {type(_ex).__name__}: {_ex}")
         return {}
 
 
@@ -594,7 +596,8 @@ async def call_openai(prompt: str) -> dict:
                 try:
                     error_detail = json.loads(error_text).get("error", {}).get("message", "Anthropic API error")
                 except Exception:
-                    error_detail = "Anthropic API error"
+                    error_detail = error_text.decode("utf-8", errors="ignore")[:300] if error_text else "Anthropic API error"
+                logger.error(f"Claude Sonnet API failed [{response.status_code}]: {error_detail}")
                 raise HTTPException(status_code=503, detail="Our AI travel planner is temporarily unavailable. Please try again in a moment.")
 
             async for line in response.aiter_lines():
@@ -664,13 +667,16 @@ async def call_openai(prompt: str) -> dict:
             raise HTTPException(status_code=500, detail="We're having trouble generating your plan right now. Please try again.")
 
 
-def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None) -> dict:
+def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None, train_dest_city: str = None) -> dict:
     """Enforce rules deterministically after AI response — runs every time."""
     if not data or not isinstance(data, dict):
         return data
 
     import re as _re
-    dest = data.get("destination", "destination").split("→")[-1].strip().split(":")[0].strip()
+    # Use the REAL city trains were fetched for (if provided) — fixes mislabeled
+    # train descriptions in multi-city circuits (e.g. "Sikkim" trains that were
+    # actually fetched for "Darjeeling"). Falls back to old behavior if not passed.
+    dest = (train_dest_city or data.get("destination", "destination").split("→")[-1].strip().split(":")[0]).strip()
     from_city = (from_city or data.get("from_city", "")).strip()
 
     # ── Inject cached trains — replace AI trains with real data ──
@@ -678,7 +684,7 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
         opts = data.get("transport_options", [])
         # Keep only non-train options (bus, taxi, flight) from AI
         non_train_opts = [o for o in opts if "train" not in (o.get("type","") + o.get("mode","")).lower()]
-        # Build real trains from cache — top 8, deduplicated
+        # Build real trains from cache — ALL available, deduplicated by train number
         seen_nums = set()
         real_trains = []
         for t in cached_trains:
@@ -690,6 +696,9 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
             dep  = t.get("departureTime", t.get("departure_time", "")).strip()
             arr  = t.get("arrivalTime",   t.get("arrival_time",   "")).strip()
             dur  = t.get("duration", "").strip()
+            from_stn = (t.get("fromStnCode", "") or "").strip()
+            to_stn   = (t.get("toStnCode", "") or "").strip()
+            check_url = f"https://erail.in/trains-between-stations/{from_stn}/{to_stn}" if from_stn and to_stn else None
             real_trains.append({
                 "mode":           f"Train — {name} ({num})",
                 "type":           "Train",
@@ -705,6 +714,7 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
                 "train_number":   num,
                 "departure":      dep,
                 "arrival":        arr,
+                "check_availability_url": check_url,
             })
 
         # Replace: real trains first, then bus/taxi
@@ -969,6 +979,56 @@ def get_current_user_from_token(credentials: HTTPAuthorizationCredentials = Depe
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+
+class CityCheckRequest(BaseModel):
+    city: str
+
+
+@router.post("/check-city")
+async def check_city(req: CityCheckRequest, current_user: dict = Depends(get_current_user_from_token)):
+    """Lightweight Haiku-powered check: is this a real Indian city/town?
+    Used for instant departure-city validation while typing — replaces
+    a static hardcoded city list with accurate AI judgement.
+    Cheap: Haiku, ~15 tokens response, designed to be debounced client-side."""
+    city = (req.city or "").strip()
+    if len(city) < 3:
+        return {"valid": True, "suggestion": None}  # too short to judge — don't block typing
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {"valid": True, "suggestion": None}  # fail open — never block user on our error
+
+    prompt = f"""Is "{city}" a real city, town, or place in India (including small towns)?
+Respond with ONLY a JSON object, nothing else:
+{{"valid": true or false, "suggestion": "corrected spelling if you're confident it's a typo, else null"}}
+
+Be lenient — if it could plausibly be a real Indian place name, say valid: true.
+Only say valid: false if it's clearly not a place (e.g. a random word, a different country's city)."""
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 60,
+                    "temperature": 0.0,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+            )
+        if r.status_code != 200:
+            return {"valid": True, "suggestion": None}  # fail open
+        text = r.json()["content"][0]["text"].strip()
+        s = text.find("{"); e = text.rfind("}") + 1
+        if s >= 0 and e > s:
+            result = json.loads(text[s:e])
+            return {"valid": bool(result.get("valid", True)), "suggestion": result.get("suggestion")}
+        return {"valid": True, "suggestion": None}
+    except Exception as ex:
+        logger.warning(f"check-city failed for '{city}': {ex}")
+        return {"valid": True, "suggestion": None}  # fail open — never block user on our error
 
 
 @router.post("/generate")
@@ -1506,7 +1566,9 @@ RULES:
                              'couple','family','child','kids','people','total','there','and','the',
                              'for','with','via','north','south','east','west','january','february',
                              'march','april','may','june','july','august','september','october',
-                             'november','december','silver','gold','bronze','diamond','platinum'}
+                             'november','december','silver','gold','bronze','diamond','platinum',
+                             'one','two','three','four','five','six','seven','eight','nine','ten',
+                             'this','that','have','will','also','our','your','some'}
                     # Only exclude metro hubs that are RARELY destinations themselves
                     # (removed pune — it's a popular weekend destination too)
                     _big = {'kolkata','mumbai','delhi','bangalore','bengaluru','chennai',
@@ -1543,37 +1605,30 @@ RULES:
                     # SerpAPI context NOT sent to Claude — post-processor attaches hotels directly
                     # This keeps prompt lean and Claude fast
                     # Fetch live trains — including via city leg
+                    # NOTE: We are a travel app — show customers ALL real trains
+                    # available, not an artificially trimmed subset. Train context
+                    # is never sent to Claude (post-processor injects directly),
+                    # so there is no prompt-size reason to cap the list anymore.
                     try:
-                        from services.railway_service import get_trains_between_stations, build_train_context as _btc2
+                        from services.railway_service import get_trains_between_stations
                         _ltrains = []
-                        _train_contexts = []
 
-                        # Leg 1: from_city → via_city (top 5 trains only)
+                        # Leg 1: from_city → via_city — ALL available trains
                         if _from_city and _via_city:
                             _leg1 = await get_trains_between_stations(_from_city, _via_city)
                             if _leg1:
-                                _ltrains.extend(_leg1[:5])
-                                _t1 = _btc2(_from_city, _via_city, _leg1[:5])
-                                if _t1: _train_contexts.append(_t1)
+                                _ltrains.extend(_leg1)
 
-                        # Leg 2: via_city → first destination (top 3 trains only)
+                        # Leg 2: via_city → first destination — ALL available trains
                         _leg_from = _via_city if _via_city else _from_city
                         if _leg_from and _dest_list:
                             _leg2 = await get_trains_between_stations(_leg_from, _dest_list[0])
                             if _leg2:
-                                _ltrains.extend(_leg2[:3])
-                                _t2 = _btc2(_leg_from, _dest_list[0], _leg2[:3])
-                                if _t2: _train_contexts.append(_t2)
+                                _ltrains.extend(_leg2)
 
-                        # Fallback: direct if no via
+                        # Fallback: direct if no via — ALL available trains
                         if not _ltrains and _from_city and _dest_list:
                             _ltrains = await get_trains_between_stations(_from_city, _dest_list[0])
-                            if _ltrains:
-                                _t3 = _btc2(_from_city, _dest_list[0], _ltrains[:5])
-                                if _t3: _train_contexts.append(_t3)
-
-                        if _train_contexts:
-                            pass  # Train context NOT sent to Claude — post-processor injects trains directly
                     except Exception as _lte:
                         logger.warning(f"Live train custom skip: {_lte}")
                     # Hotels stored in _all_city_hotels per city
@@ -1586,6 +1641,12 @@ RULES:
         if _child_instructions:
             prompt = prompt + _child_instructions
 
+        # Inject confirmed from_city — always, regardless of via city —
+        # so Sonnet doesn't have to re-guess it from raw text (fixes
+        # "Not specified" from_city bug for simple non-via trips)
+        if '_from_city' in locals() and _from_city:
+            prompt = prompt + f"\n\nCONFIRMED DEPARTURE CITY: {_from_city.title()}\nUse this EXACT city as 'from_city' in your JSON response — do not leave it blank or guess differently."
+
         # Inject via city instruction if detected
         if '_via_city' in locals() and _via_city:
             via_instruction = f"""\n\nVIA CITY ROUTING INSTRUCTION:
@@ -1597,6 +1658,13 @@ Do NOT show direct source→destination if via city is specified."""
             prompt = prompt + via_instruction
 
         ai_response = await call_openai(prompt)
+
+        # Safety override: if Sonnet still didn't fill from_city correctly,
+        # use our independently-confirmed extraction (guaranteed accurate)
+        if '_from_city' in locals() and _from_city:
+            _current_fc = (ai_response.get("from_city", "") or "").strip().lower()
+            if not _current_fc or _current_fc in ("not specified", "n/a", "none", "unknown"):
+                ai_response["from_city"] = _from_city.title()
 
         # Try to get weather for main destination
         try:
@@ -1646,12 +1714,14 @@ Do NOT show direct source→destination if via city is specified."""
             ai_response['start_date'] = req.start_date
 
         _cached_trains_for_post = locals().get('_ltrains', None)
+        _train_dest_for_post = _dest_list[0] if '_dest_list' in locals() and _dest_list else None
         ai_response = post_process_itinerary(
             ai_response,
             budget=ai_response.get("budget", 0),
             from_city=ai_response.get("from_city", ""),
             plan_tier=ai_response.get("plan_tier", "silver"),
-            cached_trains=_cached_trains_for_post
+            cached_trains=_cached_trains_for_post,
+            train_dest_city=_train_dest_for_post
         )
 
         # Store per-city hotels in response — each city gets its own list
