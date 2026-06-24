@@ -580,13 +580,20 @@ async def call_openai(prompt: str) -> dict:
             headers={
                 "x-api-key": api_key,
                 "anthropic-version": "2023-06-01",
+                "anthropic-beta": "prompt-caching-2024-07-31",
                 "Content-Type": "application/json"
             },
             json={
                 "model": "claude-sonnet-4-5",
                 "max_tokens": _max_tokens,
                 "stream": True,
-                "system": "You are Tripzio's expert Indian travel AI. Generate accurate, budget-appropriate travel itineraries for Indian destinations. Deep knowledge of Indian railways, hill stations, permits, acclimatization, multi-leg routes. Always use real train names and numbers. Keep descriptions concise — 1 sentence max per field. Respond with valid JSON only — no markdown, no explanation.",
+                "system": [
+                    {
+                        "type": "text",
+                        "text": "You are Tripzio's expert Indian travel AI. Generate accurate, budget-appropriate travel itineraries for Indian destinations. Deep knowledge of Indian railways, hill stations, permits, acclimatization, multi-leg routes. Always use real train names and numbers. Keep descriptions concise — 1 sentence max per field. Respond with valid JSON only — no markdown, no explanation.",
+                        "cache_control": {"type": "ephemeral"}
+                    }
+                ],
                 "temperature": 0.4,
                 "messages": [{"role": "user", "content": prompt}]
             }
@@ -633,12 +640,12 @@ async def call_openai(prompt: str) -> dict:
                 async with _rc.stream(
                     "POST",
                     "https://api.anthropic.com/v1/messages",
-                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "anthropic-beta": "prompt-caching-2024-07-31", "Content-Type": "application/json"},
                     json={
                         "model": "claude-sonnet-4-5",
                         "max_tokens": 16000,
                         "stream": True,
-                        "system": "You are Tripzio's expert Indian travel AI. Respond with valid JSON only.",
+                        "system": [{"type": "text", "text": "You are Tripzio's expert Indian travel AI. Respond with valid JSON only.", "cache_control": {"type": "ephemeral"}}],
                         "messages": [{"role": "user", "content": prompt}]
                     }
                 ) as _rr:
@@ -684,7 +691,7 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
         opts = data.get("transport_options", [])
         # Keep only non-train options (bus, taxi, flight) from AI
         non_train_opts = [o for o in opts if "train" not in (o.get("type","") + o.get("mode","")).lower()]
-        # Build real trains from cache — ALL available, deduplicated by train number
+        # Build real trains from cache — top 8, deduplicated
         seen_nums = set()
         real_trains = []
         for t in cached_trains:
@@ -1605,30 +1612,37 @@ RULES:
                     # SerpAPI context NOT sent to Claude — post-processor attaches hotels directly
                     # This keeps prompt lean and Claude fast
                     # Fetch live trains — including via city leg
-                    # NOTE: We are a travel app — show customers ALL real trains
-                    # available, not an artificially trimmed subset. Train context
-                    # is never sent to Claude (post-processor injects directly),
-                    # so there is no prompt-size reason to cap the list anymore.
                     try:
-                        from services.railway_service import get_trains_between_stations
+                        from services.railway_service import get_trains_between_stations, build_train_context as _btc2
                         _ltrains = []
+                        _train_contexts = []
 
-                        # Leg 1: from_city → via_city — ALL available trains
+                        # Leg 1: from_city → via_city (top 5 trains only)
                         if _from_city and _via_city:
                             _leg1 = await get_trains_between_stations(_from_city, _via_city)
                             if _leg1:
-                                _ltrains.extend(_leg1)
+                                _ltrains.extend(_leg1[:5])
+                                _t1 = _btc2(_from_city, _via_city, _leg1[:5])
+                                if _t1: _train_contexts.append(_t1)
 
-                        # Leg 2: via_city → first destination — ALL available trains
+                        # Leg 2: via_city → first destination (top 3 trains only)
                         _leg_from = _via_city if _via_city else _from_city
                         if _leg_from and _dest_list:
                             _leg2 = await get_trains_between_stations(_leg_from, _dest_list[0])
                             if _leg2:
-                                _ltrains.extend(_leg2)
+                                _ltrains.extend(_leg2[:3])
+                                _t2 = _btc2(_leg_from, _dest_list[0], _leg2[:3])
+                                if _t2: _train_contexts.append(_t2)
 
-                        # Fallback: direct if no via — ALL available trains
+                        # Fallback: direct if no via
                         if not _ltrains and _from_city and _dest_list:
                             _ltrains = await get_trains_between_stations(_from_city, _dest_list[0])
+                            if _ltrains:
+                                _t3 = _btc2(_from_city, _dest_list[0], _ltrains[:5])
+                                if _t3: _train_contexts.append(_t3)
+
+                        if _train_contexts:
+                            pass  # Train context NOT sent to Claude — post-processor injects trains directly
                     except Exception as _lte:
                         logger.warning(f"Live train custom skip: {_lte}")
                     # Hotels stored in _all_city_hotels per city

@@ -95,11 +95,11 @@ const transportModes = [
 
 // Sample prompts to inspire users
 const SAMPLE_PROMPTS = [
-  { lang: 'English', text: '5 days Shimla and Manali circuit from Delhi, budget ₹25,000, couple trip in May' },
-  { lang: 'Hindi', text: 'Kolkata se 7 din ka trip — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, budget 35 hajar, adventure trip' },
-  { lang: 'Mixed', text: 'Delhi to Kerala road trip — Ooty 2 days, Munnar 3 days, Alleppey backwaters 2 days, family of 4, gold tier' },
-  { lang: 'English', text: 'Northeast circuit — Shillong 2 days, Cherrapunji 1 day, Mawlynnong 1 day from Kolkata, ₹15,000 solo' },
-  { lang: 'Hindi', text: 'Rajasthan ka poora tour — Jaipur 2 din, Jodhpur 2 din, Jaisalmer 3 din, Udaipur 2 din, Delhi se, budget 40 hajar' },
+  { lang: 'English', text: '5 days Shimla and Manali circuit from Delhi, budget ₹25,000, couple trip, starting May 10' },
+  { lang: 'Hindi', text: 'Kolkata se 7 din ka trip — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, budget 35 hajar, adventure trip, October mein' },
+  { lang: 'Mixed', text: 'Delhi to Kerala road trip — Ooty 2 days, Munnar 3 days, Alleppey backwaters 2 days, family of 4, gold tier, starting December 22' },
+  { lang: 'English', text: 'Northeast circuit — Shillong 2 days, Cherrapunji 1 day, Mawlynnong 1 day from Kolkata, ₹15,000 solo, March' },
+  { lang: 'Hindi', text: 'Rajasthan ka poora tour — Jaipur 2 din, Jodhpur 2 din, Jaisalmer 3 din, Udaipur 2 din, Delhi se, budget 40 hajar, November mein' },
 ]
 
 const getSeasonFromDate = (d) => {
@@ -170,6 +170,7 @@ export default function UserDashboard() {
   const [customCharCount, setCustomCharCount] = useState(0)
   const [showSamples, setShowSamples] = useState(false)
   const customTextRef = useRef(null)
+  const genStepIntervalRef = useRef(null)
 
   // Shared
   const [generating, setGenerating] = useState(false)
@@ -256,11 +257,9 @@ export default function UserDashboard() {
     if (!valid) return
     setGenerating(true)
     setGenStep(0)
-    const stepInterval = setInterval(() => {
+    genStepIntervalRef.current = setInterval(() => {
       setGenStep(p => p < 6 ? p + 1 : p)
     }, 4000)
-    // Store interval ref to clear later
-    window._genStepInterval = stepInterval
 
     try {
       const token = localStorage.getItem('tripzio_token')
@@ -277,6 +276,8 @@ export default function UserDashboard() {
           if (customData?.detail?.code === 'INTERNATIONAL_DESTINATION') {
             toast.error('Tripzio supports Indian destinations only. International coming soon! 🌍', { duration: 5000 })
             setIntlWarning(true)
+            clearInterval(genStepIntervalRef.current)
+            setGenerating(false)
             return
           }
           throw new Error(customData?.detail || 'Generation failed')
@@ -330,6 +331,7 @@ export default function UserDashboard() {
         toast.error(err.message || 'Something went wrong. Please try again.')
       }
     } finally {
+      clearInterval(genStepIntervalRef.current)
       setGenerating(false)
     }
   }
@@ -923,7 +925,7 @@ export default function UserDashboard() {
                       const cityWord = fm?.[1] || sm?.[1] || ''
                       checkCityWithAI(cityWord)
                     }}
-                    placeholder={`अपना सपनों का सफर बताइए...\n\nExamples:\n• "5 days Shimla + Manali from Delhi, ₹25,000, couple trip"\n• "Kolkata se 7 din — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, adventure"\n• "Kerala road trip — Munnar 2 days, Alleppey 2 days, Kovalam 2 days, family of 4, ₹40,000"`}
+                    placeholder={`अपना सपनों का सफर बताइए...\n\nExamples:\n• "5 days Shimla + Manali from Delhi, ₹25,000, couple trip, starting May 10"\n• "Kolkata se 7 din — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, October mein"\n• "Kerala road trip — Munnar 2 days, Alleppey 2 days, Kovalam 2 days, family of 4, ₹40,000, December"`}
                     style={{ width: '100%', minHeight: '180px', padding: '16px', background: '#f8fafc', border: `1.5px solid ${customText.length > 0 ? '#0d9488' : '#e2e8f0'}`, borderRadius: '16px', color: '#0f172a', fontSize: '14px', fontFamily: 'Inter, sans-serif', outline: 'none', resize: 'vertical', lineHeight: 1.7, transition: 'border 0.2s' }}
                   />
                   <div style={{ position: 'absolute', bottom: '12px', right: '14px', fontSize: '11px', color: customCharCount > 500 ? '#ef4444' : '#94a3b8', fontWeight: '500' }}>

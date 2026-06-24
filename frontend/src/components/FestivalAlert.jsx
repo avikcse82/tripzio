@@ -27,6 +27,13 @@ export default function FestivalAlert({ destination, startDate, days, compact = 
       return
     }
 
+    // Do not fetch or display festivals if no travel date is provided —
+    // showing "upcoming" festivals without a date erodes credibility.
+    if (!startDate) {
+      setFestivals([])
+      return
+    }
+
     if (abortRef.current) abortRef.current.abort()
     abortRef.current = new AbortController()
 
@@ -54,7 +61,7 @@ export default function FestivalAlert({ destination, startDate, days, compact = 
   }, [destination, startDate, days])
 
   const visible = festivals.filter(f => !dismissed.includes(f.name))
-  if (!destination || visible.length === 0) return null
+  if (!destination || !startDate || visible.length === 0) return null
 
   const top   = visible[0]
   const style = urgencyStyle(top.price_impact)
