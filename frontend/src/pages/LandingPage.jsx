@@ -50,18 +50,95 @@ const HOW_IT_WORKS = [
   { step: '03', title: 'Share or export', desc: 'Share a beautiful link with family. Download a branded PDF. Send via WhatsApp. Your plan, your way.', icon: '📤' },
 ]
 
+// ── Typewriter prompts — cycles through real examples in all 3 languages ──
+const TYPEWRITER_PROMPTS = [
+  { text: '5 days Shimla + Manali from Delhi, ₹25,000, couple, May 10', lang: 'English' },
+  { text: 'Kolkata se 7 din — Darjeeling 3 din, Gangtok 4 din, October mein, budget 20 hajar', lang: 'Hindi' },
+  { text: 'Goa beach trip — 5 din, December 20, couple, ₹30,000, North Goa beaches', lang: 'Mixed' },
+  { text: 'Northeast circuit — Shillong 2 days, Cherrapunji 1 day, solo, ₹15,000, March', lang: 'English' },
+  { text: 'Rajasthan poora tour — Jaipur 2 din, Jodhpur 2 din, Jaisalmer 3 din, November, budget 40 hajar', lang: 'Hindi' },
+]
+
+// ── Sample plans for each language tab in the teaser card ────────────────
+const SAMPLE_PLANS = {
+  english: {
+    destination: 'Darjeeling → Gangtok Circuit',
+    days: 5, budget: '₹18,000', from: 'Kolkata',
+    days_plan: [
+      { day: 1, title: 'Arrival in Darjeeling', plan: 'NJP → taxi to Darjeeling. Mall Road, momos at Glenary\'s. Observatory Hill sunset.' },
+      { day: 2, title: 'Tiger Hill & Heritage', plan: '4AM Tiger Hill sunrise, Batasia Loop, HMI Museum, Peace Pagoda, Chowrasta.' },
+      { day: 3, title: 'Toy Train + Transfer', plan: 'Morning Toy Train joyride, drive Gangtok via Teesta River Valley, MG Marg.' },
+    ],
+    totalDays: 5,
+    costs: { transport: '₹5,000', hotels: '₹8,000', food: '₹3,000', total: '₹18,000' },
+    festival: { name: 'Republic Day', note: 'Falls after your trip — consider extending!', emoji: '🇮🇳' },
+  },
+  hindi: {
+    destination: 'Jaipur → Jodhpur → Jaisalmer',
+    days: 7, budget: '₹40,000', from: 'Delhi',
+    days_plan: [
+      { day: 1, title: 'Jaipur pahunch — Hawa Mahal', plan: 'Delhi se train, Jaipur station. Hawa Mahal, Jantar Mantar. Rajasthani thali dinner.' },
+      { day: 2, title: 'Amber Fort aur City Palace', plan: 'Subah Amber Fort elephant ride, City Palace museum, Nahargarh fort sunset.' },
+      { day: 3, title: 'Jodhpur — Neeli Nagri', plan: 'Jaipur se Jodhpur drive. Mehrangarh Fort, Jaswant Thada, Clock Tower bazaar.' },
+    ],
+    totalDays: 7,
+    costs: { transport: '₹8,000', hotels: '₹20,000', food: '₹7,000', total: '₹40,000' },
+    festival: { name: 'Diwali', note: 'November mein — 3 maheene pehle book karo!', emoji: '🪔' },
+  },
+  mixed: {
+    destination: 'Goa Beach Circuit',
+    days: 5, budget: '₹30,000', from: 'Mumbai',
+    days_plan: [
+      { day: 1, title: 'Arrive — North Goa beaches', plan: 'Mumbai se flight. Calangute, Baga beach evening. Seafood dinner at shacks.' },
+      { day: 2, title: 'Old Goa + Anjuna vibes', plan: 'Basilica of Bom Jesus, Anjuna flea market, sunset at Vagator rocks.' },
+      { day: 3, title: 'South Goa — ekdum peaceful', plan: 'Palolem beach — quiet aur clean. Kayaking, dolphin spotting, beach yoga.' },
+    ],
+    totalDays: 5,
+    costs: { transport: '₹6,000', hotels: '₹15,000', food: '₹5,000', total: '₹30,000' },
+    festival: { name: 'Christmas', note: 'Dec 25 — Goa prices 4x, book 2 months ahead!', emoji: '🎄' },
+  },
+}
+
 export default function LandingPage() {
-  const [showDemo, setShowDemo] = useState(false)
+  const [showDemo, setShowDemo]       = useState(false)
   const [activePhoto, setActivePhoto] = useState(0)
-  const [isVisible, setIsVisible] = useState(false)
+  const [isVisible, setIsVisible]     = useState(false)
+  const [activeLang, setActiveLang]   = useState('english')   // language tab on teaser card
+  const [promptIdx, setPromptIdx]     = useState(0)           // which typewriter prompt
+  const [promptChar, setPromptChar]   = useState(0)           // chars revealed so far
+  const [promptPhase, setPromptPhase] = useState('typing')    // 'typing' | 'pause' | 'erasing'
 
   useEffect(() => {
     setIsVisible(true)
-    const interval = setInterval(() => {
+    const photoInterval = setInterval(() => {
       setActivePhoto(p => (p + 1) % DESTINATIONS.length)
     }, 3500)
-    return () => clearInterval(interval)
+    return () => clearInterval(photoInterval)
   }, [])
+
+  // Typewriter engine
+  useEffect(() => {
+    const current = TYPEWRITER_PROMPTS[promptIdx].text
+    let timer
+
+    if (promptPhase === 'typing') {
+      if (promptChar < current.length) {
+        timer = setTimeout(() => setPromptChar(p => p + 1), 38)
+      } else {
+        timer = setTimeout(() => setPromptPhase('pause'), 1800)
+      }
+    } else if (promptPhase === 'pause') {
+      timer = setTimeout(() => setPromptPhase('erasing'), 400)
+    } else if (promptPhase === 'erasing') {
+      if (promptChar > 0) {
+        timer = setTimeout(() => setPromptChar(p => p - 1), 18)
+      } else {
+        setPromptIdx(p => (p + 1) % TYPEWRITER_PROMPTS.length)
+        setPromptPhase('typing')
+      }
+    }
+    return () => clearTimeout(timer)
+  }, [promptChar, promptPhase, promptIdx])
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflowX: 'hidden' }}>
@@ -73,6 +150,7 @@ export default function LandingPage() {
         @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.05);opacity:0.8} }
         @keyframes slideIn { from{transform:translateX(-20px);opacity:0} to{transform:translateX(0);opacity:1} }
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
         .hero-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
         .feature-card:hover { transform: translateY(-6px); box-shadow: 0 24px 48px rgba(0,0,0,0.1) !important; }
         .dest-chip:hover { transform: scale(1.05); }
@@ -231,11 +309,41 @@ export default function LandingPage() {
                 Type your trip in Hindi, English, or mixed. Get a complete day-by-day itinerary with real budgets, festival alerts, and hotel suggestions.
               </p>
 
-              {/* Festival alert preview */}
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '12px', padding: '8px 14px', marginBottom: '36px' }}>
-                <span style={{ fontSize: '16px' }}>🪔</span>
-                <span style={{ fontSize: '12px', color: '#fca5a5', fontWeight: '600' }}>Diwali detected — prices surge everywhere. Book 2 months ahead.</span>
-                <span style={{ background: '#ef4444', color: 'white', fontSize: '9px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px' }}>BOOK NOW</span>
+              {/* ── TYPEWRITER "TRY IT" BOX ──────────────────────── */}
+              <div style={{ marginBottom: '36px', maxWidth: '520px' }}>
+                {/* Language badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '11px', color: '#475569', fontWeight: '600' }}>Understands:</span>
+                  {TYPEWRITER_PROMPTS.map((p, i) => (
+                    <span key={p.lang} style={{
+                      fontSize: '10px', fontWeight: '700', padding: '2px 10px', borderRadius: '20px',
+                      background: promptIdx === i ? 'rgba(14,165,233,0.15)' : 'rgba(255,255,255,0.04)',
+                      color: promptIdx === i ? '#7dd3fc' : '#475569',
+                      border: `1px solid ${promptIdx === i ? 'rgba(14,165,233,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                      transition: 'all 0.3s',
+                      display: ['English','Hindi','Mixed'].includes(p.lang) && TYPEWRITER_PROMPTS.findIndex(x => x.lang === p.lang) === i ? 'inline' : 'none'
+                    }}>{p.lang}</span>
+                  ))}
+                </div>
+
+                {/* Input box simulation */}
+                <div style={{ background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(255,255,255,0.12)', borderRadius: '14px', padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  <span style={{ fontSize: '16px', flexShrink: 0, marginTop: '1px' }}>✍️</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.6, minHeight: '20px', fontFamily: "'Courier New', monospace", letterSpacing: '0.2px' }}>
+                      {TYPEWRITER_PROMPTS[promptIdx].text.slice(0, promptChar)}
+                      <span style={{ display: 'inline-block', width: '2px', height: '14px', background: '#0ea5e9', marginLeft: '1px', verticalAlign: 'middle', animation: 'blink 1s step-end infinite' }} />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Link to="/login"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', background: 'rgba(14,165,233,0.15)', border: '1px solid rgba(14,165,233,0.3)', color: '#7dd3fc', textDecoration: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}>
+                    Generate My Plan <ArrowRight size={12} />
+                  </Link>
+                  <span style={{ fontSize: '11px', color: '#334155' }}>← Try this prompt after signup</span>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '32px' }}>
@@ -244,7 +352,7 @@ export default function LandingPage() {
                   Start Planning Free <ArrowRight size={18} />
                 </Link>
                 <button onClick={() => setShowDemo(true)} className="hero-btn"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 28px', background: 'rgba(255,255,255,0.07)', color: 'white', border: '1.5px solid rgba(255,255,255,0.15)', borderRadius: '14px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 28px', background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', boxShadow: '0 8px 24px rgba(13,148,136,0.35)' }}>
                   👀 See Sample Plan
                 </button>
                 <Link to="/agent/login" className="hero-btn"
@@ -254,6 +362,93 @@ export default function LandingPage() {
               </div>
 
               <p style={{ fontSize: '12px', color: '#475569' }}>Free to sign up · No credit card required · India destinations only</p>
+
+              {/* ── INLINE SAMPLE PLAN TEASER with language tabs ────── */}
+              {(() => {
+                const plan = SAMPLE_PLANS[activeLang]
+                return (
+                  <div style={{ marginTop: '36px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', overflow: 'hidden', maxWidth: '540px' }}>
+
+                    {/* Language tabs */}
+                    <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
+                      {[
+                        { key: 'english', label: '🇬🇧 English', desc: 'Darjeeling circuit' },
+                        { key: 'hindi',   label: '🇮🇳 Hindi',   desc: 'Rajasthan tour' },
+                        { key: 'mixed',   label: '🔀 Hinglish', desc: 'Goa trip' },
+                      ].map(tab => (
+                        <button key={tab.key} onClick={() => setActiveLang(tab.key)}
+                          style={{
+                            flex: 1, padding: '10px 8px', border: 'none', cursor: 'pointer',
+                            fontFamily: 'inherit', background: 'none', transition: 'all 0.2s',
+                            borderBottom: activeLang === tab.key ? '2px solid #0ea5e9' : '2px solid transparent',
+                          }}>
+                          <div style={{ fontSize: '11px', fontWeight: '700', color: activeLang === tab.key ? '#7dd3fc' : '#475569' }}>{tab.label}</div>
+                          <div style={{ fontSize: '9px', color: activeLang === tab.key ? '#94a3b8' : '#334155', marginTop: '2px' }}>{tab.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Card header */}
+                    <div style={{ background: 'linear-gradient(135deg,rgba(13,148,136,0.3),rgba(14,165,233,0.2))', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '16px' }}>🗺️</span>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: '800', color: 'white' }}>{plan.destination}</div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>From {plan.from} · {plan.days} days · {plan.budget}</div>
+                        </div>
+                      </div>
+                      <span style={{ background: 'rgba(14,165,233,0.2)', border: '1px solid rgba(14,165,233,0.3)', color: '#7dd3fc', fontSize: '10px', fontWeight: '800', padding: '3px 10px', borderRadius: '20px', flexShrink: 0 }}>⚡ AI GENERATED</span>
+                    </div>
+
+                    {/* 3 sample days */}
+                    <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {plan.days_plan.map(d => (
+                        <div key={d.day} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                          <div style={{ background: '#0d9488', color: 'white', borderRadius: '6px', padding: '3px 7px', fontSize: '10px', fontWeight: '800', flexShrink: 0, marginTop: '1px' }}>D{d.day}</div>
+                          <div>
+                            <span style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{d.title}</span>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}> — {d.plan.slice(0, 55)}…</span>
+                          </div>
+                        </div>
+                      ))}
+                      <div style={{ fontSize: '11px', color: '#475569', paddingLeft: '32px' }}>+ {plan.totalDays - 3} more days in the full plan</div>
+                    </div>
+
+                    {/* Mini cost bar */}
+                    <div style={{ padding: '10px 18px', background: 'rgba(0,0,0,0.2)', display: 'flex', gap: '6px', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      {[
+                        { emoji: '🚌', label: 'Transport', val: plan.costs.transport },
+                        { emoji: '🏨', label: 'Hotels',    val: plan.costs.hotels },
+                        { emoji: '🍽️', label: 'Food',      val: plan.costs.food },
+                      ].map(c => (
+                        <div key={c.label} style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#64748b' }}>{c.emoji} {c.label}</div>
+                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{c.val}</div>
+                        </div>
+                      ))}
+                      <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+                      <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                        <div style={{ fontSize: '10px', color: '#64748b' }}>Total</div>
+                        <div style={{ fontSize: '14px', fontWeight: '900', color: '#5eead4' }}>{plan.costs.total}</div>
+                      </div>
+                    </div>
+
+                    {/* Festival snippet + CTA */}
+                    <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '14px', flexShrink: 0 }}>{plan.festival.emoji}</span>
+                        <span style={{ fontSize: '11px', color: '#fca5a5', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {plan.festival.name} · {plan.festival.note}
+                        </span>
+                      </div>
+                      <button onClick={() => setShowDemo(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '8px 14px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        Full Plan <ChevronRight size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Right — Destination chips */}
