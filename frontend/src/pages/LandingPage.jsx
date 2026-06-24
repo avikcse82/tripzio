@@ -8,12 +8,12 @@ import { MapPin, Zap, Users, ArrowRight, Globe, Shield, Clock, TrendingUp, Calen
 const DESTINATIONS = [
   { name: 'Ladakh',      region: 'J&K',        photo: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&q=80', tag: 'Adventure' },
   { name: 'Goa',         region: 'Goa',         photo: 'https://images.unsplash.com/photo-1587922546307-776227941871?w=800&q=80', tag: 'Beach' },
-  { name: 'Darjeeling',  region: 'West Bengal', photo: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&q=80', tag: 'Hill Station' },
+  { name: 'Darjeeling',  region: 'West Bengal', photo: 'https://images.unsplash.com/photo-1549817997-f6958ecf47b9?w=800&q=80', tag: 'Hill Station' },
   { name: 'Varanasi',    region: 'UP',          photo: 'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=800&q=80', tag: 'Spiritual' },
   { name: 'Kerala',      region: 'Kerala',      photo: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&q=80', tag: 'Backwaters' },
-  { name: 'Rajasthan',   region: 'Rajasthan',   photo: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&q=80', tag: 'Heritage' },
-  { name: 'Munnar',      region: 'Kerala',      photo: 'https://images.unsplash.com/photo-1605649461784-edc3f1f74920?w=800&q=80', tag: 'Nature' },
-  { name: 'Hampi',       region: 'Karnataka',   photo: 'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=800&q=80', tag: 'UNESCO' },
+  { name: 'Rajasthan',   region: 'Rajasthan',   photo: 'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=800&q=80', tag: 'Heritage' },
+  { name: 'Munnar',      region: 'Kerala',      photo: 'https://images.unsplash.com/photo-1455157823797-3019317cbcf0?w=800&q=80', tag: 'Nature' },
+  { name: 'Hampi',       region: 'Karnataka',   photo: 'https://images.unsplash.com/photo-1631622958637-11d9f35ef78e?w=800&q=80', tag: 'UNESCO' },
 ]
 
 const FEATURES = [
@@ -485,7 +485,7 @@ export default function LandingPage() {
             { value: '₹0', label: 'To Start', sub: 'Free forever plan' },
           ].map((stat, i) => (
             <div key={i} style={{ animation: `fadeUp ${0.2 + i * 0.1}s ease` }}>
-              <div style={{ fontSize: '42px', fontWeight: '900', fontFamily: "Georgia, 'Times New Roman', serif", background: 'linear-gradient(135deg,#0ea5e9,#14b8a6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1 }}>
+              <div style={{ fontSize: '42px', fontWeight: '900', fontFamily: "Georgia, 'Times New Roman', serif", background: 'linear-gradient(135deg,#0ea5e9,#14b8a6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent', display: 'inline-block', lineHeight: 1 }}>
                 {stat.value}
               </div>
               <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginTop: '6px' }}>{stat.label}</div>
