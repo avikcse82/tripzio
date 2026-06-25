@@ -607,6 +607,7 @@ export default function ItineraryResult() {
     permit_info: data.permit_info || [],
     parsed_from: data.parsed_from || null,
     start_date: data.start_date || null,
+    season_warning: data.season_warning || null,
     ...data
   }
   Object.assign(data, safeData)
@@ -840,6 +841,91 @@ export default function ItineraryResult() {
             ))}
           </div>
         )}
+
+        {/* ── SEASON SCORE CARD ── */}
+        {(() => {
+          const sw = data.season_warning
+          if (!sw) return null
+          const RATING_CONFIG = {
+            excellent: { bg: '#f0fdf4', border: '#86efac', text: '#166534', badge: '#22c55e', label: 'GREAT TIME TO VISIT', headerBg: 'linear-gradient(135deg,#dcfce7,#f0fdf4)' },
+            good:      { bg: '#f0fdf4', border: '#86efac', text: '#166534', badge: '#22c55e', label: 'GOOD TIME TO VISIT',  headerBg: 'linear-gradient(135deg,#dcfce7,#f0fdf4)' },
+            okay:      { bg: '#fffbeb', border: '#fcd34d', text: '#92400e', badge: '#f59e0b', label: 'PLAN ACCORDINGLY',    headerBg: 'linear-gradient(135deg,#fef9c3,#fffbeb)' },
+            avoid:     { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', badge: '#ef4444', label: 'CHECK YOUR DATES',    headerBg: 'linear-gradient(135deg,#fee2e2,#fef2f2)' },
+          }
+          const rc = RATING_CONFIG[sw.rating] || RATING_CONFIG.okay
+          const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+          const RATING_EMOJI = { excellent: '🟢', good: '🟢', okay: '🟡', avoid: '🔴' }
+          return (
+            <div style={{ background: 'white', border: `1.5px solid ${rc.border}`, borderRadius: '20px', overflow: 'hidden', marginBottom: '28px', boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
+              {/* Header */}
+              <div style={{ background: rc.headerBg, padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', borderBottom: `1px solid ${rc.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '22px' }}>{sw.icon}</span>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: '800', color: rc.text }}>
+                      {sw.reason}
+                    </div>
+                    <div style={{ fontSize: '11px', color: rc.text, opacity: 0.75, marginTop: '2px' }}>
+                      Season intelligence for {data.destination?.split('→')[0]?.trim() || data.destination}
+                    </div>
+                  </div>
+                </div>
+                <span style={{ background: rc.badge, color: 'white', fontSize: '10px', fontWeight: '800', padding: '4px 12px', borderRadius: '20px', letterSpacing: '0.5px' }}>
+                  {rc.label}
+                </span>
+              </div>
+
+              {/* Best Month Calendar strip */}
+              <div style={{ padding: '16px 22px', borderBottom: `1px solid ${rc.border}` }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Best months to visit
+                </div>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {sw.all_months && sw.all_months.map((m, i) => {
+                    const isCurrent = (i + 1) === sw.month
+                    const rColor = { excellent: '#22c55e', good: '#86efac', okay: '#fcd34d', avoid: '#fca5a5' }[m.rating] || '#e2e8f0'
+                    const textColor = { excellent: '#166534', good: '#166534', okay: '#92400e', avoid: '#991b1b' }[m.rating] || '#64748b'
+                    return (
+                      <div key={i} style={{
+                        padding: '5px 8px', borderRadius: '8px', textAlign: 'center', minWidth: '36px',
+                        background: isCurrent ? rColor : `${rColor}40`,
+                        border: `1.5px solid ${isCurrent ? textColor : rColor}`,
+                        opacity: isCurrent ? 1 : 0.8,
+                      }}>
+                        <div style={{ fontSize: '10px', fontWeight: isCurrent ? '800' : '600', color: isCurrent ? textColor : textColor + '99' }}>
+                          {MONTH_NAMES[i]}
+                        </div>
+                        <div style={{ fontSize: '11px', marginTop: '1px' }}>{m.icon}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Upside + Alternatives */}
+              <div style={{ padding: '14px 22px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                {sw.upside && (
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Silver lining</div>
+                    <div style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>💡 {sw.upside}</div>
+                  </div>
+                )}
+                {sw.alternatives?.length > 0 && (sw.rating === 'avoid' || sw.rating === 'okay') && (
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Better windows</div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {sw.alternatives.map(a => (
+                        <div key={a.month} style={{ padding: '5px 14px', background: rc.bg, border: `1px solid ${rc.border}`, borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: rc.text }}>
+                          {a.icon} {a.monthName}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Weather */}
         {data.weather && (
