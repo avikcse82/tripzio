@@ -709,6 +709,22 @@ export default function UserDashboard() {
     return d >= today
   }
 
+  // ── Smart missing field detection ─────────────────────────────
+  // Computed from customText — zero new state, zero API cost
+  const DAYS_REGEX   = /\b(\d+)\s*(days?|din|रात|nights?|दिन)\b|\b(a week|long weekend|weekend|fortnight)\b/i
+  const PEOPLE_REGEX = /\b(solo|alone|single|couple|family|(\d+)\s*(people|persons|log|pax|members?|adults?|travell?ers?))\b|\b(\d+)\s*(aadmi|banda|bande|jan)\b/i
+
+  const appendToCustomText = (addition) => {
+    const current = customText.trimEnd()
+    const base = current.endsWith(',') ? current.slice(0, -1).trimEnd() : current
+    const newText = base + ', ' + addition
+    setCustomText(newText)
+    setCustomCharCount(newText.length)
+    setCustomExtractedDate(extractDateFromText(newText))
+    if (!intlWarning) setPromptWarning(validatePromptRealTime(newText))
+    customTextRef.current?.focus()
+  }
+
   const quickReady = from && days && budget && !intlWarning
   const detailedReady = from && days && budget && startDate && selectedTier && (destinationMode === 'suggest' || selectedDestination) && !intlWarning && isValidFutureDate(startDate)
   const customReady = customText.trim().length >= 20 && !intlWarning && !promptWarning && !cityCheckWarning &&
@@ -1227,6 +1243,79 @@ export default function UserDashboard() {
                     </div>
                   </div>
                 )}
+
+                {/* ── Smart missing field chips ────────────────────────────
+                    Shows only when text > 20 chars + field not yet detected.
+                    Advisory only — never blocks generate button.
+                    Chips append cleanly to customText, then disappear.      */}
+                {customText.length > 20 && !intlWarning && !promptWarning && (() => {
+                  const hasDays   = DAYS_REGEX.test(customText)
+                  const hasPeople = PEOPLE_REGEX.test(customText)
+                  if (hasDays && hasPeople) return null
+                  return (
+                    <div style={{ marginBottom: '14px', padding: '12px 14px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '14px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                        ✨ Quick add to your plan
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                        {/* Days chips */}
+                        {!hasDays && (
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>
+                              📅 How many days?
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {[
+                                { label: '3 Days',  val: '3 days' },
+                                { label: '5 Days',  val: '5 days' },
+                                { label: '7 Days',  val: '7 days' },
+                                { label: '10 Days', val: '10 days' },
+                                { label: '14 Days', val: '14 days' },
+                              ].map(chip => (
+                                <button key={chip.val}
+                                  onClick={() => appendToCustomText(chip.val)}
+                                  style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0d9488', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#0d9488', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                                  onMouseEnter={e => { e.target.style.background = '#f0fdfa' }}
+                                  onMouseLeave={e => { e.target.style.background = 'white' }}>
+                                  {chip.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* People chips */}
+                        {!hasPeople && (
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>
+                              👥 Travelling as?
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {[
+                                { label: 'Solo',       val: 'solo trip' },
+                                { label: 'Couple',     val: 'couple trip' },
+                                { label: '3 People',   val: '3 people' },
+                                { label: '4 People',   val: '4 people' },
+                                { label: 'Family',     val: 'family of 4' },
+                                { label: 'Group (6+)', val: 'group of 6' },
+                              ].map(chip => (
+                                <button key={chip.val}
+                                  onClick={() => appendToCustomText(chip.val)}
+                                  style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0ea5e9', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#0ea5e9', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                                  onMouseEnter={e => { e.target.style.background = '#f0f9ff' }}
+                                  onMouseLeave={e => { e.target.style.background = 'white' }}>
+                                  {chip.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Sample prompts */}
                 <div style={{ marginBottom: '24px' }}>
