@@ -12,6 +12,7 @@ import AgentDashboard from './pages/AgentDashboard'
 import AgentProfile from './pages/AgentProfile'
 import DestinationSuggestions from './pages/DestinationSuggestions'
 import ItineraryResult from './pages/ItineraryResult'
+import GuestDashboard from './pages/GuestDashboard'
 import ComingSoon from './pages/ComingSoon'
 import MyTrips from './pages/MyTrips'
 import ExplorePage from './pages/ExplorePage'
@@ -67,6 +68,8 @@ function AppRoutes() {
       />
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/guest" element={<GuestDashboard />} />
+        <Route path="/guest/result" element={<ItineraryResult />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/login" element={<PublicRoute><UserLogin /></PublicRoute>} />

@@ -165,3 +165,57 @@ def update_agent_client(client_id: str, update_data: dict):
 
 # Fallback in-memory store if Supabase not connected
 fake_users_db = {}
+
+
+def check_guest_rate_limit(ip_address: str) -> bool:
+    """
+    Returns True if this IP is allowed to generate (under limit).
+    1 generation per IP per 24 hours.
+    Fail-open: if DB check fails for any reason, allow the request.
+
+    Run this SQL in Supabase before deploying:
+    CREATE TABLE IF NOT EXISTS guest_rate_limits (
+        ip_address TEXT PRIMARY KEY,
+        last_generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return True  # fail-open
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        response = client.table("guest_rate_limits") \
+            .select("id,last_generated_at") \
+            .eq("ip_address", ip_address) \
+            .execute()
+        if not response.data:
+            return True  # no record — first time, allow
+        record = response.data[0]
+        last = record.get("last_generated_at", "")
+        if not last or last < cutoff:
+            return True  # last generation was > 24 hours ago, allow
+        return False  # within 24 hours, block
+    except Exception as e:
+        logger.warning(f"guest rate limit check failed (fail-open): {e}")
+        return True  # fail-open — never block on our error
+
+
+def record_guest_generation(ip_address: str) -> None:
+    """
+    Records a guest generation for this IP.
+    Upserts into guest_rate_limits table.
+    Fail-silent: never raises.
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        client.table("guest_rate_limits").upsert({
+            "ip_address": ip_address,
+            "last_generated_at": now,
+        }, on_conflict="ip_address").execute()
+    except Exception as e:
+        logger.warning(f"guest rate limit record failed (silent): {e}")

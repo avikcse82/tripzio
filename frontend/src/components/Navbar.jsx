@@ -202,7 +202,7 @@ const Navbar = () => {
               }}>
                 Sign in
               </Link>
-              <Link to="/login" style={{
+              <Link to="/guest" style={{
                 fontSize: '14px', fontWeight: '700', color: 'white',
                 textDecoration: 'none', padding: '9px 20px', borderRadius: '10px',
                 background: 'linear-gradient(135deg,#0d9488,#0ea5e9)',

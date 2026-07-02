@@ -159,6 +159,13 @@ export default function ItineraryResult() {
   // If no state (e.g. page refresh or ErrorBoundary redirect), try localStorage
   if (!data) {
     try {
+      // Check guest plan first (for /guest/result refreshes)
+      const guestSaved = localStorage.getItem('tripzio_guest_plan')
+      if (guestSaved) data = JSON.parse(guestSaved)
+    } catch (e) { data = null }
+  }
+  if (!data) {
+    try {
       const saved = localStorage.getItem('tripzio_last_itinerary')
       if (saved) data = JSON.parse(saved)
     } catch (e) { data = null }
@@ -174,7 +181,17 @@ export default function ItineraryResult() {
   const [isSaved, setIsSaved]                   = useState(false)
   const [saving, setSaving]                     = useState(false)
   const [shareUrl, setShareUrl]                 = useState(null)
-  const [shareLoading, setShareLoading]           = useState(false)
+  const [shareLoading, setShareLoading]         = useState(false)
+
+  // ── Guest mode ────────────────────────────────────────────────
+  const isGuest = location.state?.isGuest === true || data?.is_guest === true
+  const [showAuthModal, setShowAuthModal]       = useState(false)
+  const [authTab,       setAuthTab]             = useState('register') // 'login' | 'register'
+  const [authEmail,     setAuthEmail]           = useState('')
+  const [authPassword,  setAuthPassword]        = useState('')
+  const [authName,      setAuthName]            = useState('')
+  const [authLoading,   setAuthLoading]         = useState(false)
+  const [authErrors,    setAuthErrors]          = useState({})
   const [copying, setCopying]                   = useState(false)
 
   // ── Tier upgrade config ─────────────────────────────────────
@@ -564,6 +581,94 @@ export default function ItineraryResult() {
     }
   }
 
+  // ── Guest auth handler ────────────────────────────────────────
+  // Called when guest clicks Save / Share / PDF / Generate Another
+  const handleGuestAction = () => {
+    setShowAuthModal(true)
+    setAuthTab('register')
+    setAuthErrors({})
+  }
+
+  const handleGuestAuth = async () => {
+    // Validate
+    const e = {}
+    if (authTab === 'register' && !authName.trim()) e.name = 'Full name is required'
+    if (!authEmail.trim() || !/\S+@\S+\.\S+/.test(authEmail)) e.email = 'Valid email required'
+    if (!authPassword || authPassword.length < 6) e.password = 'Minimum 6 characters'
+    setAuthErrors(e)
+    if (Object.keys(e).length > 0) return
+
+    setAuthLoading(true)
+    try {
+      // Register or login
+      const endpoint = authTab === 'register' ? '/auth/register' : '/auth/login'
+      const body = authTab === 'register'
+        ? { full_name: authName, email: authEmail, password: authPassword, role: 'user' }
+        : { email: authEmail, password: authPassword }
+
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        const detail = result?.detail || ''
+        if (detail.toLowerCase().includes('already')) {
+          setAuthErrors({ email: 'Email already registered — try signing in' })
+        } else if (detail.toLowerCase().includes('invalid') || detail.toLowerCase().includes('credentials')) {
+          setAuthErrors({ password: 'Incorrect email or password' })
+        } else {
+          toast.error(detail || 'Something went wrong. Please try again.')
+        }
+        return
+      }
+
+      // Store token
+      const token = result.access_token || result.token
+      if (token) localStorage.setItem('tripzio_token', token)
+      if (result.user) localStorage.setItem('tripzio_user', JSON.stringify(result.user))
+
+      // Auto-save guest plan
+      try {
+        const guestPlan = localStorage.getItem('tripzio_guest_plan')
+        if (guestPlan && token) {
+          const planData = JSON.parse(guestPlan)
+          await fetch(`${API_URL}/trips/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              title: `${planData.destination || 'Trip'} — ${planData.days || ''} days`,
+              from_city: planData.from_city || '',
+              destination: planData.destination || '',
+              days: planData.days || 1,
+              budget: planData.budget || 0,
+              trip_type: planData.trip_type || null,
+              plan_tier: planData.plan_tier || 'silver',
+              itinerary: planData,
+            }),
+          })
+          localStorage.removeItem('tripzio_guest_plan')
+          toast.success('Account created & your plan has been saved! 🎉', { duration: 5000 })
+        } else {
+          toast.success(authTab === 'register' ? 'Account created! Welcome to Tripzio 🎉' : 'Welcome back! 🌏')
+        }
+      } catch (_) {
+        toast.success(authTab === 'register' ? 'Account created! Welcome to Tripzio 🎉' : 'Welcome back! 🌏')
+      }
+
+      // Close modal — redirect after brief delay so toast is visible
+      setShowAuthModal(false)
+      setIsSaved(true)
+      setTimeout(() => { window.location.href = '/dashboard' }, 1800)
+
+    } catch (err) {
+      toast.error('Something went wrong. Please try again.')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
   if (!data) {
     return (
       <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
@@ -762,8 +867,24 @@ export default function ItineraryResult() {
                     </span>
                   </div>
                 </>
+              ) : isGuest ? (
+                // ── GUEST buttons — gate all actions behind auth modal ──
+                <>
+                  <button className="action-btn" onClick={handleGuestAction}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(13,148,136,0.4)' }}>
+                    <Heart size={15} /> Save This Plan
+                  </button>
+                  <button className="action-btn" onClick={handleGuestAction}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <Share2 size={15} /> Share
+                  </button>
+                  <button className="action-btn" onClick={handleGuestAction}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <Download size={15} /> Download PDF
+                  </button>
+                </>
               ) : (
-                // ── USER buttons ──
+                // ── AUTHENTICATED USER buttons ──
                 <>
                   {!readOnly && (
                     <button className="action-btn" onClick={handleSave} disabled={saving}
@@ -2004,6 +2125,96 @@ export default function ItineraryResult() {
               {emailSending ? '⏳ Sending...' : '📧 Send Itinerary'}
             </button>
           </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── GUEST sticky banner ───────────────────────────────── */}
+    {isGuest && !showAuthModal && (
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 90, background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', boxShadow: '0 -4px 24px rgba(13,148,136,0.3)', flexWrap: 'wrap' }}>
+        <div>
+          <p style={{ fontSize: '14px', fontWeight: '700', color: 'white', margin: 0 }}>Sign up free to save, share & download this plan</p>
+          <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', margin: '2px 0 0' }}>Unlimited plans · Festival alerts · Season intelligence</p>
+        </div>
+        <button onClick={handleGuestAction}
+          style={{ padding: '10px 24px', background: 'white', color: '#0d9488', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          Sign Up Free →
+        </button>
+      </div>
+    )}
+
+    {/* ── GUEST inline auth modal ───────────────────────────── */}
+    {showAuthModal && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <div style={{ background: 'white', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 24px 64px rgba(0,0,0,0.3)', animation: 'fadeUp 0.3s ease' }}>
+          <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🗺️</div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: '0 0 6px' }}>
+              {authTab === 'register' ? 'Save your plan' : 'Welcome back'}
+            </h2>
+            <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+              {authTab === 'register'
+                ? 'Create a free account to save, share & download'
+                : 'Sign in to save your plan to your account'}
+            </p>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '12px', padding: '3px', marginBottom: '20px', gap: '3px' }}>
+            {[['register','Sign Up'], ['login','Sign In']].map(([tab, label]) => (
+              <button key={tab}
+                onClick={() => { setAuthTab(tab); setAuthErrors({}) }}
+                style={{ flex: 1, padding: '9px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', background: authTab === tab ? 'white' : 'transparent', color: authTab === tab ? '#0f172a' : '#64748b', boxShadow: authTab === tab ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Fields */}
+          {authTab === 'register' && (
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Full Name</label>
+              <input type="text" placeholder="Your full name" value={authName}
+                onChange={e => { setAuthName(e.target.value); setAuthErrors(p => ({ ...p, name: '' })) }}
+                style={{ width: '100%', padding: '11px 14px', border: `1.5px solid ${authErrors.name ? '#fca5a5' : '#e2e8f0'}`, borderRadius: '10px', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                disabled={authLoading} />
+              {authErrors.name && <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0', fontWeight: '600' }}>⚠ {authErrors.name}</p>}
+            </div>
+          )}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</label>
+            <input type="email" placeholder="you@example.com" value={authEmail}
+              onChange={e => { setAuthEmail(e.target.value); setAuthErrors(p => ({ ...p, email: '' })) }}
+              style={{ width: '100%', padding: '11px 14px', border: `1.5px solid ${authErrors.email ? '#fca5a5' : '#e2e8f0'}`, borderRadius: '10px', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              disabled={authLoading} />
+            {authErrors.email && <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0', fontWeight: '600' }}>⚠ {authErrors.email}</p>}
+          </div>
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Password</label>
+            <input type="password" placeholder={authTab === 'login' ? 'Your password' : 'Min 6 characters'} value={authPassword}
+              onChange={e => { setAuthPassword(e.target.value); setAuthErrors(p => ({ ...p, password: '' })) }}
+              style={{ width: '100%', padding: '11px 14px', border: `1.5px solid ${authErrors.password ? '#fca5a5' : '#e2e8f0'}`, borderRadius: '10px', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              disabled={authLoading} />
+            {authErrors.password && <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0', fontWeight: '600' }}>⚠ {authErrors.password}</p>}
+          </div>
+
+          {/* Submit */}
+          <button onClick={handleGuestAuth} disabled={authLoading}
+            style={{ width: '100%', padding: '14px', background: authLoading ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: authLoading ? '#94a3b8' : 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: authLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: authLoading ? 'none' : '0 4px 16px rgba(13,148,136,0.35)', marginBottom: '12px' }}>
+            {authLoading
+              ? <><div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#94a3b8', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Processing...</>
+              : authTab === 'register' ? '✓ Create Account & Save Plan' : '→ Sign In & Save Plan'
+            }
+          </button>
+
+          {/* Close */}
+          <button onClick={() => setShowAuthModal(false)}
+            style={{ width: '100%', padding: '10px', background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' }}>
+            Maybe later — keep browsing
+          </button>
         </div>
       </div>
     )}

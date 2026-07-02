@@ -314,15 +314,14 @@ export default function LandingPage() {
                 {/* Language badge */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                   <span style={{ fontSize: '11px', color: '#475569', fontWeight: '600' }}>Understands:</span>
-                  {TYPEWRITER_PROMPTS.map((p, i) => (
-                    <span key={p.lang} style={{
+                  {['English', 'Hindi', 'Mixed'].map((lang, i) => (
+                    <span key={lang} style={{
                       fontSize: '10px', fontWeight: '700', padding: '2px 10px', borderRadius: '20px',
-                      background: promptIdx === i ? 'rgba(14,165,233,0.15)' : 'rgba(255,255,255,0.04)',
-                      color: promptIdx === i ? '#7dd3fc' : '#475569',
-                      border: `1px solid ${promptIdx === i ? 'rgba(14,165,233,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                      background: TYPEWRITER_PROMPTS[promptIdx]?.lang === lang ? 'rgba(14,165,233,0.15)' : 'rgba(255,255,255,0.04)',
+                      color: TYPEWRITER_PROMPTS[promptIdx]?.lang === lang ? '#7dd3fc' : '#475569',
+                      border: `1px solid ${TYPEWRITER_PROMPTS[promptIdx]?.lang === lang ? 'rgba(14,165,233,0.3)' : 'rgba(255,255,255,0.06)'}`,
                       transition: 'all 0.3s',
-                      display: ['English','Hindi','Mixed'].includes(p.lang) && TYPEWRITER_PROMPTS.findIndex(x => x.lang === p.lang) === i ? 'inline' : 'none'
-                    }}>{p.lang}</span>
+                    }}>{lang}</span>
                   ))}
                 </div>
 
@@ -338,7 +337,7 @@ export default function LandingPage() {
                 </div>
 
                 <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Link to="/login"
+                  <Link to="/guest"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', background: 'rgba(14,165,233,0.15)', border: '1px solid rgba(14,165,233,0.3)', color: '#7dd3fc', textDecoration: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}>
                     Generate My Plan <ArrowRight size={12} />
                   </Link>
@@ -347,7 +346,7 @@ export default function LandingPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '32px' }}>
-                <Link to="/login" className="hero-btn"
+                <Link to="/guest" className="hero-btn"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 32px', background: 'linear-gradient(135deg,#0ea5e9,#14b8a6)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '700', boxShadow: '0 8px 32px rgba(14,165,233,0.35)', transition: 'all 0.2s' }}>
                   Start Planning Free <ArrowRight size={18} />
                 </Link>
@@ -360,6 +359,12 @@ export default function LandingPage() {
                   Travel Agent Login <ChevronRight size={15} />
                 </Link>
               </div>
+
+              {/* Sign in for existing users */}
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginBottom: '16px' }}>
+                Already have an account?{' '}
+                <Link to="/login" style={{ color: '#5eead4', fontWeight: '700', textDecoration: 'none' }}>Sign in →</Link>
+              </p>
 
               <p style={{ fontSize: '12px', color: '#475569' }}>Free to sign up · No credit card required · India destinations only</p>
 
@@ -719,7 +724,7 @@ export default function LandingPage() {
             Free to start. No credit card. Plan your first trip in 30 seconds.
           </p>
           <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/login"
+            <Link to="/guest"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 36px', background: 'linear-gradient(135deg,#0ea5e9,#14b8a6)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '700', boxShadow: '0 8px 32px rgba(14,165,233,0.4)' }}>
               Start for Free <ArrowRight size={18} />
             </Link>

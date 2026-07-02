@@ -56,6 +56,36 @@ export default function UserLogin() {
         await register({ full_name: fullName, email, password, role: 'user' })
         toast.success('Account created! Welcome to Tripzio 🎉')
       }
+
+      // ── Auto-save guest plan if one exists ────────────────
+      try {
+        const guestPlan = localStorage.getItem('tripzio_guest_plan')
+        const token = localStorage.getItem('tripzio_token')
+        if (guestPlan && token) {
+          const planData = JSON.parse(guestPlan)
+          const saveRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/trips/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              title: `${planData.destination || 'Trip'} — ${planData.days || ''} days`,
+              from_city: planData.from_city || '',
+              destination: planData.destination || '',
+              days: planData.days || 1,
+              budget: planData.budget || 0,
+              trip_type: planData.trip_type || null,
+              plan_tier: planData.plan_tier || 'silver',
+              itinerary: planData,
+            }),
+          })
+          if (saveRes.ok) {
+            localStorage.removeItem('tripzio_guest_plan')
+            toast.success('Your free plan has been saved to My Trips! 🗺️', { duration: 5000 })
+          }
+        }
+      } catch (_) {
+        // Fail silent — auto-save is a bonus, not critical
+      }
+
       navigate('/dashboard')
     } catch (err) {
       const detail = err.response?.data?.detail || ''

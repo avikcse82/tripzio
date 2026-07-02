@@ -117,13 +117,13 @@ def _serp_cache_get(key):
 def _serp_cache_set(key, data):
     _SERP_CACHE[key] = (time.time(), data)
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from models.schemas import ItineraryRequest, AgentItineraryRequest
 from core.config import settings
 from core.security import decode_access_token
-from database import get_user_by_email, get_user_by_id, save_trip
+from database import get_user_by_email, get_user_by_id, save_trip, check_guest_rate_limit, record_guest_generation
 from routers.weather import get_weather
 import asyncio
 import httpx
@@ -1201,6 +1201,98 @@ Only say valid: false if it's clearly not a place (e.g. a random word, a differe
     except Exception as ex:
         logger.warning(f"check-city failed for '{city}': {ex}")
         return {"valid": True, "suggestion": None}  # fail open — never block user on our error
+
+
+@router.post("/generate/guest")
+async def generate_itinerary_guest(
+    req: ItineraryRequest,
+    request: Request,
+):
+    """
+    Unauthenticated guest generation.
+    - No JWT required
+    - 1 per IP per 24 hours (fail-open)
+    - Full itinerary returned, NOT saved to DB
+    - Frontend stores in localStorage for auto-save after login
+    """
+    try:
+        # ── IP rate limit ─────────────────────────────────────
+        client_ip = request.headers.get("x-forwarded-for", request.client.host or "unknown")
+        client_ip = client_ip.split(",")[0].strip()  # take first IP if proxied
+
+        allowed = check_guest_rate_limit(client_ip)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "GUEST_RATE_LIMIT",
+                    "message": "You've already generated a free plan today. Sign up free for unlimited plans!",
+                }
+            )
+
+        # ── India-only validation ─────────────────────────────
+        is_intl, detected = is_international_destination(
+            req.destination or "", req.from_city or ""
+        )
+        if is_intl:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INTERNATIONAL_DESTINATION",
+                    "message": "Tripzio specialises in incredible Indian destinations. International coming soon!",
+                    "detected_keyword": detected,
+                    "suggestion": "Try Goa, Manali, Kerala, Rajasthan, or Darjeeling!"
+                }
+            )
+
+        if req.days < 1 or req.days > 30:
+            raise HTTPException(status_code=400, detail="Days must be between 1 and 30")
+        if req.budget < 1000:
+            raise HTTPException(status_code=400, detail="Minimum budget is ₹1,000")
+
+        # ── Weather (fail-open) ───────────────────────────────
+        weather_data = {}
+        try:
+            dest_for_weather = req.destination or "india"
+            weather_data = await get_weather(dest_for_weather, req.start_date)
+        except Exception as e:
+            logger.warning(f"Guest weather fetch failed: {e}")
+
+        # ── Build prompt + generate (same as authenticated) ──
+        prompt = build_itinerary_prompt(req, weather_data)
+
+        # Call Sonnet — same pipeline as authenticated users
+        ai_response = await call_openai(prompt)
+
+        # ── Inject weather + season warning ──────────────────
+        if weather_data:
+            ai_response["weather"] = {
+                "temperature": weather_data.get("temperature", ""),
+                "condition": weather_data.get("condition", ""),
+                "humidity": weather_data.get("humidity"),
+                "wind": weather_data.get("wind"),
+                "pack": weather_data.get("pack", []),
+                "season": weather_data.get("season", ""),
+                "advisory": weather_data.get("advisory"),
+            }
+
+        _dest_for_season = ai_response.get("destination") or req.destination or ""
+        _sw = get_season_warning(_dest_for_season, req.start_date)
+        if _sw:
+            ai_response["season_warning"] = _sw
+
+        # ── Record rate limit AFTER successful generation ─────
+        record_guest_generation(client_ip)
+
+        # ── Return — do NOT save to DB ────────────────────────
+        ai_response["is_guest"] = True
+        return ai_response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Guest generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
 
 
 @router.post("/generate")
