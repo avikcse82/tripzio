@@ -135,170 +135,149 @@ from typing import Optional, List, Dict, Any
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/itinerary", tags=["Itinerary"])
 
-# ── Season intelligence — pure Python, zero API cost ─────────────────────
-# IMD-based seasonal zones. Structured knowledge, not AI.
-_SEASON_DATA = {
-    'himalayan': {
-        'keywords': ['ladakh','leh','spiti','zanskar','nubra','pangong','kargil','srinagar','gulmarg','pahalgam','sonamarg','himachal','uttarakhand','manali','shimla','dharamshala','kasol','kufri'],
-        'months': {
-            1:{'rating':'avoid','icon':'❄️','reason':'Frozen, -20°C, most roads closed','upside':'Chadar Trek on frozen Zanskar river'},
-            2:{'rating':'avoid','icon':'❄️','reason':'Extreme cold, most routes closed','upside':'Chadar Trek season, very few crowds'},
-            3:{'rating':'okay','icon':'🌨️','reason':'Thawing begins, some roads opening','upside':'Cheaper stays, Holi at lower altitudes'},
-            4:{'rating':'good','icon':'🌸','reason':'Roads opening, pleasant days','upside':'Apricot blossom in Hundar, less crowded'},
-            5:{'rating':'excellent','icon':'☀️','reason':'Perfect weather, all passes open','upside':'Best for Khardung La, Chang La, clear skies'},
-            6:{'rating':'excellent','icon':'☀️','reason':'Peak season, all routes accessible','upside':'Nubra Valley, Pangong fully accessible'},
-            7:{'rating':'good','icon':'⛅','reason':'Some rain at lower altitudes','upside':'Hemis Festival in July, lush valleys'},
-            8:{'rating':'good','icon':'⛅','reason':'Occasional rain, roads mostly clear','upside':'Green landscapes, moderate temperatures'},
-            9:{'rating':'excellent','icon':'☀️','reason':'Crystal skies, best photography','upside':'Post-monsoon clarity, fewer tourists than June'},
-            10:{'rating':'good','icon':'🍂','reason':'Getting cold, some passes closing','upside':'Golden landscapes, Zanskar still accessible'},
-            11:{'rating':'avoid','icon':'❄️','reason':'Most passes closing, cold setting in','upside':'Isolated experience for serious adventurers'},
-            12:{'rating':'avoid','icon':'❄️','reason':'Severe winter, most of Ladakh closed','upside':'Frozen Pangong — very challenging access'},
-        }
-    },
-    'southwest_monsoon': {
-        'keywords': ['goa','mumbai','kerala','kochi','munnar','alleppey','alappuzha','varkala','kovalam','kozhikode','wayanad','coorg','kodagu','mangalore','gokarna','konkan'],
-        'months': {
-            1:{'rating':'excellent','icon':'☀️','reason':'Perfect sunny weather, cool breeze','upside':'Peak season, all beaches open, festivals'},
-            2:{'rating':'excellent','icon':'☀️','reason':'Best weather of the year','upside':'Carnival in Goa, clear skies, comfortable'},
-            3:{'rating':'good','icon':'☀️','reason':'Getting warm but still pleasant','upside':'Holi, good before summer rush, fewer crowds'},
-            4:{'rating':'okay','icon':'🌤️','reason':'Hot and humid, pre-monsoon building','upside':'Cheap stays, fewer tourists, waterfalls starting'},
-            5:{'rating':'okay','icon':'🌦️','reason':'Pre-monsoon showers beginning','upside':'Lush greenery starting, 30-40% cheaper hotels'},
-            6:{'rating':'avoid','icon':'🌧️','reason':'Peak monsoon — heavy daily rain, rough seas','upside':'Waterfalls at peak beauty, 40-50% cheaper'},
-            7:{'rating':'avoid','icon':'🌧️','reason':'Peak monsoon — beach shacks closed','upside':'Dudhsagar at peak, Athirapally falls stunning'},
-            8:{'rating':'avoid','icon':'🌧️','reason':'Monsoon continues, most beaches closed','upside':'Onam preparations in Kerala, cultural richness'},
-            9:{'rating':'okay','icon':'🌦️','reason':'Monsoon retreating, occasional rain','upside':'Onam festival in Kerala, waterfalls still flowing'},
-            10:{'rating':'good','icon':'⛅','reason':'Post-monsoon, fresh and lush','upside':'Beaches reopening, great value, green landscapes'},
-            11:{'rating':'excellent','icon':'☀️','reason':'Ideal weather, season beginning','upside':'Diwali, beaches perfect, comfortable temperature'},
-            12:{'rating':'excellent','icon':'☀️','reason':'Peak season — Christmas, New Year','upside':'Vibrant Goa nightlife, Christmas on the beach'},
-        }
-    },
-    'rajasthan': {
-        'keywords': ['rajasthan','jaipur','jodhpur','jaisalmer','udaipur','pushkar','ajmer','bikaner','mount abu','chittorgarh','ranthambore','bundi'],
-        'months': {
-            1:{'rating':'excellent','icon':'☀️','reason':'Cool, clear, perfect sightseeing','upside':'Jaipur Literature Festival, ideal fort exploration'},
-            2:{'rating':'excellent','icon':'☀️','reason':'Best month — pleasant all day','upside':'Desert Festival in Jaisalmer, clear skies'},
-            3:{'rating':'good','icon':'☀️','reason':'Warming up, comfortable mornings','upside':'Holi famous in Rajasthan, good before summer'},
-            4:{'rating':'okay','icon':'🌤️','reason':'Getting hot 35-40°C, plan early mornings','upside':'Very cheap stays, fewer tourists at forts'},
-            5:{'rating':'avoid','icon':'🔥','reason':'Extreme heat 42-48°C, harsh conditions','upside':'Empty monuments, ultra-cheap — for heat-lovers'},
-            6:{'rating':'avoid','icon':'🔥','reason':'Peak heat + pre-monsoon, oppressive','upside':'Almost empty tourist sites, ultra-cheap'},
-            7:{'rating':'okay','icon':'🌦️','reason':'Monsoon arrives, cooler but muddy roads','upside':'Green Rajasthan — rare and beautiful, cheaper'},
-            8:{'rating':'okay','icon':'🌦️','reason':'Monsoon continues, some flooding risk','upside':'Pushkar Lake full, unique photography'},
-            9:{'rating':'good','icon':'⛅','reason':'Cooling down, rain reducing','upside':'Navratri, post-monsoon green desert'},
-            10:{'rating':'excellent','icon':'☀️','reason':'Perfect weather returning','upside':'Dussehra, Pushkar Camel Fair, Navratri'},
-            11:{'rating':'excellent','icon':'☀️','reason':'Peak season, ideal conditions','upside':'Diwali in Jaipur, Pushkar Fair, all forts open'},
-            12:{'rating':'excellent','icon':'☀️','reason':'Cool evenings, perfect days','upside':'Christmas, New Year, festive atmosphere'},
-        }
-    },
-    'north_plains': {
-        'keywords': ['delhi','agra','varanasi','mathura','vrindavan','lucknow','allahabad','prayagraj','ayodhya','corbett','nainital','mussoorie','dehradun','haridwar','rishikesh','amritsar','chandigarh'],
-        'months': {
-            1:{'rating':'good','icon':'🌫️','reason':'Cold 5-15°C, dense fog possible','upside':'Makar Sankranti, Republic Day, fog photography'},
-            2:{'rating':'good','icon':'🌸','reason':'Pleasant, spring approaching','upside':'Taj Mahal in winter light, comfortable walks'},
-            3:{'rating':'excellent','icon':'🌸','reason':'Perfect spring weather','upside':'Holi best in Mathura/Vrindavan, pleasant days'},
-            4:{'rating':'good','icon':'☀️','reason':'Warm but manageable, 28-34°C','upside':'Baisakhi in Amritsar, good before summer rush'},
-            5:{'rating':'avoid','icon':'🔥','reason':'Very hot 40-45°C, harsh for sightseeing','upside':'Empty monuments, ultra-cheap hotels'},
-            6:{'rating':'avoid','icon':'🔥','reason':'Peak heat, hot winds (loo), oppressive','upside':'Avoid unless absolutely necessary'},
-            7:{'rating':'okay','icon':'🌧️','reason':'Monsoon brings relief but humidity','upside':'Green Agra, Taj in mist — beautiful photos'},
-            8:{'rating':'okay','icon':'🌧️','reason':'Heavy rain, flooding risk in some areas','upside':'Janmashtami in Mathura/Vrindavan'},
-            9:{'rating':'good','icon':'⛅','reason':'Cooling down, rain reducing','upside':'Navratri, Durga Puja in Varanasi'},
-            10:{'rating':'excellent','icon':'☀️','reason':'Ideal weather returns','upside':'Dussehra, Diwali, perfect for Taj Mahal visit'},
-            11:{'rating':'excellent','icon':'☀️','reason':'Best months — cool and clear','upside':'Diwali, Chhath Puja in Varanasi, peak season'},
-            12:{'rating':'good','icon':'🌫️','reason':'Cold, some fog, festive atmosphere','upside':'Christmas, New Year, winter fairs'},
-        }
-    },
-    'northeast': {
-        'keywords': ['darjeeling','sikkim','gangtok','pelling','lachung','yumthang','shillong','cherrapunji','mawlynnong','kaziranga','tawang','ziro','kohima','northeast','meghalaya','assam','arunachal','manipur','nagaland','mizoram','tripura'],
-        'months': {
-            1:{'rating':'good','icon':'❄️','reason':'Cold, clear views of Kanchenjunga','upside':'Snow on hills, tea garden walks, peaceful'},
-            2:{'rating':'good','icon':'🌸','reason':'Rhododendron blooming begins','upside':'Cherry blossom in Shillong area'},
-            3:{'rating':'excellent','icon':'🌸','reason':'Rhododendron peak, beautiful weather','upside':'Best for Sikkim, Darjeeling first tea flush'},
-            4:{'rating':'excellent','icon':'☀️','reason':'Perfect weather, flowers everywhere','upside':'First flush tea, orchids blooming, clear skies'},
-            5:{'rating':'good','icon':'⛅','reason':'Pre-monsoon, still mostly pleasant','upside':'Good views before monsoon, less crowded'},
-            6:{'rating':'avoid','icon':'🌧️','reason':'Heavy monsoon — landslides possible','upside':'Cherrapunji waterfalls spectacular'},
-            7:{'rating':'avoid','icon':'🌧️','reason':'Peak monsoon, road closures common','upside':'Waterfalls at absolute peak, raw nature'},
-            8:{'rating':'avoid','icon':'🌧️','reason':'Very heavy rain, travel disruptions','upside':'Least crowded, nature at its most dramatic'},
-            9:{'rating':'okay','icon':'🌦️','reason':'Monsoon reducing, some rain','upside':'Greenest landscapes, Ganesh Chaturthi'},
-            10:{'rating':'excellent','icon':'☀️','reason':'Crystal clear skies, best views','upside':'Best Kanchenjunga views, Diwali, Durga Puja'},
-            11:{'rating':'excellent','icon':'☀️','reason':'Ideal weather, clear mountain views','upside':'Orange harvest in Sikkim, peaceful season'},
-            12:{'rating':'good','icon':'❄️','reason':'Cold but beautiful, snow on higher peaks','upside':'Snow-covered Sandakphu, Christmas in hills'},
-        }
-    },
-    'south_plains': {
-        'keywords': ['karnataka','tamilnadu','tamil nadu','chennai','hyderabad','bengaluru','bangalore','mysuru','mysore','hampi','ooty','kodaikanal','pondicherry','mahabalipuram','madurai','tirupati','rameswaram','kanyakumari'],
-        'months': {
-            1:{'rating':'excellent','icon':'☀️','reason':'Cool and dry, ideal conditions','upside':'Pongal festival, best weather for temples'},
-            2:{'rating':'excellent','icon':'☀️','reason':'Perfect weather continues','upside':'Hampi Utsav, clear days, comfortable evenings'},
-            3:{'rating':'good','icon':'☀️','reason':'Getting warmer but still manageable','upside':'Holi, Ugadi (Telugu/Kannada New Year)'},
-            4:{'rating':'okay','icon':'🌤️','reason':'Hot and humid, 35-40°C','upside':'Temple festivals, fewer crowds, cheaper stays'},
-            5:{'rating':'okay','icon':'🌦️','reason':'Pre-monsoon thunderstorms, muggy','upside':'Waterfalls beginning, nature coming alive'},
-            6:{'rating':'good','icon':'🌧️','reason':'Southwest monsoon — brief heavy showers','upside':'Green landscapes, cooler than summer'},
-            7:{'rating':'good','icon':'🌧️','reason':'Moderate rain, not as heavy as west coast','upside':'Lush, cheaper hotels, Bonalu festival Hyderabad'},
-            8:{'rating':'good','icon':'🌧️','reason':'Intermittent showers, mostly manageable','upside':'Independence Day, green hills'},
-            9:{'rating':'good','icon':'⛅','reason':'Rain reducing, pleasant temperatures','upside':'Navratri, Mysuru Dasara prep'},
-            10:{'rating':'excellent','icon':'☀️','reason':'Mysuru Dasara — best festival month','upside':'Mysuru Dasara world-famous, Dussehra everywhere'},
-            11:{'rating':'okay','icon':'🌧️','reason':'Northeast monsoon — Tamil Nadu/Chennai wet','upside':'Diwali, cooler weather, green after rains'},
-            12:{'rating':'good','icon':'☀️','reason':'Northeast monsoon ending, pleasant','upside':'Christmas, New Year, comfortable temperatures'},
-        }
-    },
-}
+# ── Season intelligence — AI-powered via Haiku ──────────────────────────────
+# Replaces hardcoded _SEASON_DATA. Works for ANY Indian destination.
+# ~$0.001 per call. Fail-open always.
 
-MONTH_NAMES_PY = ['January','February','March','April','May','June','July','August','September','October','November','December']
+MONTH_NAMES_PY = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December']
 
-def get_season_warning(destination: str, start_date: Optional[str]) -> Optional[dict]:
+async def get_season_warning_ai(destination: str, start_date: Optional[str], api_key: str) -> Optional[dict]:
     """
-    Pure Python seasonal intelligence. Zero API cost.
-    Returns season_warning dict or None if destination not recognised.
-    Fail-open: never raises, always returns None on any error.
+    Haiku-powered season intelligence for any Indian destination.
+    Two modes:
+      - With start_date: returns rating + reason + upside + alternatives + all_months
+      - Without start_date: returns best_months only (no rating)
+    Fail-open: returns None on any error — never crashes the caller.
     """
     try:
-        if not destination or not start_date:
+        if not destination or not destination.strip():
             return None
-        dest_lower = destination.lower().split('→')[0].strip()
-        zone = None
-        for z, zdata in _SEASON_DATA.items():
-            if any(k in dest_lower for k in zdata['keywords']):
-                zone = z
-                break
-        if not zone:
+
+        dest = destination.split('→')[0].strip()[:80]
+
+        if start_date:
+            try:
+                month_num = datetime.strptime(start_date, '%Y-%m-%d').month
+                month_name = MONTH_NAMES_PY[month_num - 1]
+            except Exception:
+                return None
+
+            prompt = f"""You are an expert Indian travel advisor with deep knowledge of seasonal weather, festivals, and travel conditions across all Indian destinations.
+
+Destination: {dest}
+Travel month: {month_name}
+
+Return ONLY a valid JSON object, no other text:
+{{
+  "mode": "dated",
+  "rating": "excellent" or "good" or "okay" or "avoid",
+  "icon": one weather emoji (☀️ ⛅ 🌧️ 🔥 ❄️ 🌨️ 🌸 🍂),
+  "reason": "specific 1-line reason for this destination in {month_name}",
+  "upside": "silver lining even for avoid — what makes it special",
+  "alternatives": [
+    {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<brief>"}},
+    {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<brief>"}}
+  ],
+  "all_months": [
+    {{"rating": "<rating>", "icon": "<emoji>"}},
+    ... exactly 12 entries from January to December
+  ]
+}}
+
+Rules:
+- alternatives: pick the 2 best months (excellent or good) that are NOT {month_name}
+- all_months: must have exactly 12 entries in order Jan to Dec
+- Be specific to the actual destination (Char Dham, Vaishno Devi, Andaman, etc.)
+- Consider accessibility, weather, crowds, festivals, road conditions"""
+
+        else:
+            # Undated mode — clean up the text to get a better destination hint
+            # Remove common trip words so Haiku focuses on the destination name
+            import re as _re
+            dest_clean = _re.sub(
+                r'\b(trip|tour|yaatra|yatra|from|days?|din|budget|hajar|people|solo|couple|family|₹|\d+)\b',
+                '', dest, flags=_re.IGNORECASE
+            ).strip()
+            dest_clean = _re.sub(r'\s+', ' ', dest_clean).strip() or dest
+
+            prompt = f"""You are an expert Indian travel advisor.
+
+Destination: {dest_clean}
+
+Return ONLY a valid JSON object, no other text:
+{{
+  "mode": "undated",
+  "best_months": [
+    {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<specific 1-line reason>"}},
+    {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<specific 1-line reason>"}},
+    {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<specific 1-line reason>"}}
+  ]
+}}
+
+Rules:
+- Pick exactly the 3 best months to visit this specific destination
+- Be specific to the actual place (Char Dham, Vaishno Devi, Rann of Kutch, etc.)
+- month: integer 1-12, monthName: full English name"""
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 800,
+                    "temperature": 0.0,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+            )
+
+        if r.status_code != 200:
+            logger.warning(f"check-season Haiku non-200: {r.status_code}")
             return None
-        month = datetime.strptime(start_date, '%Y-%m-%d').month
-        entry = _SEASON_DATA[zone]['months'].get(month)
-        if not entry:
+
+        text = r.json()["content"][0]["text"].strip()
+        s = text.find("{"); e = text.rfind("}") + 1
+        if s < 0 or e <= s:
+            logger.warning(f"check-season: no JSON in response for '{dest}'")
             return None
-        # Build alternatives (2 best months)
-        alternatives = []
-        for i in range(1, 13):
-            if i == month:
-                continue
-            m = _SEASON_DATA[zone]['months'].get(i, {})
-            if m.get('rating') in ('excellent', 'good'):
-                alternatives.append({
-                    'month': i,
-                    'monthName': MONTH_NAMES_PY[i - 1],
-                    'icon': m['icon'],
-                    'reason': m['reason'],
-                })
-                if len(alternatives) == 2:
-                    break
-        # Build all_months for calendar strip
-        all_months = []
-        for i in range(1, 13):
-            m = _SEASON_DATA[zone]['months'].get(i, {})
-            all_months.append({'rating': m.get('rating','okay'), 'icon': m.get('icon','⛅')})
-        return {
-            'zone': zone,
-            'month': month,
-            'rating': entry['rating'],
-            'icon': entry['icon'],
-            'reason': entry['reason'],
-            'upside': entry['upside'],
-            'destination': destination,
-            'alternatives': alternatives,
-            'all_months': all_months,
-        }
-    except Exception as e:
-        logger.warning(f"get_season_warning failed for '{destination}': {e}")
+
+        result = json.loads(text[s:e])
+
+        # Validate required fields — lenient, fail-open on minor format issues
+        if result.get("mode") == "dated":
+            if not all(k in result for k in ["rating", "icon", "reason", "upside"]):
+                return None
+            # Accept 10-12 months — Haiku sometimes returns 11 or 12
+            all_months = result.get("all_months", [])
+            if len(all_months) < 10:
+                return None
+            # Pad to 12 if needed
+            while len(all_months) < 12:
+                all_months.append({"rating": "okay", "icon": "⛅"})
+            result["all_months"] = all_months[:12]
+        elif result.get("mode") == "undated":
+            if "best_months" not in result or not result["best_months"]:
+                return None
+        else:
+            return None
+
+        result["destination"] = dest
+        return result
+
+    except Exception as ex:
+        logger.warning(f"get_season_warning_ai failed for '{destination}': {ex}")
         return None
+
+
+# Sync wrapper for use in synchronous contexts (kept for backwards compat)
+def get_season_warning(destination: str, start_date: Optional[str]) -> Optional[dict]:
+    """Deprecated sync wrapper — callers should use get_season_warning_ai directly."""
+    return None
 
 
 async def extract_trip_info(free_text: str, api_key: str) -> dict:
@@ -1203,6 +1182,35 @@ Only say valid: false if it's clearly not a place (e.g. a random word, a differe
         return {"valid": True, "suggestion": None}  # fail open — never block user on our error
 
 
+class SeasonCheckRequest(BaseModel):
+    destination: str
+    start_date: Optional[str] = None  # YYYY-MM-DD or None for undated mode
+
+
+@router.post("/check-season")
+async def check_season(req: SeasonCheckRequest, current_user: dict = Depends(get_current_user_from_token)):
+    """
+    Haiku-powered season intelligence for any Indian destination.
+    Two modes:
+      - destination + start_date → rated advice + calendar + alternatives
+      - destination only → 3 best months to visit
+    Cheap: Haiku, ~300 tokens, debounced client-side.
+    Fail-open: always returns 200, empty dict on error.
+    """
+    destination = (req.destination or "").strip()
+    if len(destination) < 2:
+        return {}
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {}  # fail open
+
+    result = await get_season_warning_ai(destination, req.start_date, api_key)
+    if not result:
+        return {}
+    return result
+
+
 @router.post("/generate/guest")
 async def generate_itinerary_guest(
     req: ItineraryRequest,
@@ -1277,7 +1285,8 @@ async def generate_itinerary_guest(
             }
 
         _dest_for_season = ai_response.get("destination") or req.destination or ""
-        _sw = get_season_warning(_dest_for_season, req.start_date)
+        _api_key_s = os.getenv("ANTHROPIC_API_KEY", "")
+        _sw = await get_season_warning_ai(_dest_for_season, req.start_date, _api_key_s)
         if _sw:
             ai_response["season_warning"] = _sw
 
@@ -1397,9 +1406,10 @@ async def generate_itinerary(
                 "advisory": weather_data.get("advisory")
             }
 
-        # Season warning — pure Python, zero API cost, fail-open
+        # Season warning — Haiku-powered, works for ANY destination, fail-open
         _dest_for_season = ai_response.get("destination") or req.destination or ""
-        _sw = get_season_warning(_dest_for_season, req.start_date)
+        _api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        _sw = await get_season_warning_ai(_dest_for_season, req.start_date, _api_key)
         if _sw:
             ai_response["season_warning"] = _sw
 

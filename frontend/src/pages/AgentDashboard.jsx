@@ -51,143 +51,37 @@ const getColor = (name) =>
 const getClientState = (client) =>
   client.trip && client.trip !== 'Not planned yet' ? 'has_plan' : 'no_plan'
 
-// ── SEASON_DATA — shared with UserDashboard ───────────────────────────────
-const SEASON_DATA = {
-  himalayan: {
-    keywords: ['ladakh','leh','spiti','zanskar','nubra','pangong','tso moriri','kargil','srinagar','gulmarg','pahalgam','sonamarg','himachal','uttarakhand','manali','shimla','dharamshala','kasol','kufri'],
-    months: {
-      1:{rating:'avoid',icon:'❄️',reason:'Frozen, -20°C, most roads closed',upside:'Chadar Trek on frozen Zanskar river'},
-      2:{rating:'avoid',icon:'❄️',reason:'Extreme cold, most routes closed',upside:'Chadar Trek season, very few crowds'},
-      3:{rating:'okay',icon:'🌨️',reason:'Thawing begins, some roads opening',upside:'Cheaper stays, Holi at lower altitudes'},
-      4:{rating:'good',icon:'🌸',reason:'Roads opening, pleasant days',upside:'Apricot blossom in Hundar, less crowded'},
-      5:{rating:'excellent',icon:'☀️',reason:'Perfect weather, all passes open',upside:'Best for Khardung La, Chang La, clear skies'},
-      6:{rating:'excellent',icon:'☀️',reason:'Peak season, all routes accessible',upside:'Nubra Valley, Pangong fully accessible'},
-      7:{rating:'good',icon:'⛅',reason:'Some rain at lower altitudes',upside:'Hemis Festival in July, lush valleys'},
-      8:{rating:'good',icon:'⛅',reason:'Occasional rain, roads mostly clear',upside:'Green landscapes, moderate temperatures'},
-      9:{rating:'excellent',icon:'☀️',reason:'Crystal skies, best photography',upside:'Post-monsoon clarity, fewer tourists than June'},
-      10:{rating:'good',icon:'🍂',reason:'Getting cold, some passes closing',upside:'Golden landscapes, Zanskar still accessible'},
-      11:{rating:'avoid',icon:'❄️',reason:'Most passes closing, cold setting in',upside:'Isolated experience for serious adventurers'},
-      12:{rating:'avoid',icon:'❄️',reason:'Severe winter, most of Ladakh closed',upside:'Frozen Pangong — very challenging access'},
-    }
-  },
-  southwest_monsoon: {
-    keywords: ['goa','mumbai','kerala','kochi','munnar','alleppey','alappuzha','varkala','kovalam','kozhikode','wayanad','coorg','kodagu','mangalore','gokarna','malvan','konkan'],
-    months: {
-      1:{rating:'excellent',icon:'☀️',reason:'Perfect sunny weather, cool breeze',upside:'Peak season, all beaches open, festivals'},
-      2:{rating:'excellent',icon:'☀️',reason:'Best weather of the year',upside:'Carnival in Goa, clear skies, comfortable'},
-      3:{rating:'good',icon:'☀️',reason:'Getting warm but still pleasant',upside:'Holi, good before summer rush, fewer crowds'},
-      4:{rating:'okay',icon:'🌤️',reason:'Hot and humid, pre-monsoon building',upside:'Cheap stays, fewer tourists, waterfalls starting'},
-      5:{rating:'okay',icon:'🌦️',reason:'Pre-monsoon showers beginning',upside:'Lush greenery starting, 30-40% cheaper hotels'},
-      6:{rating:'avoid',icon:'🌧️',reason:'Peak monsoon — heavy daily rain, rough seas',upside:'Waterfalls at peak beauty, 40-50% cheaper, green paradise'},
-      7:{rating:'avoid',icon:'🌧️',reason:'Peak monsoon — beach shacks closed',upside:'Dudhsagar at peak, Athirapally falls stunning'},
-      8:{rating:'avoid',icon:'🌧️',reason:'Monsoon continues, most beaches closed',upside:'Onam preparations in Kerala, cultural richness'},
-      9:{rating:'okay',icon:'🌦️',reason:'Monsoon retreating, occasional rain',upside:'Onam festival in Kerala, waterfalls still flowing'},
-      10:{rating:'good',icon:'⛅',reason:'Post-monsoon, fresh and lush',upside:'Beaches reopening, great value, green landscapes'},
-      11:{rating:'excellent',icon:'☀️',reason:'Ideal weather, season beginning',upside:'Diwali, beaches perfect, comfortable temperature'},
-      12:{rating:'excellent',icon:'☀️',reason:'Peak season — Christmas, New Year',upside:'Vibrant Goa nightlife, Christmas on the beach'},
-    }
-  },
-  rajasthan: {
-    keywords: ['rajasthan','jaipur','jodhpur','jaisalmer','udaipur','pushkar','ajmer','bikaner','mount abu','chittorgarh','ranthambore','bundi','mandawa'],
-    months: {
-      1:{rating:'excellent',icon:'☀️',reason:'Cool, clear, perfect sightseeing',upside:'Jaipur Literature Festival, ideal fort exploration'},
-      2:{rating:'excellent',icon:'☀️',reason:'Best month — pleasant all day',upside:'Desert Festival in Jaisalmer, clear skies'},
-      3:{rating:'good',icon:'☀️',reason:'Warming up, comfortable mornings',upside:'Holi (famous in Rajasthan), good before summer'},
-      4:{rating:'okay',icon:'🌤️',reason:'Getting hot 35-40°C, plan early mornings',upside:'Very cheap stays, fewer tourists at forts'},
-      5:{rating:'avoid',icon:'🔥',reason:'Extreme heat 42-48°C, harsh conditions',upside:'Empty monuments, ultra-cheap — for heat-lovers only'},
-      6:{rating:'avoid',icon:'🔥',reason:'Peak heat + pre-monsoon, oppressive',upside:'Almost empty tourist sites, ultra-cheap'},
-      7:{rating:'okay',icon:'🌦️',reason:'Monsoon arrives, cooler but muddy roads',upside:'Green Rajasthan — rare and beautiful, cheaper'},
-      8:{rating:'okay',icon:'🌦️',reason:'Monsoon continues, some flooding risk',upside:'Pushkar Lake full, unique photography'},
-      9:{rating:'good',icon:'⛅',reason:'Cooling down, rain reducing',upside:'Navratri, post-monsoon green desert'},
-      10:{rating:'excellent',icon:'☀️',reason:'Perfect weather returning',upside:'Dussehra, Pushkar Camel Fair, Navratri'},
-      11:{rating:'excellent',icon:'☀️',reason:'Peak season, ideal conditions',upside:'Diwali in Jaipur, Pushkar Fair, all forts open'},
-      12:{rating:'excellent',icon:'☀️',reason:'Cool evenings, perfect days',upside:'Christmas, New Year, festive atmosphere'},
-    }
-  },
-  north_plains: {
-    keywords: ['delhi','agra','varanasi','mathura','vrindavan','lucknow','allahabad','prayagraj','ayodhya','fatehpur sikri','corbett','nainital','mussoorie','dehradun','haridwar','rishikesh','amritsar','chandigarh'],
-    months: {
-      1:{rating:'good',icon:'🌫️',reason:'Cold 5-15°C, dense fog possible',upside:'Makar Sankranti, Republic Day, fog photography'},
-      2:{rating:'good',icon:'🌸',reason:'Pleasant, spring approaching',upside:'Taj Mahal in winter light, comfortable walks'},
-      3:{rating:'excellent',icon:'🌸',reason:'Perfect spring weather',upside:'Holi best in Mathura/Vrindavan, pleasant days'},
-      4:{rating:'good',icon:'☀️',reason:'Warm but manageable, 28-34°C',upside:'Baisakhi in Amritsar, good before summer rush'},
-      5:{rating:'avoid',icon:'🔥',reason:'Very hot 40-45°C, harsh for sightseeing',upside:'Empty monuments, ultra-cheap hotels'},
-      6:{rating:'avoid',icon:'🔥',reason:'Peak heat, hot winds (loo), oppressive',upside:'Avoid unless absolutely necessary'},
-      7:{rating:'okay',icon:'🌧️',reason:'Monsoon brings relief but humidity',upside:'Green Agra, Taj in mist — beautiful photos'},
-      8:{rating:'okay',icon:'🌧️',reason:'Heavy rain, flooding risk in some areas',upside:'Janmashtami in Mathura/Vrindavan'},
-      9:{rating:'good',icon:'⛅',reason:'Cooling down, rain reducing',upside:'Navratri, Durga Puja in Varanasi'},
-      10:{rating:'excellent',icon:'☀️',reason:'Ideal weather returns',upside:'Dussehra, Diwali, perfect for Taj Mahal visit'},
-      11:{rating:'excellent',icon:'☀️',reason:'Best months — cool and clear',upside:'Diwali, Chhath Puja in Varanasi, peak season'},
-      12:{rating:'good',icon:'🌫️',reason:'Cold, some fog, festive atmosphere',upside:'Christmas, New Year, winter fairs'},
-    }
-  },
-  northeast: {
-    keywords: ['darjeeling','sikkim','gangtok','pelling','lachung','yumthang','shillong','cherrapunji','mawlynnong','kaziranga','tawang','ziro','kohima','northeast','meghalaya','assam','arunachal','manipur','nagaland','mizoram','tripura'],
-    months: {
-      1:{rating:'good',icon:'❄️',reason:'Cold, clear views of Kanchenjunga',upside:'Snow on hills, tea garden walks, peaceful'},
-      2:{rating:'good',icon:'🌸',reason:'Rhododendron blooming begins',upside:'Cherry blossom in Shillong area'},
-      3:{rating:'excellent',icon:'🌸',reason:'Rhododendron peak, beautiful weather',upside:'Best for Sikkim, Darjeeling first tea flush'},
-      4:{rating:'excellent',icon:'☀️',reason:'Perfect weather, flowers everywhere',upside:'First flush tea, orchids blooming, clear skies'},
-      5:{rating:'good',icon:'⛅',reason:'Pre-monsoon, still mostly pleasant',upside:'Good views before monsoon, less crowded'},
-      6:{rating:'avoid',icon:'🌧️',reason:'Heavy monsoon — landslides possible',upside:'Cherrapunji waterfalls spectacular'},
-      7:{rating:'avoid',icon:'🌧️',reason:'Peak monsoon, road closures common',upside:'Waterfalls at absolute peak, raw nature'},
-      8:{rating:'avoid',icon:'🌧️',reason:'Very heavy rain, travel disruptions',upside:'Least crowded, nature at its most dramatic'},
-      9:{rating:'okay',icon:'🌦️',reason:'Monsoon reducing, some rain',upside:'Greenest landscapes, Ganesh Chaturthi'},
-      10:{rating:'excellent',icon:'☀️',reason:'Crystal clear skies, best views',upside:'Best Kanchenjunga views, Diwali, Durga Puja'},
-      11:{rating:'excellent',icon:'☀️',reason:'Ideal weather, clear mountain views',upside:'Orange harvest in Sikkim, peaceful season'},
-      12:{rating:'good',icon:'❄️',reason:'Cold but beautiful, snow on higher peaks',upside:'Snow-covered Sandakphu, Christmas in hills'},
-    }
-  },
-  south_plains: {
-    keywords: ['karnataka','tamilnadu','tamil nadu','chennai','hyderabad','bengaluru','bangalore','mysuru','mysore','hampi','ooty','kodaikanal','pondicherry','mahabalipuram','madurai','tirupati','rameswaram','kanyakumari'],
-    months: {
-      1:{rating:'excellent',icon:'☀️',reason:'Cool and dry, ideal conditions',upside:'Pongal festival, best weather for temples'},
-      2:{rating:'excellent',icon:'☀️',reason:'Perfect weather continues',upside:'Hampi Utsav, clear days, comfortable evenings'},
-      3:{rating:'good',icon:'☀️',reason:'Getting warmer but still manageable',upside:'Holi, Ugadi (Telugu/Kannada New Year)'},
-      4:{rating:'okay',icon:'🌤️',reason:'Hot and humid, 35-40°C',upside:'Temple festivals, fewer crowds, cheaper stays'},
-      5:{rating:'okay',icon:'🌦️',reason:'Pre-monsoon thunderstorms, muggy',upside:'Waterfalls beginning, nature coming alive'},
-      6:{rating:'good',icon:'🌧️',reason:'Southwest monsoon — brief heavy showers',upside:'Green landscapes, cooler than summer'},
-      7:{rating:'good',icon:'🌧️',reason:'Moderate rain, not as heavy as west coast',upside:'Lush, cheaper hotels, Bonalu festival Hyderabad'},
-      8:{rating:'good',icon:'🌧️',reason:'Intermittent showers, mostly manageable',upside:'Independence Day, green hills'},
-      9:{rating:'good',icon:'⛅',reason:'Rain reducing, pleasant temperatures',upside:'Navratri, Mysuru Dasara prep'},
-      10:{rating:'excellent',icon:'☀️',reason:'Mysuru Dasara — best festival month',upside:'Mysuru Dasara world-famous, Dussehra everywhere'},
-      11:{rating:'okay',icon:'🌧️',reason:'Northeast monsoon — Tamil Nadu/Chennai wet',upside:'Diwali, cooler weather, green after rains'},
-      12:{rating:'good',icon:'☀️',reason:'Northeast monsoon ending, pleasant',upside:'Christmas, New Year, comfortable temperatures'},
-    }
-  },
-}
-
-const getZoneForDestination = (destination) => {
-  if (!destination) return null
-  const d = destination.toLowerCase()
-  for (const [zone, zoneData] of Object.entries(SEASON_DATA)) {
-    if (zoneData.keywords.some(k => d.includes(k))) return zone
-  }
-  return null
-}
-
-const getSeasonNudge = (destination, dateStr) => {
-  if (!destination || !dateStr) return null
-  const zone = getZoneForDestination(destination)
-  if (!zone) return null
-  const month = new Date(dateStr + 'T12:00:00').getMonth() + 1
-  if (!month) return null
-  const entry = SEASON_DATA[zone].months[month]
-  if (!entry) return null
-  const alternatives = []
-  for (let i = 1; i <= 12; i++) {
-    if (i === month) continue
-    const m = SEASON_DATA[zone].months[i]
-    if (m && (m.rating === 'excellent' || m.rating === 'good')) {
-      alternatives.push({ month: i, monthName: new Date(2024, i - 1, 1).toLocaleString('en-IN', { month: 'long' }), icon: m.icon, reason: m.reason })
-      if (alternatives.length === 2) break
-    }
-  }
-  return { zone, month, rating: entry.rating, icon: entry.icon, reason: entry.reason, upside: entry.upside, destination, alternatives }
-}
-
+// ── SeasonNudgeCard — handles dated + undated modes ─────────────────────────
 function SeasonNudgeCard({ nudge }) {
   if (!nudge) return null
+
+  if (nudge.mode === 'undated' && nudge.best_months?.length > 0) {
+    return (
+      <div style={{ marginTop: '8px', padding: '11px 14px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <span style={{ fontSize: '14px' }}>📅</span>
+          <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>
+            Best months for {nudge.destination}:
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+          {nudge.best_months.map(m => (
+            <div key={m.month} style={{ padding: '4px 12px', background: 'white', border: '1px solid #bae6fd', borderRadius: '20px', fontSize: '11px', fontWeight: '700', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {m.icon} {m.monthName}
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: '11px', color: '#0284c7', lineHeight: 1.4 }}>
+          {nudge.best_months[0]?.reason}
+        </div>
+        <div style={{ fontSize: '10px', color: '#7dd3fc', marginTop: '5px', fontStyle: 'italic' }}>
+          Add a travel date for personalised season advice →
+        </div>
+      </div>
+    )
+  }
+
+  if (!nudge.rating) return null
   const STYLES = {
     excellent: { bg: '#f0fdf4', border: '#86efac', text: '#166534', badge: '#22c55e', label: '✓ GREAT TIME' },
     good:      { bg: '#f0fdf4', border: '#86efac', text: '#166534', badge: '#22c55e', label: '✓ GOOD TIME' },
@@ -195,6 +89,7 @@ function SeasonNudgeCard({ nudge }) {
     avoid:     { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', badge: '#ef4444', label: '🌧 CHECK DATES' },
   }
   const s = STYLES[nudge.rating] || STYLES.okay
+
   if (nudge.rating === 'excellent' || nudge.rating === 'good') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 12px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: '10px', marginTop: '8px', width: 'fit-content' }}>
@@ -204,6 +99,7 @@ function SeasonNudgeCard({ nudge }) {
       </div>
     )
   }
+
   return (
     <div style={{ marginTop: '8px', padding: '12px 14px', background: s.bg, border: `1.5px solid ${s.border}`, borderRadius: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -312,11 +208,18 @@ export default function AgentDashboard() {
   const cityCheckRequestIdRef  = useRef(0)
   const isMountedRef           = useRef(true)
 
+  // ── Season nudge state (AI-powered via Haiku) ──────────────────
+  const [seasonNudge, setSeasonNudge]               = useState(null)
+  const [seasonNudgeLoading, setSeasonNudgeLoading] = useState(false)
+  const seasonNudgeTimerRef     = useRef(null)
+  const seasonNudgeRequestIdRef = useRef(0)
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false
       if (cityCheckTimerRef.current) clearTimeout(cityCheckTimerRef.current)
+      if (seasonNudgeTimerRef.current) clearTimeout(seasonNudgeTimerRef.current)
     }
   }, [])
 
@@ -926,6 +829,47 @@ export default function AgentDashboard() {
     } else {
       doCheck()
     }
+  }
+
+  // ── AI season check ──────────────────────────────────────────
+  const checkSeasonWithAI = (destination, dateStr = null) => {
+    if (seasonNudgeTimerRef.current) clearTimeout(seasonNudgeTimerRef.current)
+    if (!destination || destination.trim().length < 2) {
+      setSeasonNudge(null)
+      return
+    }
+    seasonNudgeRequestIdRef.current += 1
+    const myId = seasonNudgeRequestIdRef.current
+
+    seasonNudgeTimerRef.current = setTimeout(async () => {
+      try {
+        setSeasonNudgeLoading(true)
+        const token = localStorage.getItem('tripzio_token')
+        const body = { destination: destination.trim().slice(0, 80) }
+        if (dateStr) body.start_date = dateStr
+        const res = await fetch(`${API_URL}/itinerary/check-season`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body),
+        })
+        if (myId !== seasonNudgeRequestIdRef.current) return
+        if (!isMountedRef.current) return
+        if (res.ok) {
+          const data = await res.json()
+          setSeasonNudge(Object.keys(data).length > 0 ? data : null)
+        } else {
+          setSeasonNudge(null)
+        }
+      } catch {
+        if (myId === seasonNudgeRequestIdRef.current && isMountedRef.current) {
+          setSeasonNudge(null)
+        }
+      } finally {
+        if (myId === seasonNudgeRequestIdRef.current && isMountedRef.current) {
+          setSeasonNudgeLoading(false)
+        }
+      }
+    }, 800)
   }
 
   // ── Validate date is not in past ─────────────────────────
@@ -1573,12 +1517,18 @@ return (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '12px', marginBottom: '16px' }}>
                         <div>
                           <label style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Destination</label>
-                          <input type="text" placeholder="Goa, Manali..." value={destination} onChange={e => setDestination(e.target.value)} style={inp(false)} />
+                          <input type="text" placeholder="Goa, Manali..." value={destination} onChange={e => {
+                            setDestination(e.target.value)
+                            checkSeasonWithAI(e.target.value, startDate || null)
+                          }} style={inp(false)} />
                           {!destination && <p style={{ fontSize: '10px', color: '#8b5cf6', marginTop: '2px' }}>Leave blank → AI suggests</p>}
                         </div>
                         <div>
                           <label style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Start Date</label>
-                          <input type="date" value={startDate} min={new Date().toISOString().split('T')[0]} onChange={e => setStartDate(e.target.value)} style={{ ...inp(false), colorScheme: 'light' }} />
+                          <input type="date" value={startDate} min={new Date().toISOString().split('T')[0]} onChange={e => {
+                            setStartDate(e.target.value)
+                            if (destination) checkSeasonWithAI(destination, e.target.value || null)
+                          }} style={{ ...inp(false), colorScheme: 'light' }} />
                           {startDate && !isValidFutureDate(startDate) && (
                             <p style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', fontWeight: '600' }}>
                               ⚠️ Please select a future date
@@ -1608,12 +1558,10 @@ return (
                           ))}
                         </div>
                       </div>
-                      {/* Season Nudge — detailed mode: destination + startDate both set */}
-                      {startDate && destination && isValidFutureDate(startDate) && (() => {
-                        const nudge = getSeasonNudge(destination, startDate)
-                        if (!nudge) return null
-                        return <SeasonNudgeCard nudge={nudge} />
-                      })()}
+                      {/* Season Nudge — detailed mode */}
+                      {destination && (
+                        <SeasonNudgeCard nudge={seasonNudge} />
+                      )}
                     </div>
                   )}
 
@@ -1649,13 +1597,19 @@ return (
                       if (!hasIntl) { setPromptWarning(validatePromptRealTime(val)) }
                       else { setPromptWarning('') }
                       // AI city check on custom text — only when from field is empty
-                      // (if from is filled, it was already validated on blur)
                       if (!from.trim()) {
                         const fromMatch = val.match(/(?:from|starting from|travelling from)\s+([a-zA-Z]{3,25})(?:\s|,|$|\.)/i)
                         const seMatch   = val.match(/([a-zA-Z]{3,25})\s+se\b/i)
                         const cityWord  = fromMatch?.[1] || seMatch?.[1] || null
                         if (cityWord) checkCityWithAI(cityWord, { debounce: true })
                         else setCityCheckWarning('')
+                      }
+                      // Season check — fires on destination text, with or without date
+                      if (!hasIntl && val.length > 10) {
+                        const extractedDate = extractDateFromText(val)
+                        checkSeasonWithAI(val.slice(0, 80), extractedDate || null)
+                      } else {
+                        setSeasonNudge(null)
                       }
                     }}
                       placeholder={generateMode === 'modify'
@@ -1718,12 +1672,10 @@ return (
                         days={7}
                         compact={true}
                       />
-                      {/* Season Nudge — custom mode: date extracted + destination from full text */}
-                      {customExtractedDate && isValidFutureDate(customExtractedDate) && (() => {
-                        const nudge = getSeasonNudge(customText.slice(0, 120), customExtractedDate)
-                        if (!nudge) return null
-                        return <SeasonNudgeCard nudge={nudge} />
-                      })()}
+                      {/* Season Nudge — custom mode */}
+                      {customText.length > 10 && (
+                        <SeasonNudgeCard nudge={seasonNudge} />
+                      )}
                     </div>
                   )}
 
