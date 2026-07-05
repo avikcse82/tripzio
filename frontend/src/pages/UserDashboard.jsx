@@ -1190,20 +1190,29 @@ export default function UserDashboard() {
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
-                        {/* Days chips */}
+                        {/* Days chips — pilgrimage-aware via seasonNudge.min_days */}
                         {!hasDays && (
                           <div>
                             <div style={{ fontSize: '11px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>
                               📅 How many days?
                             </div>
                             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                              {[
-                                { label: '3 Days',  val: '3 days' },
-                                { label: '5 Days',  val: '5 days' },
-                                { label: '7 Days',  val: '7 days' },
-                                { label: '10 Days', val: '10 days' },
-                                { label: '14 Days', val: '14 days' },
-                              ].map(chip => (
+                              {(() => {
+                                const minDays = seasonNudge?.min_days
+                                if (minDays && minDays > 7) {
+                                  // Pilgrimage / long circuit — show appropriate chips
+                                  const base = Math.max(5, minDays - 2)
+                                  return [base, minDays, minDays + 2, minDays + 4].map(d => ({ label: `${d} Days`, val: `${d} days` }))
+                                }
+                                // Standard chips
+                                return [
+                                  { label: '3 Days',  val: '3 days' },
+                                  { label: '5 Days',  val: '5 days' },
+                                  { label: '7 Days',  val: '7 days' },
+                                  { label: '10 Days', val: '10 days' },
+                                  { label: '14 Days', val: '14 days' },
+                                ]
+                              })().map(chip => (
                                 <button key={chip.val}
                                   onClick={() => appendToCustomText(chip.val)}
                                   style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0d9488', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#0d9488', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
@@ -1213,6 +1222,11 @@ export default function UserDashboard() {
                                 </button>
                               ))}
                             </div>
+                            {seasonNudge?.min_days && seasonNudge.min_days > 7 && (
+                              <p style={{ fontSize: '10px', color: '#f97316', marginTop: '5px', fontWeight: '600' }}>
+                                🛕 Minimum {seasonNudge.min_days} days recommended for this circuit
+                              </p>
+                            )}
                           </div>
                         )}
 

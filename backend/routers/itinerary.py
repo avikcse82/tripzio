@@ -208,6 +208,7 @@ Destination: {dest_clean}
 Return ONLY a valid JSON object, no other text:
 {{
   "mode": "undated",
+  "min_days": <minimum recommended days as integer, e.g. 12 for Char Dham, 3 for Vaishno Devi, 2 for Tirupati, 5 for Kedarnath, 7 for Amarnath, 2 for Shirdi, 4 for Sabarimala, 5 for Dwarka+Somnath>,
   "best_months": [
     {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<specific 1-line reason>"}},
     {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<specific 1-line reason>"}},
@@ -216,6 +217,7 @@ Return ONLY a valid JSON object, no other text:
 }}
 
 Rules:
+- min_days: minimum days needed to do justice to this destination/circuit
 - Pick exactly the 3 best months to visit this specific destination
 - Be specific to the actual place (Char Dham, Vaishno Devi, Rann of Kutch, etc.)
 - month: integer 1-12, monthName: full English name"""
