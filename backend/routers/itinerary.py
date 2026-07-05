@@ -751,7 +751,12 @@ async def call_openai(prompt: str) -> dict:
                 except Exception:
                     error_detail = error_text.decode("utf-8", errors="ignore")[:300] if error_text else "Anthropic API error"
                 logger.error(f"Claude Sonnet API failed [{response.status_code}]: {error_detail}")
-                raise HTTPException(status_code=503, detail="Our AI travel planner is temporarily unavailable. Please try again in a moment.")
+                if response.status_code == 529 or response.status_code == 529:
+                    raise HTTPException(status_code=503, detail="Our AI is handling high demand right now. Please wait 30 seconds and try again — your request will work!")
+                elif response.status_code == 401:
+                    raise HTTPException(status_code=503, detail="AI service configuration error. Please contact support.")
+                else:
+                    raise HTTPException(status_code=503, detail="Our AI travel planner is temporarily unavailable. Please try again in a moment.")
 
             async for line in response.aiter_lines():
                 if not line or not line.startswith("data: "):

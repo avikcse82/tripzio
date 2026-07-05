@@ -181,6 +181,7 @@ export default function ItineraryResult() {
   const [isSaved, setIsSaved]                   = useState(false)
   const [saving, setSaving]                     = useState(false)
   const [shareUrl, setShareUrl]                 = useState(null)
+  const [altGenerating, setAltGenerating]       = useState(null) // name of alt being generated
   const [shareLoading, setShareLoading]         = useState(false)
 
   // ── Guest mode ────────────────────────────────────────────────
@@ -307,12 +308,16 @@ export default function ItineraryResult() {
   }
 
   const handleAltClick = async (alt) => {
+    if (altGenerating) return  // prevent double-click
     const token = localStorage.getItem('tripzio_token')
-    // Clean destination name - remove words like "Tour", "Trip", "Circuit"
     const cleanDest = alt.name
       .replace(/\b(Tour|Trip|Circuit|Package)\b/gi, '')
       .trim()
-    toast.loading(`Planning ${cleanDest}...`, { id: 'alt-gen' })
+    setAltGenerating(cleanDest)
+    toast.loading(`Planning ${cleanDest}...`, {
+      id: 'alt-gen',
+      style: { background: '#0f172a', color: 'white', fontWeight: '700' }
+    })
     try {
       const resp = await fetch(`${API_URL}/itinerary/generate`, {
         method: 'POST',
@@ -337,10 +342,18 @@ export default function ItineraryResult() {
         throw new Error(err.detail || 'Failed')
       }
       const newData = await resp.json()
-      toast.success(`${cleanDest} plan ready! 🎉`, { id: 'alt-gen' })
+      toast.success(`${cleanDest} plan ready! 🎉`, {
+        id: 'alt-gen',
+        style: { background: '#0f172a', color: 'white', fontWeight: '700' }
+      })
       navigate('/itinerary/result', { state: { itinerary: newData } })
     } catch (e) {
-      toast.error(e.message || 'Could not generate plan', { id: 'alt-gen' })
+      toast.error(e.message || 'Could not generate plan. Please try again.', {
+        id: 'alt-gen',
+        style: { background: '#0f172a', color: 'white', fontWeight: '700' }
+      })
+    } finally {
+      setAltGenerating(null)
     }
   }
 
@@ -2054,24 +2067,42 @@ export default function ItineraryResult() {
               🔀 Similar Destinations at Same Budget
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: '14px' }}>
-              {data.alternatives.map((alt, i) => (
-                <div key={i}
-                  className="alt-card"
-                  onClick={() => handleAltClick(alt)}
-                  style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>{alt.name}</h4>
-                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#0d9488', whiteSpace: 'nowrap', marginLeft: '8px' }}>{alt.estimated_budget}</span>
+              {data.alternatives.map((alt, i) => {
+                const cleanName = alt.name.replace(/\b(Tour|Trip|Circuit|Package)\b/gi, '').trim()
+                const isThisGenerating = altGenerating === cleanName
+                const isAnyGenerating = !!altGenerating
+                return (
+                  <div key={i}
+                    className="alt-card"
+                    onClick={() => !isAnyGenerating && handleAltClick(alt)}
+                    style={{
+                      background: 'white', border: `1px solid ${isThisGenerating ? '#0d9488' : '#e2e8f0'}`,
+                      borderRadius: '16px', padding: '20px',
+                      cursor: isAnyGenerating ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                      opacity: isAnyGenerating && !isThisGenerating ? 0.5 : 1,
+                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>{alt.name}</h4>
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: '#0d9488', whiteSpace: 'nowrap', marginLeft: '8px' }}>{alt.estimated_budget}</span>
+                    </div>
+                    <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6, marginBottom: '12px' }}>{alt.reason}</p>
+                    <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '8px', padding: '8px 12px', marginBottom: '12px' }}>
+                      <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: '600' }}>✨ {alt.highlight}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0ea5e9', fontSize: '12px', fontWeight: '700' }}>
+                      {isThisGenerating ? (
+                        <>
+                          <div style={{ width: '12px', height: '12px', border: '2px solid #0ea5e9', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                          Building your {cleanName} plan...
+                        </>
+                      ) : (
+                        <><Zap size={12} fill="#0ea5e9" /> Plan trip to {alt.name} →</>
+                      )}
+                    </div>
                   </div>
-                  <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6, marginBottom: '12px' }}>{alt.reason}</p>
-                  <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '8px', padding: '8px 12px', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: '600' }}>✨ {alt.highlight}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0ea5e9', fontSize: '12px', fontWeight: '700' }}>
-                    <Zap size={12} fill="#0ea5e9" /> Plan trip to {alt.name} →
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
