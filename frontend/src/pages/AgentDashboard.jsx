@@ -214,6 +214,10 @@ export default function AgentDashboard() {
   const seasonNudgeTimerRef     = useRef(null)
   const seasonNudgeRequestIdRef = useRef(0)
 
+  // ── Must Include state ────────────────────────────────────────
+  const [mustIncludeInput, setMustIncludeInput] = useState('')
+  const [mustIncludeChips, setMustIncludeChips] = useState([])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -421,7 +425,7 @@ export default function AgentDashboard() {
           return
         }
         endpoint = `${API_URL}/itinerary/generate-custom`
-        body = { free_text: customText.trim(), start_date: customExtractedDate || null, client_id: selectedClient?.id || null }
+        body = { free_text: customText.trim(), start_date: customExtractedDate || null, client_id: selectedClient?.id || null, must_include: mustIncludeString || null }
       } else {
         if (!from.trim() || !days || !budget) {
           toast.error('Fill From city, Days and Budget')
@@ -440,6 +444,7 @@ export default function AgentDashboard() {
           plan_tier: tier, transport_mode: transport,
           start_date: startDate || null, is_flexible: false,
           client_id: selectedClient?.id || null,
+          must_include: mustIncludeString || null,
         }
       }
 
@@ -871,6 +876,62 @@ export default function AgentDashboard() {
       }
     }, 800)
   }
+
+  // ── Must Include — validate place via Haiku then add chip ────
+  const validateAndAddPlace = async (placeText) => {
+    const place = placeText.trim()
+    if (!place) return
+    if (mustIncludeChips.length >= 5) {
+      toast.error('Maximum 5 places allowed. Too many may affect plan quality.')
+      return
+    }
+    const chip = { text: place, status: 'checking', reason: '', suggestion: '' }
+    setMustIncludeChips(prev => [...prev, chip])
+    setMustIncludeInput('')
+
+    const dest = destination || customText.slice(0, 80) || ''
+
+    if (!dest || dest.length < 3) {
+      setMustIncludeChips(prev => prev.map(c =>
+        c.text === place && c.status === 'checking' ? { ...c, status: 'valid' } : c
+      ))
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      const res = await fetch(`${API_URL}/itinerary/validate-place`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ destination: dest, place }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMustIncludeChips(prev => prev.map(c =>
+          c.text === place && c.status === 'checking'
+            ? { ...c, status: data.valid ? 'valid' : 'invalid', reason: data.reason, suggestion: data.suggestion }
+            : c
+        ))
+      } else {
+        setMustIncludeChips(prev => prev.map(c =>
+          c.text === place && c.status === 'checking' ? { ...c, status: 'valid' } : c
+        ))
+      }
+    } catch {
+      setMustIncludeChips(prev => prev.map(c =>
+        c.text === place && c.status === 'checking' ? { ...c, status: 'valid' } : c
+      ))
+    }
+  }
+
+  const removeMustIncludeChip = (text) => {
+    setMustIncludeChips(prev => prev.filter(c => c.text !== text))
+  }
+
+  const mustIncludeString = mustIncludeChips
+    .filter(c => c.status !== 'checking')
+    .map(c => c.text)
+    .join(', ')
 
   // ── Validate date is not in past ─────────────────────────
   const isValidFutureDate = (dateStr) => {
@@ -1696,6 +1757,64 @@ return (
                           e.g. <strong>"...starting March 3"</strong> or <strong>"...in December"</strong> or <strong>"...during Diwali"</strong>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* ── Must Include tag input ───────────────────────── */}
+                  {customText.length > 10 && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        📍 Client Must Visit <span style={{ color: '#94a3b8', fontWeight: '400', textTransform: 'none' }}>(optional — max 5)</span>
+                      </label>
+                      {mustIncludeChips.length > 0 && (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                          {mustIncludeChips.map(chip => (
+                            <div key={chip.text}
+                              title={chip.status === 'invalid' ? `${chip.reason}${chip.suggestion ? ` — Try: ${chip.suggestion}` : ''}` : ''}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                                border: `1.5px solid ${chip.status === 'invalid' ? '#fca5a5' : chip.status === 'checking' ? '#e2e8f0' : '#86efac'}`,
+                                background: chip.status === 'invalid' ? '#fef2f2' : chip.status === 'checking' ? '#f8fafc' : '#f0fdf4',
+                                color: chip.status === 'invalid' ? '#991b1b' : chip.status === 'checking' ? '#94a3b8' : '#166534',
+                              }}>
+                              {chip.status === 'checking' && <div style={{ width: '10px', height: '10px', border: '1.5px solid #94a3b8', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
+                              {chip.status === 'invalid' && '⚠️ '}
+                              {chip.status === 'valid' && '✓ '}
+                              {chip.text}
+                              <button onClick={() => removeMustIncludeChip(chip.text)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '14px', lineHeight: 1, padding: '0 0 0 2px', opacity: 0.7 }}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {mustIncludeChips.some(c => c.status === 'invalid') && (
+                        <div style={{ marginBottom: '8px', padding: '8px 12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '10px', fontSize: '11px', color: '#991b1b', fontWeight: '600' }}>
+                          ⚠️ {mustIncludeChips.find(c => c.status === 'invalid')?.reason}
+                          {mustIncludeChips.find(c => c.status === 'invalid')?.suggestion && (
+                            <span style={{ color: '#64748b', fontWeight: '400' }}> — Try: {mustIncludeChips.find(c => c.status === 'invalid')?.suggestion}</span>
+                          )}
+                        </div>
+                      )}
+                      {mustIncludeChips.length >= 5 && (
+                        <div style={{ marginBottom: '8px', fontSize: '11px', color: '#f97316', fontWeight: '600' }}>
+                          ⚠️ Maximum 5 places reached.
+                        </div>
+                      )}
+                      {mustIncludeChips.length < 5 && (
+                        <input type="text"
+                          placeholder="Type a place and press Enter... (e.g. Charminar, Paradise Biryani)"
+                          value={mustIncludeInput}
+                          onChange={e => setMustIncludeInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && mustIncludeInput.trim()) {
+                              e.preventDefault()
+                              validateAndAddPlace(mustIncludeInput)
+                            }
+                          }}
+                          style={{ width: '100%', padding: '9px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', color: '#0f172a' }}
+                        />
+                      )}
                     </div>
                   )}
 

@@ -698,7 +698,15 @@ GENERAL RULES:
 5. {req.days} days realistic plan
 6. Transport specifically from {req.from_city}
 7. If Gold/Diamond/Platinum — suggest upgrades to use full budget
-8. Return ONLY valid JSON"""
+8. Return ONLY valid JSON{f'''
+
+MUST INCLUDE — MANDATORY: The traveller has specifically requested these places/experiences.
+You MUST include ALL of the following in the itinerary, allocated appropriate time:
+{req.must_include}
+
+IMPORTANT: If any of the above are NOT geographically possible for this destination 
+(e.g. Taj Mahal for a Goa trip), skip that item silently and do NOT mention it.
+Only include places that are actually near {req.destination or req.from_city}.''' if getattr(req, 'must_include', None) else ''}"""
 
 
 async def call_openai(prompt: str) -> dict:
@@ -1216,6 +1224,89 @@ async def check_season(req: SeasonCheckRequest, current_user: dict = Depends(get
     if not result:
         return {}
     return result
+
+
+class PlaceValidateRequest(BaseModel):
+    destination: str
+    place: str
+
+
+@router.post("/validate-place")
+async def validate_place(req: PlaceValidateRequest, current_user: dict = Depends(get_current_user_from_token)):
+    """
+    Haiku-powered place validation.
+    Checks if a must-include place is geographically relevant
+    to the trip destination. Fails open — returns valid=True on error.
+    Cost: ~$0.001 per call. Called on Enter in the must-include tag input.
+    """
+    destination = (req.destination or "").strip()[:80]
+    place = (req.place or "").strip()[:60]
+    if not destination or not place:
+        return {"valid": True, "reason": "", "suggestion": ""}
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {"valid": True, "reason": "", "suggestion": ""}  # fail open
+
+    try:
+        prompt = f"""You are an Indian travel expert.
+
+Trip destination: {destination}
+Must-visit place typed by user: {place}
+
+Is "{place}" geographically relevant to a trip to "{destination}"?
+A place is relevant if it is:
+- In or very near the destination city/region (within ~100km)
+- A famous attraction IN that destination
+
+Return ONLY this JSON, no other text:
+{{
+  "valid": true or false,
+  "reason": "brief explanation if invalid, empty string if valid",
+  "suggestion": "1-2 nearby alternatives if invalid, empty string if valid"
+}}
+
+Examples:
+- destination=Hyderabad, place=Charminar → valid=true
+- destination=Hyderabad, place=Taj Mahal → valid=false, reason="Taj Mahal is in Agra, 600km away", suggestion="Charminar or Golconda Fort"
+- destination=Manali, place=Taj Mahal → valid=false, reason="Taj Mahal is in Agra, far from Manali", suggestion="Rohtang Pass or Hadimba Temple"
+- destination=Goa, place=Paradise Biryani → valid=false, reason="Paradise Biryani is in Hyderabad", suggestion="Fisherman's Wharf or A Reverie restaurant in Goa"
+"""
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 150,
+                    "temperature": 0.0,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+            )
+
+        if r.status_code != 200:
+            logger.warning(f"validate-place Haiku non-200: {r.status_code}")
+            return {"valid": True, "reason": "", "suggestion": ""}  # fail open
+
+        text = r.json()["content"][0]["text"].strip()
+        s = text.find("{"); e = text.rfind("}") + 1
+        if s < 0 or e <= s:
+            return {"valid": True, "reason": "", "suggestion": ""}  # fail open
+
+        result = json.loads(text[s:e])
+        return {
+            "valid": bool(result.get("valid", True)),
+            "reason": result.get("reason", ""),
+            "suggestion": result.get("suggestion", ""),
+        }
+
+    except Exception as ex:
+        logger.warning(f"validate-place failed: {ex}")
+        return {"valid": True, "reason": "", "suggestion": ""}  # fail open
 
 
 @router.post("/generate/guest")

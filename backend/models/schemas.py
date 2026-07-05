@@ -76,6 +76,7 @@ class ItineraryRequest(BaseModel):
     transport_mode: TransportMode = TransportMode.BALANCED
     start_date: Optional[str] = None
     is_flexible: bool = False
+    must_include: Optional[str] = None  # comma-separated places user must visit
 
 
 class AgentItineraryRequest(BaseModel):
@@ -91,6 +92,7 @@ class AgentItineraryRequest(BaseModel):
     transport_mode: TransportMode = TransportMode.BALANCED
     start_date: Optional[str] = None
     special_requirements: Optional[str] = None
+    must_include: Optional[str] = None  # comma-separated places user must visit
 
 
 # ── Itinerary Response schemas ────────────────
