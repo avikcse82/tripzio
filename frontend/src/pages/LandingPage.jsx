@@ -46,7 +46,7 @@ const SAMPLE_PLAN = {
 
 const HOW_IT_WORKS = [
   { step: '01', title: 'Describe your trip', desc: 'Type in Hindi, English, or mixed. "Goa 5 din December mein, budget 25 hajar, couple" — our AI understands it all.', icon: '✍️' },
-  { step: '02', title: 'AI builds your plan', desc: 'In under 30 seconds, get a complete itinerary with day-wise plan, hotels, cost breakdown, and festival alerts.', icon: '🤖' },
+  { step: '02', title: 'AI builds your plan', desc: 'In under 2 minutes, get a complete itinerary with day-wise plan, hotels, cost breakdown, and festival alerts.', icon: '🤖' },
   { step: '03', title: 'Share or export', desc: 'Share a beautiful link with family. Download a branded PDF. Send via WhatsApp. Your plan, your way.', icon: '📤' },
 ]
 
