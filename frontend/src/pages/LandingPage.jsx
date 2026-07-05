@@ -267,7 +267,7 @@ export default function LandingPage() {
       )}
 
       {/* ── HERO ─────────────────────────────────────────────── */}
-      <section style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', overflow: 'hidden', background: '#0a0f1e' }}>
+      <section style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', overflow: 'hidden', background: '#0a0f1e', isolation: 'isolate' }}>
 
         {/* Background photo carousel */}
         {DESTINATIONS.map((dest, i) => (
@@ -372,7 +372,7 @@ export default function LandingPage() {
               {(() => {
                 const plan = SAMPLE_PLANS[activeLang]
                 return (
-                  <div style={{ marginTop: '36px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', overflow: 'hidden', maxWidth: '540px' }}>
+                  <div style={{ marginTop: '36px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', overflow: 'hidden', maxWidth: '540px', minHeight: '320px' }}>
 
                     {/* Language tabs */}
                     <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>

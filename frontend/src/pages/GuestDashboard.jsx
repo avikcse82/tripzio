@@ -34,6 +34,7 @@ export default function GuestDashboard() {
   }, [isAuthenticated, isAgent, loading, navigate])
 
   const [from,       setFrom]       = useState('')
+  const [destination, setDestination] = useState('')
   const [days,       setDays]       = useState('')
   const [budget,     setBudget]     = useState('')
   const [tripType,   setTripType]   = useState('')
@@ -67,7 +68,8 @@ export default function GuestDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from_city:      from.trim(),
-          destination:    null,
+          destination:    destination.trim() || null,
+          destination_mode: destination.trim() ? 'specific' : 'suggest',
           days:           parseInt(days),
           budget:         parseInt(budget),
           trip_type:      tripType || null,
@@ -189,6 +191,21 @@ export default function GuestDashboard() {
               disabled={generating}
             />
             {errors.from && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>⚠ {errors.from}</p>}
+          </div>
+
+          {/* Destination (optional) */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Destination <span style={{ color: '#94a3b8', fontWeight: '400', textTransform: 'none' }}>(optional — AI picks if not specified)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Goa, Manali, Darjeeling..."
+              value={destination}
+              onChange={e => setDestination(e.target.value)}
+              style={inp(false)}
+              disabled={generating}
+            />
           </div>
 
           {/* Days + Budget */}

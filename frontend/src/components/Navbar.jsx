@@ -104,29 +104,30 @@ const Navbar = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {isAuthenticated ? (
             <>
-              {/* Search icon */}
+              {/* Search icon — Coming Soon */}
+              <div style={{ position: 'relative' }} title="Search — Coming Soon">
               <button style={{
                 width: '36px', height: '36px', borderRadius: '10px',
                 border: '1px solid #e2e8f0', background: 'white',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', transition: 'all 0.2s',
-                color: '#64748b'
-              }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.color = '#0d9488' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}>
+                cursor: 'not-allowed', transition: 'all 0.2s',
+                color: '#cbd5e1', opacity: 0.6
+              }}>
                 <Search size={15} />
               </button>
+              <span style={{ position: 'absolute', bottom: '-28px', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', color: 'white', fontSize: '10px', fontWeight: '600', padding: '3px 8px', borderRadius: '6px', whiteSpace: 'nowrap', pointerEvents: 'none', opacity: 0, transition: 'opacity 0.2s' }}
+                className="tooltip-text">Coming Soon</span>
+              </div>
 
-              {/* Bell */}
+              {/* Bell — Coming Soon */}
+              <div style={{ position: 'relative' }} title="Notifications — Coming Soon">
               <button style={{
                 width: '36px', height: '36px', borderRadius: '10px',
                 border: '1px solid #e2e8f0', background: 'white',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', transition: 'all 0.2s', position: 'relative',
-                color: '#64748b'
-              }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.color = '#0d9488' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}>
+                cursor: 'not-allowed', transition: 'all 0.2s', position: 'relative',
+                color: '#cbd5e1', opacity: 0.6
+              }}>
                 <Bell size={15} />
                 <div style={{
                   position: 'absolute', top: '8px', right: '8px',
@@ -135,6 +136,7 @@ const Navbar = () => {
                   border: '1.5px solid white'
                 }} />
               </button>
+              </div>
 
               {/* User pill */}
               <div style={{

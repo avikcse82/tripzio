@@ -41,6 +41,15 @@ function PublicRoute({ children }) {
   return children
 }
 
+function SmartRoute({ children }) {
+  const { isAuthenticated, isAgent, loading } = useAuth()
+  if (loading) return null
+  if (isAuthenticated) {
+    return <Navigate to={isAgent ? '/agent/dashboard' : '/dashboard'} replace />
+  }
+  return children
+}
+
 function AppRoutes() {
   return (
     <>
@@ -67,8 +76,8 @@ function AppRoutes() {
         }}
       />
       <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/guest" element={<GuestDashboard />} />
+        <Route path="/" element={<SmartRoute><LandingPage /></SmartRoute>} />
+        <Route path="/guest" element={<SmartRoute><GuestDashboard /></SmartRoute>} />
         <Route path="/guest/result" element={<ItineraryResult />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
