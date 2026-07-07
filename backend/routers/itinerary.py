@@ -858,12 +858,12 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
             if not num or num in seen_nums:
                 continue
             seen_nums.add(num)
-            name = t.get("trainName", t.get("train_name", f"Train {num}")).strip()
-            dep  = t.get("departureTime", t.get("departure_time", "")).strip()
-            arr  = t.get("arrivalTime",   t.get("arrival_time",   "")).strip()
-            dur  = t.get("duration", "").strip()
-            from_stn = (t.get("fromStnCode", "") or "").strip()
-            to_stn   = (t.get("toStnCode", "") or "").strip()
+            name = str(t.get("trainName", t.get("train_name", f"Train {num}"))).strip()
+            dep  = str(t.get("departureTime", t.get("departure_time", "")) or "").strip()
+            arr  = str(t.get("arrivalTime",   t.get("arrival_time",   "")) or "").strip()
+            dur  = str(t.get("duration", "") or "").strip()
+            from_stn = str(t.get("fromStnCode", "") or "").strip()
+            to_stn   = str(t.get("toStnCode", "") or "").strip()
             check_url = f"https://erail.in/trains-between-stations/{from_stn}/{to_stn}" if from_stn and to_stn else None
             real_trains.append({
                 "mode":           f"Train — {name} ({num})",

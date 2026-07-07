@@ -182,6 +182,15 @@ export default function ItineraryResult() {
   const [saving, setSaving]                     = useState(false)
   const [shareUrl, setShareUrl]                 = useState(null)
   const [altGenerating, setAltGenerating]       = useState(null) // name of alt being generated
+
+  // ── Hotel selection state ─────────────────────────────────────
+  const [selectedHotels, setSelectedHotels]     = useState(() => {
+    try {
+      const saved = localStorage.getItem('tripzio_selected_hotels')
+      return saved ? JSON.parse(saved) : {}
+    } catch { return {} }
+  })
+  const [finalising, setFinalising]             = useState(false)
   const [shareLoading, setShareLoading]         = useState(false)
 
   // ── Guest mode ────────────────────────────────────────────────
@@ -596,6 +605,75 @@ export default function ItineraryResult() {
 
   // ── Guest auth handler ────────────────────────────────────────
   // Called when guest clicks Save / Share / PDF / Generate Another
+  // ── Hotel selection handlers ──────────────────────────────────
+  const handleSelectHotel = (city, hotel) => {
+    setSelectedHotels(prev => {
+      // If same hotel already selected → deselect
+      if (prev[city]?.name === hotel.name) {
+        const next = { ...prev }
+        delete next[city]
+        return next
+      }
+      return { ...prev, [city]: { name: hotel.name, price_range: hotel.price_range || '', rating: hotel.rating || '' } }
+    })
+  }
+
+  const handleFinalise = () => {
+    if (Object.keys(selectedHotels).length === 0) return
+    setFinalising(true)
+    try {
+      // Pure JS update — only swap hotel names in stay + accommodation fields
+      // Everything else (trains, places, activities, budget) untouched
+      const updated = { ...data }
+
+      if (updated.day_plans) {
+        const firstDayPerCity = {}
+        updated.day_plans = updated.day_plans.map(day => {
+          const city = (day.city || day.location || '').toLowerCase()
+          const match = Object.keys(selectedHotels).find(c =>
+            city.includes(c.toLowerCase()) || c.toLowerCase().includes(city)
+          )
+          if (!match) return day
+          const hotelName = selectedHotels[match].name
+          const updated_day = { ...day, stay: hotelName }
+
+          if (!firstDayPerCity[match]) {
+            firstDayPerCity[match] = true
+            const desc = day.description || ''
+            // Replace "check into hotel near [any area]" with "check into [HotelName]"
+            // Also handles: "check in at hotel", "check into your hotel", "check-in at hotel"
+            const replaced = desc.replace(
+              /check[- ]?(?:in(?:to)?)\s+(?:at\s+)?(?:your\s+)?(?:the\s+)?(?:hotel|accommodation|property|room)(?:\s+(?:near|in|at|close to|around)\s+[^.!?]+)?/gi,
+              `check into ${hotelName}`
+            )
+            updated_day.description = replaced !== desc ? replaced : `Check into ${hotelName}. ${desc}`
+          }
+          return updated_day
+        })
+      }
+
+      if (updated.accommodation) {
+        updated.accommodation = updated.accommodation.map(a => {
+          const city = (a.city || a.location || '').toLowerCase()
+          const match = Object.keys(selectedHotels).find(c =>
+            city.includes(c.toLowerCase()) || c.toLowerCase().includes(city)
+          )
+          return match ? { ...a, name: selectedHotels[match].name } : a
+        })
+      }
+
+      localStorage.setItem('tripzio_selected_hotels', JSON.stringify(selectedHotels))
+      toast.success('Plan updated with your hotel selections! 🏨', { duration: 4000 })
+      setActiveTab('itinerary')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      navigate('/itinerary/result', { state: { itinerary: updated, isGuest: location.state?.isGuest }, replace: true })
+    } catch (e) {
+      toast.error('Could not update plan. Please try again.')
+    } finally {
+      setFinalising(false)
+    }
+  }
+
   const handleGuestAction = () => {
     setShowAuthModal(true)
     setAuthTab('register')
@@ -729,6 +807,18 @@ export default function ItineraryResult() {
     ...data
   }
   Object.assign(data, safeData)
+
+  // Sanitise hardcoded area names from check-in sentences on load
+  if (data.day_plans) {
+    data.day_plans = data.day_plans.map(day => {
+      if (!day.description) return day
+      const cleaned = day.description.replace(
+        /check[- ]?(?:in(?:to)?)\s+(?:at\s+)?(?:your\s+)?(?:the\s+)?(?:hotel|accommodation|property|room)(?:\s+(?:near|in|at|close to|around)\s+[^.!?]+)?/gi,
+        'check into your hotel'
+      )
+      return cleaned !== day.description ? { ...day, description: cleaned } : day
+    })
+  }
 
   const tabs = [
     { id: 'itinerary', label: '📅 Day Plan' },
@@ -1195,7 +1285,20 @@ export default function ItineraryResult() {
                   </div>
                 </div>
 
-                {/* ── TIER UPGRADE BANNER ── */}
+                {/* Hotel selection nudge — shows when no hotel selected yet */}
+                {Object.keys(selectedHotels).length === 0 && (
+                  <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '20px' }}>🏨</span>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#0369a1' }}>
+                        Select your preferred hotel to personalise your Day Plan
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '2px' }}>
+                        Click "Select" on any hotel below → your Day Plan will update with the hotel name
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div style={{ marginBottom: '16px' }}>
                   {/* Current tier pills */}
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px', alignItems: 'center' }}>
@@ -1381,17 +1484,33 @@ export default function ItineraryResult() {
                               </p>
                             )}
                             <div style={{ display: 'flex', gap: '8px' }}>
+                              {/* Select hotel button */}
+                              <button
+                                onClick={() => handleSelectHotel(activeHotelCity, hotel)}
+                                style={{
+                                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                                  padding: '9px', borderRadius: '10px', fontSize: '12px', fontWeight: '700',
+                                  cursor: 'pointer', fontFamily: 'inherit', border: 'none', transition: 'all 0.2s',
+                                  background: selectedHotels[activeHotelCity]?.name === hotel.name
+                                    ? 'linear-gradient(135deg,#0d9488,#0ea5e9)'
+                                    : '#f0fdfa',
+                                  color: selectedHotels[activeHotelCity]?.name === hotel.name ? 'white' : '#0d9488',
+                                  boxShadow: selectedHotels[activeHotelCity]?.name === hotel.name
+                                    ? '0 2px 8px rgba(13,148,136,0.3)' : 'none',
+                                }}>
+                                {selectedHotels[activeHotelCity]?.name === hotel.name ? '✓ Selected' : 'Select'}
+                              </button>
                               <a href={hotel.tripadvisor_url || hotel.maps_url || `https://www.google.com/maps/search/${encodeURIComponent((hotel.name||'') + '+' + (hotel.area || activeHotelCity || data.destination || ''))}`}
                                 target="_blank" rel="noopener noreferrer"
-                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#374151', textDecoration: 'none' }}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#374151', textDecoration: 'none' }}
                                 onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.color = '#0d9488' }}
                                 onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#374151' }}>
-                                <Navigation size={12} /> {hotel.tripadvisor_url ? 'TripAdvisor' : 'Maps'}
+                                <Navigation size={12} /> {hotel.tripadvisor_url ? 'Review' : 'Maps'}
                               </a>
                               <a href={`https://www.booking.com/search.html?ss=${encodeURIComponent(hotel.name + ' ' + (activeHotelCity || data.destination))}`}
                                 target="_blank" rel="noopener noreferrer"
-                                style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: 'white', textDecoration: 'none' }}>
-                                <ExternalLink size={12} /> Book Now
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 12px', background: 'white', border: '1px solid #0d9488', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#0d9488', textDecoration: 'none' }}>
+                                <ExternalLink size={12} /> Book
                               </a>
                             </div>
                           </div>
@@ -2156,6 +2275,40 @@ export default function ItineraryResult() {
               {emailSending ? '⏳ Sending...' : '📧 Send Itinerary'}
             </button>
           </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Finalise Plan sticky bar — shows when hotels selected ── */}
+    {Object.keys(selectedHotels).length > 0 && !finalising && (
+      <div style={{ position: 'fixed', bottom: isGuest && !showAuthModal ? '60px' : '0', left: 0, right: 0, zIndex: 89, background: 'white', borderTop: '2px solid #0d9488', padding: '12px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.1)' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          {/* Selected summary */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>Selected:</span>
+            {Object.entries(selectedHotels).map(([city, hotel]) => (
+              <span key={city} style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '20px', padding: '3px 12px', fontSize: '12px', fontWeight: '700', color: '#0d9488' }}>
+                🏨 {hotel.name} ({city})
+              </span>
+            ))}
+          </div>
+          {/* Single finalise button */}
+          <button onClick={handleFinalise}
+            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(13,148,136,0.35)' }}>
+            ✈ Finalise Plan with Selected Hotels
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Finalising loader */}
+    {finalising && (
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 89, background: 'white', borderTop: '2px solid #0d9488', padding: '16px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.1)' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '20px', height: '20px', border: '2px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+          <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>
+            Updating your plan with selected hotels...
+          </span>
         </div>
       </div>
     )}
