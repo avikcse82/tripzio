@@ -494,8 +494,8 @@ export default function LandingPage() {
       <section style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '48px 24px' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '32px', textAlign: 'center' }}>
           {[
-            { value: tripCount ? `${tripCount.toLocaleString('en-IN')}+` : '1,000+', label: 'Trips Planned', sub: 'By Indian travellers' },
-            { value: '30s', label: 'Average Plan Time', sub: 'Vs 3 hours manually' },
+            { value: tripCount ? `${tripCount.toLocaleString('en-IN')}+` : '...', label: 'Trips Planned', sub: 'By Indian travellers' },
+            { value: 'Under 2 Min', label: 'Plan Generation', sub: 'Vs 3 hours manually' },
             { value: '36', label: 'States & UTs', sub: 'No destination untouched' },
             { value: '₹0', label: 'To Start', sub: 'Free forever plan' },
           ].map((stat, i) => (
