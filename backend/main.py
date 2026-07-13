@@ -6,6 +6,8 @@ from routers import auth, users, itinerary, weather, hotels, agents, trips, shar
 from core.config import settings
 import os
 from routers import email_router
+from routers.seo import router as seo_router
+
 
 print("SERPAPI_KEY:", os.getenv("SERPAPI_KEY", "NOT FOUND"))
 
@@ -36,7 +38,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+app.include_router(seo_router, prefix="", tags=["SEO"])
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(itinerary.router)
