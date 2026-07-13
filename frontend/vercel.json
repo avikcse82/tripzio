@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "https://tripzio-production.up.railway.app/sitemap.xml"
+    },
+    {
       "source": "/:slug([a-z0-9-]+)-trip-planner",
       "destination": "/api/seo-destination?slug=:slug"
     }
