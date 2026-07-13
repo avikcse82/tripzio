@@ -5,8 +5,6 @@
 
 export const config = {
   runtime: 'edge',
-  // Match any URL ending in -trip-planner
-  matcher: ['/:destination*-trip-planner'],
 }
 
 const API_URL = process.env.VITE_API_URL || 'https://tripzio-production.up.railway.app'
@@ -302,16 +300,15 @@ function escHtml(str) {
 // ── Edge Function handler ─────────────────────────────────────────────────
 export default async function handler(request) {
   const url = new URL(request.url)
-  const pathname = url.pathname  // e.g. "/coorg-trip-planner"
+  const pathname = url.pathname
 
-  // Extract destination slug from URL
-  const match = pathname.match(/^\/(.+)-trip-planner\/?$/)
-  if (!match) {
-    // Not a destination URL — pass through to React app
-    return new Response(null, { status: 404 })
+  // Get slug from query param (vercel rewrite) or extract from path
+  let slug = url.searchParams.get('slug')
+  if (!slug) {
+    const match = pathname.match(/^\/(.+)-trip-planner\/?$/)
+    if (!match) return new Response(null, { status: 404 })
+    slug = match[1]
   }
-
-  const slug = match[1]  // e.g. "coorg"
 
   try {
     // Fetch page data from FastAPI (Railway)
