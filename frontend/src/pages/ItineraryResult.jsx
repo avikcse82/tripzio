@@ -1507,7 +1507,39 @@ export default function ItineraryResult() {
                                 onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#374151' }}>
                                 <Navigation size={12} /> {hotel.tripadvisor_url ? 'Review' : 'Maps'}
                               </a>
-                              <a href={`https://www.booking.com/search.html?ss=${encodeURIComponent(hotel.name + ' ' + (activeHotelCity || data.destination))}`}
+                              <a href={(() => {
+                                // Smart booking URL with pre-filled dates and guests
+                                const hotelQuery = encodeURIComponent(hotel.name + ' ' + (activeHotelCity || data.destination || ''))
+                                // Calculate check-in/out from itinerary data
+                                let checkin = '', checkout = ''
+                                if (data.start_date) {
+                                  const cin = new Date(data.start_date)
+                                  const cout = new Date(data.start_date)
+                                  // Find which day index this city starts on
+                                  const cityDays = (data.day_plans || []).filter(d =>
+                                    (d.city || '').toLowerCase().includes((activeHotelCity || '').toLowerCase())
+                                  )
+                                  const cityStart = (data.day_plans || []).findIndex(d =>
+                                    (d.city || '').toLowerCase().includes((activeHotelCity || '').toLowerCase())
+                                  )
+                                  cin.setDate(cin.getDate() + Math.max(0, cityStart))
+                                  cout.setDate(cin.getDate() + Math.max(1, cityDays.length))
+                                  checkin = cin.toISOString().split('T')[0]
+                                  checkout = cout.toISOString().split('T')[0]
+                                }
+                                // Guests from trip_type
+                                const guests = data.trip_type === 'Solo' ? 1 :
+                                               data.trip_type === 'Couple' ? 2 :
+                                               data.trip_type === 'Family' ? 3 : 2
+                                const params = new URLSearchParams({
+                                  ss: hotel.name + ' ' + (activeHotelCity || data.destination || ''),
+                                  ...(checkin && { checkin }),
+                                  ...(checkout && { checkout }),
+                                  group_adults: guests,
+                                  no_rooms: 1,
+                                })
+                                return `https://www.booking.com/searchresults.html?${params.toString()}`
+                              })()}
                                 target="_blank" rel="noopener noreferrer"
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 12px', background: 'white', border: '1px solid #0d9488', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#0d9488', textDecoration: 'none' }}>
                                 <ExternalLink size={12} /> Book
@@ -1616,6 +1648,26 @@ export default function ItineraryResult() {
                                                 🚂 Check Live Seat Availability →
                                               </a>
                                             )}
+                                            {/* IRCTC booking hook — pre-filled train + date */}
+                                            {(() => {
+                                              const trainNum = (opt.operator || '').match(/\d{4,5}/)?.[0]
+                                              const fromCode = opt.from_station_code || ''
+                                              const toCode = opt.to_station_code || ''
+                                              if (!trainNum && !fromCode) return null
+                                              const journeyDate = data.start_date
+                                                ? data.start_date.replace(/-/g, '')
+                                                : ''
+                                              const irctcUrl = trainNum
+                                                ? `https://www.irctc.co.in/eticketing/protected/mapps1/altAvlEnq/TC/${trainNum}/${fromCode || 'NA'}/${toCode || 'NA'}/${journeyDate || 'NA'}/1/STBA`
+                                                : `https://www.irctc.co.in/eticketing/protected/mapps1/avlFarenquiry/${fromCode}/${toCode}/${journeyDate}/1/STBA/allTrain`
+                                              return (
+                                                <a href={irctcUrl} target="_blank" rel="noopener noreferrer"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '6px', marginLeft: '6px', padding: '6px 11px', background: '#0284c7', color: 'white', borderRadius: '8px', fontSize: '11px', fontWeight: '700', textDecoration: 'none' }}>
+                                                  🎫 Book on IRCTC →
+                                                </a>
+                                              )
+                                            })()}
                                           </div>
                                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                             <div style={{ fontSize: '13px', fontWeight: '800', color: '#0d9488' }}>{opt.estimated_cost?.split('|')[0]?.trim()}</div>
