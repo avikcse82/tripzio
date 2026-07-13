@@ -17,7 +17,7 @@ const DESTINATIONS = [
 ]
 
 const FEATURES = [
-  { icon: '⚡', color: '#0ea5e9', bg: '#eff6ff', title: 'AI Plans in 30 Seconds', desc: 'Type your trip in any language. Get a complete day-by-day itinerary instantly — budgets, routes, hotels, permits included.' },
+  { icon: '⚡', color: '#0ea5e9', bg: '#eff6ff', title: 'AI Plans in Under 2 Minutes', desc: 'Type your trip in any language. Get a complete day-by-day itinerary in under 2 minutes — budgets, routes, hotels, permits included.' },
   { icon: '🗺️', color: '#14b8a6', bg: '#f0fdfa', title: 'All India Coverage', desc: '101+ destinations across every Indian state. From Kashmir to Kanyakumari, Kutch to Arunachal — no destination left behind.' },
   { icon: '🎪', color: '#f59e0b', bg: '#fffbeb', title: 'Festival Intelligence', desc: 'Unique feature: Tripzio warns you about festivals near your travel dates. Know when Goa prices spike 4x for Christmas — before you book.' },
   { icon: '💼', color: '#8b5cf6', bg: '#f5f3ff', title: 'Built for Travel Agents', desc: 'Generate 3 itinerary options in 2 minutes. White-label PDF with your agency branding. WhatsApp share in one click.' },
@@ -112,7 +112,7 @@ export default function LandingPage() {
   // ── Real trip counter — fail silent ──────────────────────────────────
   useEffect(() => {
     const API = import.meta.env.VITE_API_URL || 'https://tripzio-production.up.railway.app'
-    fetch(`${API}/stats/public`)
+    fetch(`${API}/stats/public`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.trip_count > 0) setTripCount(data.trip_count) })
       .catch(() => {})
@@ -312,7 +312,7 @@ export default function LandingPage() {
                 <span style={{ display: 'block', background: 'linear-gradient(135deg,#0ea5e9,#14b8a6,#22c55e)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                   perfect India trip
                 </span>
-                in 30 seconds.
+                in under 2 minutes.
               </h1>
 
               <p style={{ fontSize: '18px', color: '#94a3b8', lineHeight: 1.7, marginBottom: '16px', maxWidth: '520px', fontWeight: '400' }}>
@@ -731,7 +731,7 @@ export default function LandingPage() {
             Your next India trip starts here
           </h2>
           <p style={{ fontSize: '16px', color: '#94a3b8', marginBottom: '36px', lineHeight: 1.7 }}>
-            Free to start. No credit card. Plan your first trip in 30 seconds.
+            Free to start. No credit card. Plan your first trip in under 2 minutes.
           </p>
           <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/guest"
