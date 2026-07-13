@@ -6,7 +6,7 @@
   },
   "rewrites": [
     {
-      "source": "/:destination*-trip-planner",
+      "source": "/:path*-trip-planner",
       "destination": "/api/seo-destination"
     }
   ],
