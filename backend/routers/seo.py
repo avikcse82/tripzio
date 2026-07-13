@@ -327,3 +327,62 @@ async def list_seo_pages():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sitemap.xml")
+async def sitemap():
+    """
+    Dynamic sitemap — reads all cached destination pages from Supabase.
+    As new destinations get generated they automatically appear here.
+    Google uses this to discover all tripzio.io pages.
+    """
+    from fastapi.responses import Response
+
+    try:
+        supabase = get_supabase_client()
+        result = supabase.table("seo_pages")\
+            .select("destination_slug, updated_at")\
+            .execute()
+        cached_pages = result.data or []
+    except Exception:
+        cached_pages = []
+
+    static_routes = [
+        "/", "/guest", "/login", "/register",
+        "/agent/login", "/explore",
+    ]
+
+    base_url = "https://tripzio.io"
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+
+    urls = []
+
+    # Static pages
+    for route in static_routes:
+        urls.append(f"""  <url>
+    <loc>{base_url}{route}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>{today}</lastmod>
+  </url>""")
+
+    # Dynamic destination pages — only what's been generated and cached
+    for page in sorted(cached_pages, key=lambda x: x["destination_slug"]):
+        slug = page["destination_slug"]
+        lastmod = page.get("updated_at", today)[:10] if page.get("updated_at") else today
+        urls.append(f"""  <url>
+    <loc>{base_url}/{slug}-trip-planner</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <lastmod>{lastmod}</lastmod>
+  </url>""")
+
+    sitemap_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(urls)}
+</urlset>"""
+
+    return Response(
+        content=sitemap_xml,
+        media_type="application/xml"
+    )
