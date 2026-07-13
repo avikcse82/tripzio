@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/seo-destination.js": {
+      "runtime": "edge"
+    }
+  },
   "rewrites": [
     {
       "source": "/sitemap.xml",

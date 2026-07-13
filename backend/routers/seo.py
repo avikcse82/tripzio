@@ -212,6 +212,123 @@ async def save_cached_page(slug: str, name: str, data: dict) -> bool:
 
 
 # ── Main endpoint ─────────────────────────────────────────────────────────
+@router.get("/stats/public")
+async def public_stats():
+    """
+    Public stats for landing page — trip count, destinations etc.
+    No auth required. Cached-friendly (returns same data for 5 min).
+    Fail-open: returns zeros on any error.
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # Total trips generated
+        trips_result = supabase.table("trips")\
+            .select("id", count="exact")\
+            .execute()
+        trip_count = trips_result.count or 0
+
+        # Total registered users
+        users_result = supabase.table("users")\
+            .select("id", count="exact")\
+            .execute()
+        user_count = users_result.count or 0
+
+        # Total destinations cached (SEO pages generated)
+        dest_result = supabase.table("seo_pages")\
+            .select("destination_slug", count="exact")\
+            .execute()
+        dest_count = dest_result.count or 0
+
+        return {
+            "trip_count": trip_count,
+            "user_count": user_count,
+            "dest_count": dest_count,
+        }
+
+    except Exception as e:
+        logger.warning(f"public_stats failed: {e}")
+        return {
+            "trip_count": 0,
+            "user_count": 0,
+            "dest_count": 0,
+        }
+
+
+
+
+
+# ── Trip OG endpoint — dynamic WhatsApp/social preview ───────────────────
+@router.get("/trip-og/{slug}")
+async def trip_og(slug: str):
+    """
+    Returns HTML with dynamic OG meta tags for a shared trip.
+    WhatsApp/Facebook crawl this URL to generate rich previews.
+    Fail-open: returns generic OG tags if trip not found.
+    """
+    from fastapi.responses import HTMLResponse
+
+    if not re.match(r'^[a-zA-Z0-9_-]{1,80}$', slug):
+        raise HTTPException(status_code=400, detail="Invalid slug")
+
+    og_title = "Tripzio — AI Travel Planner for India"
+    og_desc = "Plan your perfect Indian trip in 30 seconds. Real trains, hotels & budget. Free to start."
+    og_image = "https://tripzio.io/og-image.png"
+    canonical = f"https://tripzio.io/trip/{slug}"
+
+    try:
+        supabase = get_supabase_client()
+        result = supabase.table("trips")\
+            .select("title, destination, days, budget, trip_type")\
+            .eq("share_slug", slug)\
+            .single()\
+            .execute()
+
+        if result.data:
+            trip = result.data
+            dest = trip.get("destination", "India")
+            days = trip.get("days", "")
+            budget = trip.get("budget", "")
+            trip_type = trip.get("trip_type", "")
+            parts = [dest]
+            if days: parts.append(f"{days} Days")
+            if budget: parts.append(f"₹{int(budget):,}")
+            og_title = f"{' · '.join(parts)} — AI Trip Plan | Tripzio"
+            desc_parts = ["AI-generated"]
+            if trip_type: desc_parts.append(trip_type)
+            desc_parts.append(f"trip to {dest}.")
+            desc_parts.append("Full itinerary with trains, hotels & budget.")
+            og_desc = " ".join(desc_parts)
+    except Exception as e:
+        logger.warning(f"trip_og: slug {slug}: {e}")
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>{og_title}</title>
+  <meta property="og:type" content="website"/>
+  <meta property="og:url" content="{canonical}"/>
+  <meta property="og:title" content="{og_title}"/>
+  <meta property="og:description" content="{og_desc}"/>
+  <meta property="og:image" content="{og_image}"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:site_name" content="Tripzio"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="{og_title}"/>
+  <meta name="twitter:description" content="{og_desc}"/>
+  <meta name="twitter:image" content="{og_image}"/>
+  <link rel="canonical" href="{canonical}"/>
+  <script>window.location.replace("{canonical}")</script>
+</head>
+<body><p>Loading trip plan...</p></body>
+</html>"""
+
+    return HTMLResponse(content=html, status_code=200)
+
+
+# ── Main SEO page endpoint ────────────────────────────────────────────────
 @router.get("/seo/page/{destination_slug}")
 async def get_seo_page(destination_slug: str, request: Request):
     """
