@@ -10,6 +10,7 @@ import {
   History, PlusCircle, Eye, AlertCircle, Download
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import GenerationOverlay from '../components/GenerationOverlay'
 import FestivalAlert from '../components/FestivalAlert'
 
 import { API_URL } from '../api'
@@ -963,6 +964,17 @@ export default function AgentDashboard() {
 
 return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+      {/* ── Generation Overlay ─────────────────────────────────── */}
+      <GenerationOverlay
+        generating={generating}
+        genStep={genStep}
+        destination={planMode === 'custom' ? customText.slice(0, 60) : destination}
+        fromCity={from}
+        tripType={tripType}
+        days={days}
+        isAgent={true}
+        clientName={selectedClient?.name || ''}
+      />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }

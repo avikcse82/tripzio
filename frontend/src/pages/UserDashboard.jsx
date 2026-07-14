@@ -13,6 +13,7 @@ import {
   MessageSquare, Lightbulb, CheckCircle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import GenerationOverlay from '../components/GenerationOverlay'
 
 // ── Destination data ──────────────────────────────────────────────────
 const destinations = [
@@ -917,6 +918,16 @@ export default function UserDashboard() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
+      {/* ── Generation Overlay ─────────────────────────────────── */}
+      <GenerationOverlay
+        generating={generating}
+        genStep={genStep}
+        destination={planMode === 'custom' ? customText.slice(0, 60) : selectedDestination}
+        fromCity={from}
+        tripType={tripType}
+        days={days}
+        isAgent={false}
+      />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
