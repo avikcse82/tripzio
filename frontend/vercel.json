@@ -5,6 +5,10 @@
       "destination": "https://tripzio-production.up.railway.app/sitemap.xml"
     },
     {
+      "source": "/trip/:slug",
+      "destination": "/api/trip-og?slug=:slug"
+    },
+    {
       "source": "/:slug([a-z0-9-]+)-trip-planner",
       "destination": "/api/seo-destination?slug=:slug"
     }
