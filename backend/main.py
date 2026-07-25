@@ -7,6 +7,7 @@ from core.config import settings
 import os
 from routers import email_router
 from routers.seo import router as seo_router
+from routers.reminders import router as reminders_router
 
 
 print("SERPAPI_KEY:", os.getenv("SERPAPI_KEY", "NOT FOUND"))
@@ -39,6 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(seo_router, prefix="", tags=["SEO"])
+app.include_router(reminders_router, prefix="", tags=["Reminders"])
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(itinerary.router)

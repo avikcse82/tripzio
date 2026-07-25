@@ -17,7 +17,7 @@ const DESTINATIONS = [
 ]
 
 const FEATURES = [
-  { icon: '⚡', color: '#0ea5e9', bg: '#eff6ff', title: 'AI Plans in Under 2 Minutes', desc: 'Type your trip in any language. Get a complete day-by-day itinerary in under 2 minutes — budgets, routes, hotels, permits included.' },
+  { icon: '⚡', color: '#0ea5e9', bg: '#eff6ff', title: 'No Chatbot. Just Type.', desc: 'No back-and-forth questions. Type your full trip in one line — AI understands everything. Faster than any chatbot.' },
   { icon: '🗺️', color: '#14b8a6', bg: '#f0fdfa', title: 'All India Coverage', desc: '101+ destinations across every Indian state. From Kashmir to Kanyakumari, Kutch to Arunachal — no destination left behind.' },
   { icon: '🎪', color: '#f59e0b', bg: '#fffbeb', title: 'Festival Intelligence', desc: 'Unique feature: Tripzio warns you about festivals near your travel dates. Know when Goa prices spike 4x for Christmas — before you book.' },
   { icon: '💼', color: '#8b5cf6', bg: '#f5f3ff', title: 'Built for Travel Agents', desc: 'Generate 3 itinerary options in 2 minutes. White-label PDF with your agency branding. WhatsApp share in one click.' },
@@ -319,7 +319,14 @@ export default function LandingPage() {
                 Type your trip in Hindi, English, or mixed. Get a complete day-by-day itinerary with real budgets, festival alerts, and hotel suggestions.
               </p>
 
-              {/* ── TYPEWRITER "TRY IT" BOX ──────────────────────── */}
+              {/* ── No chatbot differentiator ──────────────────────── */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', maxWidth: '520px', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px' }}>
+                <span style={{ fontSize: '20px', flexShrink: 0 }}>⚡</span>
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'white' }}>No chatbot. No back-and-forth. </span>
+                  <span style={{ fontSize: '13px', color: '#64748b' }}>Just type your full trip in one line — our AI understands everything instantly.</span>
+                </div>
+              </div>
               <div style={{ marginBottom: '36px', maxWidth: '520px' }}>
                 {/* Language badge */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
