@@ -282,6 +282,29 @@ export default function ItineraryResult() {
     return price * (data?.days || 1)
   }
 
+  const parseCurrency = (str) => {
+    const n = parseInt(String(str || '0').replace(/[^0-9]/g, ''))
+    return isNaN(n) ? 0 : n
+  }
+  const formatCurrency = (n) => `₹${Math.max(0, Math.round(n)).toLocaleString('en-IN')}`
+
+  // Cost breakdown reflecting the currently PREVIEWED tier — swaps in the
+  // upgraded tier's estimated accommodation cost and recomputes the total,
+  // instead of leaving the displayed total frozen at the original tier
+  // while the hotel list/badges say something more expensive
+  const effectiveCostBreakdown = (() => {
+    const base = data.cost_breakdown || {}
+    const newAccomPerTrip = getUpgradedAccomCost()
+    if (!isUpgraded || !newAccomPerTrip) return base
+    const oldAccom = parseCurrency(base.accommodation)
+    const oldTotal = parseCurrency(base.total)
+    return {
+      ...base,
+      accommodation: formatCurrency(newAccomPerTrip),
+      total: formatCurrency(oldTotal - oldAccom + newAccomPerTrip),
+    }
+  })()
+
   const circuit = data ? isCircuit(data) : false
   const cities  = data ? parseCircuitCities(data) : []
 
@@ -619,8 +642,9 @@ export default function ItineraryResult() {
       ).join('\n')
     }
 
-    // Cost breakdown
-    const cb = data.cost_breakdown || {}
+    // Cost breakdown — reflects the currently previewed tier, not the
+    // original AI-generated total, so a shared plan doesn't show a stale cost
+    const cb = effectiveCostBreakdown
     const costLines = [
       cb.transport     ? `🚌 Transport: ${cb.transport}` : '',
       cb.accommodation ? `🏨 Hotels: ${cb.accommodation}` : '',
@@ -701,8 +725,10 @@ export default function ItineraryResult() {
   const handleDownload = () => {
     try {
       // Use the latest finalised itinerary (may be ahead of location.state
-      // right after handleFinalise's navigate() call) instead of stale `data`
-      const pdfData = latestItineraryRef.current || data
+      // right after handleFinalise's navigate() call) instead of stale `data`.
+      // If a tier is being previewed (not yet finalised), carry that cost
+      // preview into the PDF too — what's on screen should match the export.
+      const pdfData = { ...(latestItineraryRef.current || data), ...(isUpgraded ? { cost_breakdown: effectiveCostBreakdown } : {}) }
       generateTripPDF({ data: pdfData, user, isAgent, clientName, agentProfile })
       Analytics.pdfDownloaded(pdfData?.destination)
       toast.success('PDF downloaded! 🎉')
@@ -786,11 +812,56 @@ export default function ItineraryResult() {
         })
       }
 
+      // Recompute accommodation cost + total using the ACTUALLY selected
+      // hotels' real prices, so the saved/shared/PDF'd total matches what
+      // was picked — not just the AI's original placeholder estimate.
+      // Cities with no selection keep their prorated share of the original
+      // accommodation total for their nights, so nothing goes uncounted.
+      if (updated.cost_breakdown) {
+        const legNights = {}
+        ;(updated.circuit_legs || []).forEach(leg => {
+          legNights[String(leg.city || '').toLowerCase()] = leg.days || 1
+        })
+        const allCities = cities.length > 0 ? cities : [updated.destination || 'Trip']
+        const totalDays = updated.days || allCities.length || 1
+        const nightsFor = (city) => legNights[String(city).toLowerCase()] || Math.max(1, Math.round(totalDays / allCities.length))
+        const parsePerNight = (priceRange) => {
+          const m = String(priceRange || '').match(/₹?([\d,]+)/)
+          return m ? parseInt(m[1].replace(/,/g, '')) || 0 : 0
+        }
+
+        const originalAccomTotal = parseCurrency(updated.cost_breakdown.accommodation)
+        const originalPerNightAvg = totalDays > 0 ? originalAccomTotal / totalDays : 0
+
+        let newAccomTotal = 0
+        allCities.forEach(city => {
+          const nights = nightsFor(city)
+          const match = Object.keys(selectedHotels).find(c =>
+            city.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(city.toLowerCase())
+          )
+          const perNight = match ? parsePerNight(selectedHotels[match].price_range) : 0
+          newAccomTotal += (perNight || originalPerNightAvg) * nights
+        })
+
+        if (newAccomTotal > 0) {
+          const oldTotal = parseCurrency(updated.cost_breakdown.total)
+          updated.cost_breakdown = {
+            ...updated.cost_breakdown,
+            accommodation: formatCurrency(newAccomTotal),
+            total: formatCurrency(oldTotal - originalAccomTotal + newAccomTotal),
+          }
+        }
+      }
+
       localStorage.setItem('tripzio_selected_hotels', JSON.stringify(selectedHotels))
       latestItineraryRef.current = updated
       setAppliedHotels(selectedHotels)
       toast.success('Plan updated with your hotel selections! 🏨', { duration: 4000 })
       setActiveTab('itinerary')
+      // A stale tier preview must not keep overriding the cost breakdown we
+      // just computed from the ACTUAL selected hotels — same route, same
+      // component instance, so activeTier survives navigate() unless cleared
+      setActiveTier(null)
       window.scrollTo({ top: 0, behavior: 'smooth' })
       navigate('/itinerary/result', { state: { itinerary: updated, isGuest: location.state?.isGuest, appliedHotels: selectedHotels, hasDistributed }, replace: true })
     } catch (e) {
@@ -1545,15 +1616,15 @@ export default function ItineraryResult() {
                       <span style={{ fontSize: '22px' }}>{nextTierCfg.emoji}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '13px', fontWeight: '800', color: nextTierCfg.color }}>
-                          Upgrade to {nextTierCfg.label} — unlock better hotels
+                          Preview {nextTierCfg.label} — see how the cost changes
                         </div>
                         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                          See premium hotel options for your destination
+                          Same hotels, re-ranked by rating — your total updates to match
                         </div>
                       </div>
                       <button onClick={() => setActiveTier(nextTier)}
                         style={{ padding: '8px 18px', background: nextTierCfg.bg, border: `1.5px solid ${nextTierCfg.border}`, borderRadius: '10px', color: nextTierCfg.color, fontSize: '12px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                        Upgrade ✨
+                        Preview ✨
                       </button>
                     </div>
                   )}
@@ -2295,7 +2366,7 @@ export default function ItineraryResult() {
             {activeTab === 'costs' && (
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '14px', marginBottom: '24px' }}>
-                  {data.cost_breakdown && Object.entries(data.cost_breakdown).filter(([k]) => k !== 'total').map(([key, value], i) => {
+                  {effectiveCostBreakdown && Object.entries(effectiveCostBreakdown).filter(([k]) => k !== 'total').map(([key, value], i) => {
                     const meta = {
                       transport: { emoji: '🚌', color: '#0ea5e9' },
                       accommodation: { emoji: '🏨', color: '#8b5cf6' },
@@ -2314,7 +2385,7 @@ export default function ItineraryResult() {
                   })}
                 </div>
                 {(() => {
-                  const totalNum = parseInt((data.cost_breakdown?.total || '0').replace(/[^0-9]/g, '')) || 0
+                  const totalNum = parseCurrency(effectiveCostBreakdown?.total)
                   const budgetNum = data.budget || 0
                   const savings = budgetNum - totalNum
                   const savingsPct = budgetNum > 0 ? Math.round((savings / budgetNum) * 100) : 0
@@ -2357,7 +2428,7 @@ export default function ItineraryResult() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
                         <div>
                           <div style={{ fontSize: '13px', color: '#64748B', marginBottom: '4px' }}>Total estimated cost</div>
-                          <div style={{ fontSize: '36px', fontWeight: '700', color: '#0F172A', fontFamily: "'Playfair Display', Georgia, serif" }}>{data.cost_breakdown?.total}</div>
+                          <div style={{ fontSize: '36px', fontWeight: '700', color: '#0F172A', fontFamily: "'Playfair Display', Georgia, serif" }}>{effectiveCostBreakdown?.total}</div>
                         </div>
                         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                           <div style={{ background: 'white', border: '1px solid #99F6E4', borderRadius: '14px', padding: '14px 20px', textAlign: 'center' }}>
