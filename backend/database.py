@@ -103,14 +103,66 @@ def save_trip(trip_data: dict):
         return None
 
 
-def get_user_trips(user_id: str):
+def update_trip(trip_id: str, user_id: str, trip_data: dict):
+    """Update an existing trip row, scoped to its owner. Returns the updated row or None."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        response = client.table("trips").update(trip_data).eq(
+            "id", trip_id
+        ).eq("user_id", user_id).execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Error updating trip: {e}")
+        return None
+
+
+def get_unlocked_draft(user_id: str):
+    """Most recent auto-saved-but-not-yet-kept trip for this user, if any."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        response = client.table("trips").select("*").eq(
+            "user_id", user_id
+        ).eq("locked", False).order("created_at", desc=True).limit(1).execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Error getting unlocked draft: {e}")
+        return None
+
+
+def save_or_replace_draft(user_id: str, trip_data: dict):
+    """
+    Auto-save on generation. If the user already has an unlocked draft (a
+    generation they never saved/shared/downloaded), overwrite it in place
+    instead of inserting a new row — so exploring/regenerating doesn't pile
+    up rows in "My Trips" or burn the free-plan save quota. A draft becomes
+    permanent (and stops being overwritten) once the user explicitly saves
+    it or shares/emails/downloads it — see routers/trips.py's /save and
+    /{trip_id}/lock routes.
+    """
+    trip_data = {**trip_data, "locked": False}
+    draft = get_unlocked_draft(user_id)
+    if draft:
+        return update_trip(draft["id"], user_id, trip_data)
+    return save_trip(trip_data)
+
+
+def get_user_trips(user_id: str, locked_only: bool = False):
     try:
         client = get_supabase_client()
         if not client:
             return []
-        response = client.table("trips").select("*").eq(
-            "user_id", user_id
-        ).order("created_at", desc=True).execute()
+        query = client.table("trips").select("*").eq("user_id", user_id)
+        if locked_only:
+            query = query.eq("locked", True)
+        response = query.order("created_at", desc=True).execute()
         return response.data or []
     except Exception as e:
         logger.error(f"Error getting trips: {e}")

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LogOut, Map, Search, Bell, Menu, X, Compass, Heart, Plane, LayoutDashboard } from 'lucide-react'
+import { LogOut, Map, Search, Bell, Menu, X, Compass, Heart, Plane, LayoutDashboard, HelpCircle, Sparkles, Briefcase } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const Navbar = () => {
@@ -9,6 +9,15 @@ const Navbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+
+  // Seamless-at-top nav: fades in a solid backing once scrolled.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40)
+    window.addEventListener('scroll', onScroll)
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -31,9 +40,10 @@ const Navbar = () => {
     <>
       <style>{`
         .nav-link { transition: color 0.2s, background 0.2s; }
-        .nav-link:hover { color: #0d9488 !important; }
+        .nav-link:hover { color: #0d9488 !important; background: #f0fdfa !important; }
         .nav-link.active { color: #0d9488 !important; font-weight: 600 !important; }
         .logout-btn:hover { background: #fef2f2 !important; color: #ef4444 !important; border-color: #fca5a5 !important; }
+        .navbar-seamless { transition: background 0.3s ease, backdrop-filter 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease; }
         @media (max-width: 768px) {
           .nav-links-desktop { display: none !important; }
           .mobile-menu-btn { display: flex !important; }
@@ -43,10 +53,7 @@ const Navbar = () => {
         }
       `}</style>
 
-      <nav style={{
-        background: 'rgba(255,255,255,0.92)',
-        backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(20,184,166,0.12)',
+      <nav className="navbar-seamless" style={{
         padding: '0 28px',
         height: '64px',
         display: 'flex',
@@ -55,7 +62,11 @@ const Navbar = () => {
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        boxShadow: '0 1px 12px rgba(0,0,0,0.06)'
+        background: scrolled ? 'rgba(255,255,255,0.92)' : 'transparent',
+        backdropFilter: scrolled ? 'blur(12px)' : 'none',
+        WebkitBackdropFilter: scrolled ? 'blur(12px)' : 'none',
+        borderBottom: scrolled ? '1px solid rgba(20,184,166,0.12)' : '1px solid transparent',
+        boxShadow: scrolled ? '0 1px 12px rgba(0,0,0,0.06)' : 'none',
       }}>
         {/* Logo */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none', flexShrink: 0 }}>
@@ -70,13 +81,36 @@ const Navbar = () => {
           </div>
           <span style={{
             fontSize: '21px', fontWeight: '800',
-            background: 'linear-gradient(135deg, #0d9488, #0ea5e9)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            color: '#0F172A',
             fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.3px'
           }}>
             Tripzio
           </span>
         </Link>
+
+        {/* Public marketing links — same icon+pill treatment as the authenticated nav links below, so it reads as one navigation system */}
+        {!isAuthenticated && (
+          <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {[
+              { href: '/#how-it-works', label: 'How it works', icon: <HelpCircle size={15} />, anchor: true },
+              { href: '/#features', label: 'Features', icon: <Sparkles size={15} />, anchor: true },
+              { href: '/agent/login', label: 'For agents', icon: <Briefcase size={15} /> },
+              { href: '/explore', label: 'Explore', icon: <Compass size={15} /> },
+            ].map(link => (
+              link.anchor ? (
+                <a key={link.href} href={link.href} className="nav-link"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '10px', textDecoration: 'none', fontSize: '14px', fontWeight: '500', color: '#64748b', fontFamily: 'Inter, sans-serif' }}>
+                  {link.icon}{link.label}
+                </a>
+              ) : (
+                <Link key={link.href} to={link.href} className="nav-link"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '10px', textDecoration: 'none', fontSize: '14px', fontWeight: '500', color: '#64748b', fontFamily: 'Inter, sans-serif' }}>
+                  {link.icon}{link.label}
+                </Link>
+              )
+            ))}
+          </div>
+        )}
 
         {/* Nav Links Desktop */}
         {isAuthenticated && (
@@ -198,21 +232,21 @@ const Navbar = () => {
           ) : (
             <>
               <Link to="/login" style={{
-                fontSize: '14px', fontWeight: '500', color: '#64748b',
-                textDecoration: 'none', padding: '7px 14px', borderRadius: '10px',
-                fontFamily: 'Inter, sans-serif', transition: 'color 0.2s'
+                fontSize: '14px', fontWeight: '600', color: '#0F172A',
+                textDecoration: 'none', padding: '9px 18px', borderRadius: '10px',
+                border: '1px solid #E7E3D8', fontFamily: 'Inter, sans-serif', transition: 'color 0.2s'
               }}>
-                Sign in
+                Log in
               </Link>
               <Link to="/guest" style={{
                 fontSize: '14px', fontWeight: '700', color: 'white',
                 textDecoration: 'none', padding: '9px 20px', borderRadius: '10px',
-                background: 'linear-gradient(135deg,#0d9488,#0ea5e9)',
+                background: 'linear-gradient(135deg,#F97316,#F59E0B)',
                 fontFamily: 'Inter, sans-serif',
-                boxShadow: '0 2px 10px rgba(13,148,136,0.3)',
+                boxShadow: '0 4px 14px rgba(249,115,22,0.32)',
                 transition: 'all 0.2s'
               }}>
-                Get Started
+                Plan a free trip
               </Link>
             </>
           )}
@@ -240,6 +274,14 @@ const Navbar = () => {
           padding: '16px 24px', zIndex: 99,
           boxShadow: '0 8px 24px rgba(0,0,0,0.08)'
         }}>
+          {!isAuthenticated && (
+            <>
+              <a href="/#how-it-works" onClick={() => setMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 0', textDecoration: 'none', color: '#374151', fontSize: '15px', fontWeight: '500', borderBottom: '1px solid #f1f5f9', fontFamily: 'Inter, sans-serif' }}><HelpCircle size={15} />How it works</a>
+              <a href="/#features" onClick={() => setMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 0', textDecoration: 'none', color: '#374151', fontSize: '15px', fontWeight: '500', borderBottom: '1px solid #f1f5f9', fontFamily: 'Inter, sans-serif' }}><Sparkles size={15} />Features</a>
+              <Link to="/agent/login" onClick={() => setMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 0', textDecoration: 'none', color: '#374151', fontSize: '15px', fontWeight: '500', borderBottom: '1px solid #f1f5f9', fontFamily: 'Inter, sans-serif' }}><Briefcase size={15} />For agents</Link>
+              <Link to="/explore" onClick={() => setMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 0', textDecoration: 'none', color: '#374151', fontSize: '15px', fontWeight: '500', borderBottom: '1px solid #f1f5f9', fontFamily: 'Inter, sans-serif' }}><Compass size={15} />Explore</Link>
+            </>
+          )}
           {navLinks.map(link => (
             <Link key={link.to} to={link.to}
               onClick={() => setMenuOpen(false)}

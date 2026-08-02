@@ -125,57 +125,90 @@ export default function GuestDashboard() {
 
   const isReady = from.trim() && days >= 1 && days <= 30 && budget >= 1000 && !generating
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa (vivid — shows first)
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', fontFamily: 'Inter, sans-serif', position: 'relative' }}>
+      {/* Full-page fixed rotating photo background — same proven setInterval pattern as UserLogin/AgentLogin */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.70) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.08), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.06), transparent 40%)',
+        }} />
+      </div>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin   { to{transform:rotate(360deg)} }
         @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.5} }
         input:focus, select:focus { border-color: #0d9488 !important; outline: none; box-shadow: 0 0 0 3px rgba(13,148,136,0.1); }
         .trip-chip:hover { border-color: #0d9488 !important; color: #0d9488 !important; }
-        .gen-btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.05); }
+        .gen-btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(249,115,22,0.4) !important; }
       `}</style>
 
       {/* ── Navbar ─────────────────────────────────────────────── */}
-      <nav style={{ padding: '0 24px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 50 }}>
+      <nav style={{ padding: '0 24px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', position: 'sticky', top: 0, zIndex: 50 }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
           <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <MapPin size={16} color="white" />
           </div>
-          <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Tripzio</span>
+          <span style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", textShadow: '0 1px 3px rgba(250,250,248,0.9), 0 0 20px rgba(250,250,248,0.7)' }}>Tripzio</span>
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Link to="/login" style={{ fontSize: '13px', fontWeight: '600', color: '#64748b', textDecoration: 'none' }}>Sign In</Link>
-          <Link to="/register" style={{ fontSize: '13px', fontWeight: '700', color: 'white', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', padding: '8px 16px', borderRadius: '10px', textDecoration: 'none' }}>Sign Up Free</Link>
+          <Link to="/login" style={{ fontSize: '13px', fontWeight: '600', color: '#0F172A', textDecoration: 'none', textShadow: '0 1px 3px rgba(250,250,248,0.9), 0 0 20px rgba(250,250,248,0.7)' }}>Sign In</Link>
+          <Link to="/register" style={{ fontSize: '13px', fontWeight: '700', color: 'white', background: 'linear-gradient(135deg,#F97316,#F59E0B)', padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', boxShadow: '0 4px 14px rgba(249,115,22,0.3)' }}>Sign Up Free</Link>
         </div>
       </nav>
 
       {/* ── Hero ───────────────────────────────────────────────── */}
-      <div style={{ maxWidth: '560px', margin: '0 auto', padding: '48px 24px 80px', animation: 'fadeUp 0.5s ease' }}>
+      <div style={{ maxWidth: '560px', margin: '0 auto', padding: '32px 24px 80px', animation: 'fadeUp 0.5s ease', position: 'relative', zIndex: 2 }}>
 
         {/* Badge */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(13,148,136,0.08)', border: '1px solid rgba(13,148,136,0.2)', borderRadius: '20px', padding: '5px 14px' }}>
-            <Sparkles size={12} color="#0d9488" />
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#0d9488', letterSpacing: '0.5px' }}>FREE PLAN — NO SIGNUP NEEDED</span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '20px', padding: '5px 14px' }}>
+            <Sparkles size={12} color="#B45309" />
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#B45309', letterSpacing: '0.5px' }}>FREE PLAN — NO SIGNUP NEEDED</span>
           </div>
         </div>
 
         {/* Heading */}
-        <h1 style={{ fontSize: 'clamp(28px,5vw,42px)', fontWeight: '900', color: '#0f172a', textAlign: 'center', marginBottom: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.5px', lineHeight: 1.15 }}>
+        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(28px,5vw,42px)', fontWeight: '700', color: '#0F172A', textAlign: 'center', marginBottom: '10px', letterSpacing: '-0.5px', lineHeight: 1.15 }}>
           Plan your perfect<br />
-          <span style={{ background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+          <em style={{ fontStyle: 'italic', color: '#0D9488' }}>
             Indian trip in 30s
-          </span>
+          </em>
         </h1>
-        <p style={{ textAlign: 'center', color: '#64748b', fontSize: '15px', marginBottom: '40px', lineHeight: 1.6 }}>
+        <p style={{ textAlign: 'center', color: '#475569', fontSize: '15px', marginBottom: '32px', lineHeight: 1.6 }}>
           Real trains · Real hotels · Budget breakdown · Festival alerts
         </p>
 
         {/* ── Form Card ────────────────────────────────────────── */}
-        <div style={{ background: 'white', borderRadius: '24px', padding: '32px', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
+        <div style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: '24px', padding: '32px', boxShadow: '0 24px 64px rgba(15,23,42,0.14)', border: '1px solid rgba(255,255,255,0.8)' }}>
 
           {/* From city */}
           <div style={{ marginBottom: '20px' }}>
@@ -278,13 +311,13 @@ export default function GuestDashboard() {
             disabled={!isReady}
             style={{
               width: '100%', padding: '16px',
-              background: isReady ? 'linear-gradient(135deg,#0d9488,#0ea5e9)' : '#e2e8f0',
+              background: isReady ? 'linear-gradient(135deg,#F97316,#F59E0B)' : '#E2E8F0',
               color: isReady ? 'white' : '#94a3b8',
               border: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '700',
               cursor: isReady ? 'pointer' : 'not-allowed',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              fontFamily: 'inherit', transition: 'all 0.2s',
-              boxShadow: isReady ? '0 8px 24px rgba(13,148,136,0.3)' : 'none',
+              fontFamily: 'inherit', transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease',
+              boxShadow: isReady ? '0 8px 22px rgba(249,115,22,0.32)' : 'none',
             }}>
             {generating ? (
               <>

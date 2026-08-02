@@ -147,10 +147,42 @@ export default function AgentProfile() {
 
   const brandC = form.brand_color || DEFAULT_COLOR
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', fontFamily: 'Inter, sans-serif', position: 'relative' }}>
+      {/* Full-page fixed rotating photo background */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.70) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.08), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.06), transparent 40%)',
+        }} />
+      </div>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::placeholder { color: #94a3b8; }
         input:focus, textarea:focus { border-color: #0d9488 !important; box-shadow: 0 0 0 3px rgba(13,148,136,0.1) !important; outline: none !important; }
@@ -173,7 +205,7 @@ export default function AgentProfile() {
               <div style={{ width: '6px', height: '6px', background: brandC, borderRadius: '50%' }} />
               <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Agent Portal</span>
             </div>
-            <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>
+            <h1 style={{ fontSize: '26px', fontWeight: '700', color: '#0F172A', fontFamily: "'Playfair Display', Georgia, serif", margin: 0 }}>
               Agency Profile
             </h1>
           </div>
@@ -386,16 +418,18 @@ export default function AgentProfile() {
                   padding: '13px 28px',
                   background: saved
                     ? 'linear-gradient(135deg,#16a34a,#15803d)'
-                    : saving ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)',
+                    : saving ? '#e2e8f0' : 'linear-gradient(135deg,#F97316,#F59E0B)',
                   color: saving ? '#94a3b8' : 'white',
                   border: 'none', borderRadius: '12px',
                   fontSize: '14px', fontWeight: '800',
                   cursor: saving ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: '8px',
                   fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  boxShadow: saving ? 'none' : '0 4px 16px rgba(13,148,136,0.35)',
-                  transition: 'all 0.2s',
-                }}>
+                  boxShadow: saving ? 'none' : saved ? '0 4px 16px rgba(22,163,74,0.35)' : '0 8px 22px rgba(249,115,22,0.32)',
+                  transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease',
+                }}
+                onMouseEnter={e => { if (!saving) e.currentTarget.style.transform = 'translateY(-3px)' }}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
                 {saving
                   ? <><div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Saving...</>
                   : saved

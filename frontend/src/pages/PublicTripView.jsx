@@ -71,7 +71,7 @@ export default function PublicTripView() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF8', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 0.8s linear infinite' }} />
         <p style={{ color: '#64748b', fontSize: '14px' }}>Loading trip...</p>
@@ -81,13 +81,13 @@ export default function PublicTripView() {
   )
 
   if (error) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF8', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ textAlign: 'center', padding: '40px' }}>
         <div style={{ fontSize: '48px', marginBottom: '16px' }}>🗺️</div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>Trip not found</h2>
         <p style={{ color: '#64748b', marginBottom: '24px' }}>This link may have expired or been removed.</p>
         <button onClick={() => navigate('/')}
-          style={{ padding: '12px 24px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}>
+          style={{ padding: '12px 24px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 8px 22px rgba(249,115,22,0.32)' }}>
           Go to Tripzio
         </button>
       </div>
@@ -99,12 +99,18 @@ export default function PublicTripView() {
   const agentName = trip?.agent_name || null
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#FAFAF8', fontFamily: 'Inter, sans-serif' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to{transform:rotate(360deg)} }
+        .day-row:hover { transform: translateY(-2px); }
+        .day-row { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .hotel-card:hover { transform: translateY(-5px); box-shadow: 0 16px 32px rgba(15,23,42,0.1) !important; }
+        .hotel-card { transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease; }
+        .cta-primary:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(249,115,22,0.4) !important; }
+        .cta-primary { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease; }
       `}</style>
 
       {/* Sticky top bar */}
@@ -134,8 +140,8 @@ export default function PublicTripView() {
             <Share2 size={13} />
             {copied ? 'Copied!' : 'Share'}
           </button>
-          <button onClick={handlePlanMine}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', border: 'none', borderRadius: '10px', background: 'linear-gradient(135deg,#0d9488,#0284c7)', fontSize: '12px', fontWeight: '700', cursor: 'pointer', color: 'white' }}>
+          <button onClick={handlePlanMine} className="cta-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', border: 'none', borderRadius: '10px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', fontSize: '12px', fontWeight: '700', cursor: 'pointer', color: 'white', boxShadow: '0 4px 12px rgba(249,115,22,0.3)' }}>
             <Sparkles size={13} />
             Plan Mine Free
           </button>
@@ -143,37 +149,36 @@ export default function PublicTripView() {
       </div>
 
       {/* Hero — full height with destination photo */}
-      <div style={{ position: 'relative', minHeight: '520px', display: 'flex', alignItems: 'flex-end', overflow: 'hidden', background: '#0f172a' }}>
+      <div style={{ position: 'relative', minHeight: '520px', display: 'flex', alignItems: 'flex-end', overflow: 'hidden', background: '#FAFAF8' }}>
 
         {/* Destination photo from picsum — seed based on destination name */}
         <img
           src={`https://picsum.photos/seed/${encodeURIComponent((data.destination||'travel').replace(/[^a-zA-Z]/g,'').toLowerCase().slice(0,15))}/1600/900`}
           alt={data.destination || 'Destination'}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }}
           onError={e => { e.currentTarget.style.display = 'none' }}
         />
 
-        {/* Gradient overlay — dark at bottom for text readability */}
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(15,23,42,0.2) 0%, rgba(15,23,42,0.4) 40%, rgba(15,23,42,0.88) 80%, rgba(15,23,42,0.97) 100%)' }} />
+        {/* Light warm overlay — dark→light band toward the bottom for text readability */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(250,250,248,0.35) 0%, rgba(250,250,248,0.5) 40%, rgba(250,250,248,0.88) 80%, rgba(250,250,248,0.95) 100%)' }} />
 
         {/* Content */}
         <div style={{ position: 'relative', zIndex: 2, width: '100%', padding: '60px 24px 48px', textAlign: 'center' }}>
 
           {/* Tier badge */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: tier.bg, borderRadius: '20px', padding: '5px 14px', marginBottom: '20px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: tier.bg, border: `2px dashed ${tier.color}`, borderRadius: '20px', padding: '5px 16px', marginBottom: '20px', transform: 'rotate(-3deg)' }}>
             <span style={{ fontSize: '11px', fontWeight: '800', color: tier.color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tier.label} Itinerary</span>
           </div>
 
           <h1 style={{
-            fontSize: 'clamp(30px,5vw,52px)', fontWeight: '900', color: 'white',
-            fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-1px',
-            marginBottom: '14px', lineHeight: 1.05, maxWidth: '700px', margin: '0 auto 14px',
-            textShadow: '0 2px 20px rgba(0,0,0,0.4)',
+            fontSize: 'clamp(30px,5vw,52px)', fontWeight: '700', color: '#0F172A',
+            fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-1px',
+            marginBottom: '14px', lineHeight: 1.1, maxWidth: '700px', margin: '0 auto 14px',
           }}>
             {data.destination || trip?.destination || 'Your Trip'}
           </h1>
 
-          <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.7)', maxWidth: '520px', margin: '0 auto 28px', lineHeight: 1.65, textShadow: '0 1px 8px rgba(0,0,0,0.3)' }}>
+          <p style={{ fontSize: '15px', color: '#475569', maxWidth: '520px', margin: '0 auto 28px', lineHeight: 1.65 }}>
             {data.summary || ''}
           </p>
 
@@ -184,14 +189,14 @@ export default function PublicTripView() {
               data.from_city && { icon: <MapPin size={13} />, val: `From ${data.from_city}` },
               data.budget    && { icon: <span style={{fontSize:'13px'}}>Rs.</span>, val: Number(data.budget).toLocaleString('en-IN') },
             ].filter(Boolean).map((m, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '9px 18px', background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', color: 'white', fontSize: '13px', fontWeight: '600' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '9px 18px', background: 'white', border: '1px solid #E7E3D8', borderRadius: '12px', color: '#0F172A', fontSize: '13px', fontWeight: '600', boxShadow: '0 2px 8px rgba(15,23,42,0.04)' }}>
                 {m.icon} {m.val}
               </div>
             ))}
           </div>
 
           {/* Views count */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: '#64748B', fontSize: '12px' }}>
             <Users size={12} />
             <span>{(trip?.views || 0)} people viewed this trip</span>
           </div>
@@ -227,7 +232,7 @@ export default function PublicTripView() {
               const dc = DAY_COLORS[i % DAY_COLORS.length]
               const isOpen = expanded === i
               return (
-                <div key={i} style={{ marginBottom: '12px', background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', animation: `fadeUp ${0.2 + i * 0.05}s ease` }}>
+                <div key={i} className="day-row" style={{ marginBottom: '12px', background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', animation: `fadeUp ${0.2 + i * 0.05}s ease` }}>
                   <div
                     onClick={() => setExpanded(isOpen ? null : i)}
                     style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px', cursor: 'pointer', background: isOpen ? `linear-gradient(135deg,${dc.from},${dc.to})` : 'white', transition: 'background 0.2s' }}>
@@ -287,7 +292,7 @@ export default function PublicTripView() {
               {data.accommodation.slice(0, 4).map((h, i) => {
                 const seed = (h.area || h.name || 'hotel').replace(/[^a-zA-Z]/g,'').toLowerCase().slice(0,10) + i
                 return (
-                <div key={i} style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden' }}>
+                <div key={i} className="hotel-card" style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden' }}>
                   {/* Hotel photo */}
                   <div style={{ position: 'relative', height: '140px', background: '#1e293b', overflow: 'hidden' }}>
                     <img
@@ -324,22 +329,22 @@ export default function PublicTripView() {
 
         {/* CTA Block */}
         <div style={{
-          background: 'linear-gradient(135deg,#0f172a,#1e3a5f)',
+          background: 'linear-gradient(120deg,#0D9488,#0EA5E9 55%,#F97316)',
           borderRadius: '24px', padding: '40px 32px', textAlign: 'center',
           animation: 'fadeUp 0.4s ease',
         }}>
-          <div style={{ fontSize: '13px', fontWeight: '700', color: '#0d9488', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', fontWeight: '700', color: 'rgba(255,255,255,0.9)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
             Love this itinerary?
           </div>
-          <h3 style={{ fontSize: '26px', fontWeight: '900', color: 'white', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px', letterSpacing: '-0.5px' }}>
+          <h3 style={{ fontSize: '28px', fontWeight: '700', color: 'white', fontFamily: "'Playfair Display', Georgia, serif", marginBottom: '10px', letterSpacing: '-0.5px' }}>
             Plan your own trip for free
           </h3>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '28px', maxWidth: '400px', margin: '0 auto 28px' }}>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', marginBottom: '28px', maxWidth: '400px', margin: '0 auto 28px' }}>
             Tripzio AI builds personalized itineraries in 30 seconds. Completely free.
           </p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={handlePlanMine}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '13px 26px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 4px 16px rgba(13,148,136,0.4)' }}>
+            <button onClick={handlePlanMine} className="cta-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '13px 26px', background: 'white', color: '#0F172A', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
               <Sparkles size={16} /> Start Planning Free
             </button>
             <button onClick={handleWhatsApp}
@@ -347,7 +352,7 @@ export default function PublicTripView() {
               <MessageCircle size={16} /> Share on WhatsApp
             </button>
           </div>
-          <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '20px' }}>
+          <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', marginTop: '20px' }}>
             Powered by Tripzio AI · tripzio.io
             {agentName && ` · Shared by ${agentName}`}
           </p>

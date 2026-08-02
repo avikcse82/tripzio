@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import { API_URL } from '../api'
@@ -55,7 +55,7 @@ export default function DestinationSuggestions() {
           <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a', marginBottom: '8px' }}>No suggestions found</h2>
           <p style={{ color: '#64748b', marginBottom: '24px' }}>Go back and generate trip suggestions first</p>
           <button onClick={() => navigate('/dashboard')}
-            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer' }}>
+            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 8px 22px rgba(249,115,22,0.32)', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
             Back to Dashboard
           </button>
         </div>
@@ -120,15 +120,47 @@ export default function DestinationSuggestions() {
 
   const season = currentSuggestions?.[0]?.weather_preview?.season || 'Current season'
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', fontFamily: 'Inter, sans-serif', position: 'relative' }}>
+      {/* Full-page fixed rotating photo background */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.70) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.08), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.06), transparent 40%)',
+        }} />
+      </div>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        .dest-card { transition: all 0.25s ease; }
-        .dest-card:hover { transform: translateY(-4px) !important; box-shadow: 0 16px 48px rgba(0,0,0,0.1) !important; }
-        .select-btn { transition: all 0.2s ease; }
-        .select-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(13,148,136,0.4) !important; }
+        .dest-card { transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease; }
+        .dest-card:hover { transform: translateY(-6px) !important; box-shadow: 0 20px 48px rgba(15,23,42,0.12) !important; }
+        .select-btn { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease; }
+        .select-btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(249,115,22,0.4) !important; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to{transform:rotate(360deg)} }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
@@ -155,11 +187,11 @@ export default function DestinationSuggestions() {
 
         {/* ── HEADER ── */}
         <div style={{ marginBottom: '36px', animation: 'fadeUp 0.4s ease' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.2)', borderRadius: '20px', padding: '5px 14px', marginBottom: '14px' }}>
-            <div style={{ width: '6px', height: '6px', background: '#0d9488', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: '11px', color: '#0d9488', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>AI Suggestions</span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '20px', padding: '5px 14px', marginBottom: '14px' }}>
+            <div style={{ width: '6px', height: '6px', background: '#F97316', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
+            <span style={{ fontSize: '11px', color: '#B45309', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>AI Suggestions</span>
           </div>
-          <h1 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: '900', color: '#0f172a', marginBottom: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.5px', lineHeight: 1.15 }}>
+          <h1 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: '700', color: '#0F172A', marginBottom: '10px', fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.5px', lineHeight: 1.15 }}>
             Where should you go? ✨
           </h1>
           <p style={{ fontSize: '16px', color: '#64748b', lineHeight: 1.6, maxWidth: '520px' }}>
@@ -186,7 +218,7 @@ export default function DestinationSuggestions() {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: refreshing ? '#f8fafc' : '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '20px', padding: '6px 14px', fontSize: '13px', fontWeight: '700', color: '#0d9488', cursor: refreshing ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: refreshing ? '#f8fafc' : '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '20px', padding: '6px 14px', fontSize: '13px', fontWeight: '700', color: '#0d9488', cursor: refreshing ? 'not-allowed' : 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease' }}>
             <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
             {refreshing ? 'Refreshing...' : 'Show different options'}
           </button>
@@ -206,7 +238,7 @@ export default function DestinationSuggestions() {
                 style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', animation: `fadeUp ${0.3 + i * 0.1}s ease`, position: 'relative' }}>
 
                 {/* Card Top — colored accent bar */}
-                <div style={{ height: '5px', background: `linear-gradient(135deg,#0d9488,#0ea5e9)` }} />
+                <div style={{ height: '5px', background: `linear-gradient(135deg,#F97316,#F59E0B)` }} />
 
                 <div style={{ padding: '24px' }}>
                   {/* Header */}
@@ -288,7 +320,7 @@ export default function DestinationSuggestions() {
                         ? '#e2e8f0'
                         : generating !== null
                         ? '#f8fafc'
-                        : 'linear-gradient(135deg,#0d9488,#0ea5e9)',
+                        : 'linear-gradient(135deg,#F97316,#F59E0B)',
                       color: isGenerating ? '#94a3b8' : generating !== null ? '#94a3b8' : 'white',
                       border: 'none', borderRadius: '14px',
                       fontSize: '15px', fontWeight: '800',
@@ -296,7 +328,7 @@ export default function DestinationSuggestions() {
                       display: 'flex', alignItems: 'center',
                       justifyContent: 'center', gap: '9px',
                       fontFamily: "'Plus Jakarta Sans', sans-serif",
-                      boxShadow: !generating ? '0 4px 16px rgba(13,148,136,0.35)' : 'none',
+                      boxShadow: !generating ? '0 8px 22px rgba(249,115,22,0.32)' : 'none',
                       letterSpacing: '-0.2px'
                     }}>
                     {isGenerating ? (
@@ -329,7 +361,7 @@ export default function DestinationSuggestions() {
           </p>
           <button
             onClick={() => navigate('/dashboard')}
-            style={{ padding: '11px 28px', background: 'none', border: '2px solid #0d9488', color: '#0d9488', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}
+            style={{ padding: '11px 28px', background: 'none', border: '2px solid #0d9488', color: '#0d9488', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Inter, sans-serif', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, color 0.2s ease' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#0d9488'; e.currentTarget.style.color = 'white' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#0d9488' }}>
             Back to Planner

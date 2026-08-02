@@ -64,11 +64,12 @@ function EmptyState({ onPlan }) {
         onClick={onPlan}
         className="gen-btn"
         style={{
-          background: 'linear-gradient(135deg,#0d9488,#0284c7)',
+          background: 'linear-gradient(135deg,#F97316,#F59E0B)',
           color: 'white', border: 'none', borderRadius: '14px',
           padding: '13px 28px', fontSize: '14px', fontWeight: '700',
           cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-          boxShadow: '0 4px 16px rgba(13,148,136,0.35)',
+          boxShadow: '0 8px 22px rgba(249,115,22,0.32)',
+          transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease',
         }}
       >
         Plan My First Trip ✈️
@@ -104,7 +105,7 @@ function TripCard({ trip, onOpen, onDelete }) {
         padding: '22px 24px',
         cursor: 'pointer',
         boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-        transition: 'all 0.25s ease',
+        transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease, border-color 0.3s ease',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -184,7 +185,7 @@ function TripCard({ trip, onOpen, onDelete }) {
             borderRadius: '8px', padding: '5px 10px',
             fontSize: '11px', fontWeight: '700',
             cursor: deleting ? 'not-allowed' : 'pointer',
-            transition: 'all 0.15s',
+            transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, color 0.2s ease, background 0.2s ease',
             display: 'flex', alignItems: 'center', gap: '4px',
             fontFamily: 'Inter, sans-serif',
           }}
@@ -220,10 +221,11 @@ function FreeBanner({ count }) {
       <button
         onClick={() => navigate('/pricing')}
         style={{
-          background: 'linear-gradient(135deg,#0d9488,#0284c7)',
+          background: 'linear-gradient(135deg,#F97316,#F59E0B)',
           color: 'white', border: 'none', borderRadius: '10px',
           padding: '7px 16px', fontSize: '12px', fontWeight: '700',
           cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'Inter, sans-serif',
+          transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
         }}
       >
         Upgrade to Pro ↗
@@ -328,17 +330,50 @@ export default function MyTrips() {
 
   const isFree = true // TODO: replace with real sub check in Module 4
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)',
+      background: 'transparent',
       fontFamily: 'Inter, sans-serif',
+      position: 'relative',
     }}>
+      {/* Full-page fixed rotating photo background */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.70) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.08), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.06), transparent 40%)',
+        }} />
+      </div>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        .trip-card:hover { transform: translateY(-4px) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.10) !important; border-color: rgba(13,148,136,0.25) !important; }
-        .gen-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(13,148,136,0.45) !important; }
+        .trip-card:hover { transform: translateY(-5px) !important; box-shadow: 0 16px 36px rgba(15,23,42,0.1) !important; border-color: rgba(13,148,136,0.25) !important; }
+        .gen-btn:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(249,115,22,0.4) !important; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to{transform:rotate(360deg)} }
       `}</style>
@@ -363,13 +398,13 @@ export default function MyTrips() {
               ← Dashboard
             </button>
           </div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.2)', borderRadius: '20px', padding: '5px 14px', marginBottom: '14px' }}>
-            <BookOpen size={12} color="#0d9488" />
-            <span style={{ fontSize: '11px', color: '#0d9488', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>My Trips</span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '20px', padding: '5px 14px', marginBottom: '14px' }}>
+            <BookOpen size={12} color="#B45309" />
+            <span style={{ fontSize: '11px', color: '#B45309', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>My Trips</span>
           </div>
           <h1 style={{
-            fontSize: 'clamp(26px,4vw,40px)', fontWeight: '900', color: '#0f172a',
-            fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.8px',
+            fontSize: 'clamp(26px,4vw,40px)', fontWeight: '700', color: '#0F172A',
+            fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.6px',
             marginBottom: '8px', lineHeight: 1.1,
           }}>
             Your saved itineraries
@@ -513,12 +548,13 @@ export default function MyTrips() {
               onClick={() => navigate('/dashboard')}
               className="gen-btn"
               style={{
-                background: 'linear-gradient(135deg,#0d9488,#0284c7)',
+                background: 'linear-gradient(135deg,#F97316,#F59E0B)',
                 color: 'white', border: 'none', borderRadius: '14px',
                 padding: '13px 28px', fontSize: '14px', fontWeight: '700',
                 cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                boxShadow: '0 4px 16px rgba(13,148,136,0.3)',
+                boxShadow: '0 8px 22px rgba(249,115,22,0.32)',
                 display: 'inline-flex', alignItems: 'center', gap: '8px',
+                transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease',
               }}
             >
               <Sparkles size={16} /> Plan Another Trip

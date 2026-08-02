@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 
@@ -49,14 +50,47 @@ export default function ComingSoon() {
     { label: 'Module 4 — Booking & Explore', done: false },
   ]
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)',
-      fontFamily: 'Inter, sans-serif'
+      background: 'transparent',
+      fontFamily: 'Inter, sans-serif',
+      position: 'relative',
     }}>
+      {/* Full-page fixed rotating photo background */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.70) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.08), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.06), transparent 40%)',
+        }} />
+      </div>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
@@ -69,9 +103,10 @@ export default function ComingSoon() {
         minHeight: 'calc(100vh - 64px)', padding: '24px'
       }}>
         <div style={{
-          background: 'white', borderRadius: '28px',
+          background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.8)', borderRadius: '28px',
           padding: '48px 40px', maxWidth: '520px', width: '100%',
-          textAlign: 'center', boxShadow: '0 4px 32px rgba(0,0,0,0.07)',
+          textAlign: 'center', boxShadow: '0 8px 30px rgba(15,23,42,0.08)',
           animation: 'fadeUp 0.4s ease'
         }}>
 
@@ -81,21 +116,21 @@ export default function ComingSoon() {
 
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',
-            background: '#f0fdfa', border: '1px solid #99f6e4',
+            background: '#FEF3C7', border: '1px solid #FDE68A',
             borderRadius: '20px', padding: '5px 14px', marginBottom: '16px'
           }}>
             <div style={{
-              width: '6px', height: '6px', background: '#0d9488',
+              width: '6px', height: '6px', background: '#F97316',
               borderRadius: '50%', animation: 'blink 2s infinite'
             }} />
-            <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: '700' }}>
+            <span style={{ fontSize: '12px', color: '#B45309', fontWeight: '700' }}>
               {config.module} — In Development
             </span>
           </div>
 
           <h1 style={{
-            fontSize: '26px', fontWeight: '900', color: '#0f172a',
-            marginBottom: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: '28px', fontWeight: '700', color: '#0F172A',
+            marginBottom: '12px', fontFamily: "'Playfair Display', Georgia, serif",
             margin: '0 0 12px'
           }}>
             {config.title} is coming
@@ -160,14 +195,14 @@ export default function ComingSoon() {
             onClick={() => navigate(config.link)}
             style={{
               width: '100%', padding: '14px',
-              background: 'linear-gradient(135deg,#0d9488,#0ea5e9)',
+              background: 'linear-gradient(135deg,#F97316,#F59E0B)',
               color: 'white', border: 'none', borderRadius: '14px',
               fontSize: '15px', fontWeight: '700', cursor: 'pointer',
               fontFamily: "'Plus Jakarta Sans', sans-serif",
-              boxShadow: '0 4px 14px rgba(13,148,136,0.35)',
-              transition: 'all 0.2s'
+              boxShadow: '0 8px 22px rgba(249,115,22,0.32)',
+              transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease'
             }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
             onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
             {config.cta}
           </button>

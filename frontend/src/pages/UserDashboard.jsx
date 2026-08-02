@@ -20,7 +20,7 @@ const destinations = [
   {
     name: 'Manali', region: 'Himachal Pradesh', type: 'Hill Station',
     duration: '5-7 days', budget: '12,000', rating: 4.8,
-    photo: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=600&q=80&auto=format&fit=crop',
+    photo: 'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=600&q=80&auto=format&fit=crop',
     photoBg: 'linear-gradient(160deg,#1a1a2e 0%,#16213e 40%,#0f3460 100%)',
     photoEmoji: '🏔️', badge: 'Trending', badgeColor: '#f59e0b',
     icon: <Mountain size={18} color="white" />, iconBg: 'linear-gradient(135deg,#8b5cf6,#6d28d9)',
@@ -40,7 +40,7 @@ const destinations = [
   {
     name: 'Rajasthan', region: 'Rajasthan', type: 'Heritage & Culture',
     duration: '7-10 days', budget: '18,000', rating: 4.9,
-    photo: 'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=600&q=80&auto=format&fit=crop',
+    photo: 'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=600&q=80&auto=format&fit=crop',
     photoBg: 'linear-gradient(160deg,#7c2d12 0%,#b45309 50%,#d97706 100%)',
     photoEmoji: '🏯', badge: 'Top Rated', badgeColor: '#d97706',
     icon: <Sun size={18} color="white" />, iconBg: 'linear-gradient(135deg,#f59e0b,#d97706)',
@@ -916,8 +916,41 @@ export default function UserDashboard() {
     } catch(e) { return null }
   }
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa (vivid — shows first)
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', fontFamily: 'Inter, sans-serif', position: 'relative' }}>
+      {/* Full-page fixed rotating photo background — same proven setInterval pattern as UserLogin/AgentLogin */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.70) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.08), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.06), transparent 40%)',
+        }} />
+      </div>
+
       {/* ── Generation Overlay ─────────────────────────────────── */}
       <GenerationOverlay
         generating={generating}
@@ -929,7 +962,7 @@ export default function UserDashboard() {
         isAgent={false}
       />
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         input::placeholder, textarea::placeholder { color: #94a3b8; }
         input:focus, textarea:focus { border-color: #0d9488 !important; box-shadow: 0 0 0 3px rgba(13,148,136,0.1) !important; }
@@ -939,9 +972,9 @@ export default function UserDashboard() {
         .tier-card { transition: all 0.2s ease; }
         .tier-card:hover { transform: translateY(-2px); }
         .gen-btn { transition: all 0.2s ease; }
-        .gen-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(13,148,136,0.45) !important; }
+        .gen-btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(249,115,22,0.4) !important; }
         .mode-btn { transition: all 0.2s ease; }
-        .mode-btn:hover { background: rgba(255,255,255,0.12) !important; }
+        .mode-btn:hover { background: #F8FAFC !important; }
         .sample-chip:hover { border-color: #0d9488 !important; background: #f0fdfa !important; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to{transform:rotate(360deg)} }
@@ -955,14 +988,14 @@ export default function UserDashboard() {
 
         {/* Header */}
         <div style={{ marginBottom: '32px', animation: 'fadeUp 0.4s ease' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.2)', borderRadius: '20px', padding: '5px 14px', marginBottom: '14px' }}>
-            <div style={{ width: '6px', height: '6px', background: '#0d9488', borderRadius: '50%', animation: 'blink 2s infinite' }} />
-            <span style={{ fontSize: '11px', color: '#0d9488', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>AI-Powered</span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '20px', padding: '5px 14px', marginBottom: '14px' }}>
+            <div style={{ width: '6px', height: '6px', background: '#F97316', borderRadius: '50%', animation: 'blink 2s infinite' }} />
+            <span style={{ fontSize: '11px', color: '#B45309', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>AI-Powered</span>
           </div>
-          <h1 style={{ fontSize: 'clamp(28px,4.5vw,46px)', fontWeight: '900', color: '#0f172a', marginBottom: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-1px', lineHeight: 1.1 }}>
-            Where to next, {user?.full_name?.split(' ')[0]}? 🌏
+          <h1 style={{ fontSize: 'clamp(28px,4.5vw,46px)', fontWeight: '700', color: '#0F172A', marginBottom: '10px', fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-1px', lineHeight: 1.1 }}>
+            Where to next, <em style={{ fontStyle: 'italic', color: '#0D9488' }}>{user?.full_name?.split(' ')[0]}</em>? 🌏
           </h1>
-          <p style={{ fontSize: '15px', color: '#64748b', lineHeight: 1.6, maxWidth: '480px' }}>
+          <p style={{ fontSize: '15px', color: '#64748B', lineHeight: 1.6, maxWidth: '480px' }}>
             Tell us a little — our AI builds your perfect Indian itinerary.
           </p>
         </div>
@@ -1023,7 +1056,7 @@ export default function UserDashboard() {
                 borderRadius: '20px', padding: '22px',
                 boxShadow: s.highlight ? `0 4px 20px ${s.subColor}12` : '0 2px 12px rgba(0,0,0,0.04)',
                 animation: `fadeUp ${0.3 + i * 0.08}s ease`,
-                cursor: 'pointer', transition: 'all 0.2s',
+                cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 position: 'relative', overflow: 'hidden',
               }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 12px 28px ${s.subColor}18` }}
@@ -1055,29 +1088,29 @@ export default function UserDashboard() {
         <div style={{ background: 'white', borderRadius: '28px', overflow: 'hidden', marginBottom: '52px', boxShadow: '0 4px 32px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.05)', animation: 'fadeUp 0.5s ease' }}>
 
           {/* Planner Header */}
-          <div style={{ background: 'linear-gradient(135deg,#0f172a 0%,#134e4a 100%)', padding: '24px 32px' }}>
+          <div style={{ background: 'linear-gradient(120deg,#FEF3C7 0%,#E8F7F4 100%)', padding: '24px 32px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(13,148,136,0.3)', border: '1px solid rgba(13,148,136,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Sparkles size={18} color="#5eead4" />
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(13,148,136,0.14)', border: '1px solid rgba(13,148,136,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Sparkles size={18} color="#0D9488" />
                 </div>
                 <div>
-                  <h2 style={{ fontSize: '19px', fontWeight: '800', color: 'white', margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  <h2 style={{ fontSize: '19px', fontWeight: '800', color: '#0F172A', margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     Plan your trip
                   </h2>
-                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, marginTop: '2px' }}>
+                  <p style={{ fontSize: '12px', color: '#64748B', margin: 0, marginTop: '2px' }}>
                     {modeConfig[planMode].desc}
                   </p>
                 </div>
               </div>
 
               {/* Mode Toggle — 3 buttons */}
-              <div style={{ display: 'flex', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: '14px', padding: '4px', gap: '4px' }}>
+              <div style={{ display: 'flex', background: 'white', border: '1px solid #E7E3D8', borderRadius: '14px', padding: '4px', gap: '4px', boxShadow: '0 8px 30px rgba(15,23,42,0.06)' }}>
                 {Object.entries(modeConfig).map(([id, cfg]) => (
                   <button key={id}
                     className="mode-btn"
                     onClick={() => { setPlanMode(id); if (id === 'detailed') setShowDetailed(true) }}
-                    style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: planMode === id ? 'white' : 'transparent', color: planMode === id ? '#0f172a' : '#94a3b8', fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif', boxShadow: planMode === id ? '0 2px 8px rgba(0,0,0,0.15)' : 'none', whiteSpace: 'nowrap' }}>
+                    style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: planMode === id ? 'linear-gradient(135deg,#F97316,#F59E0B)' : 'transparent', color: planMode === id ? 'white' : '#64748B', fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', fontFamily: 'Inter, sans-serif', boxShadow: planMode === id ? '0 4px 14px rgba(249,115,22,0.3)' : 'none', whiteSpace: 'nowrap' }}>
                     {cfg.label}
                   </button>
                 ))}
@@ -1368,7 +1401,7 @@ export default function UserDashboard() {
                               })().map(chip => (
                                 <button key={chip.val}
                                   onClick={() => appendToCustomText(chip.val)}
-                                  style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0d9488', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#0d9488', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                                  style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0d9488', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#0d9488', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
                                   onMouseEnter={e => { e.target.style.background = '#f0fdfa' }}
                                   onMouseLeave={e => { e.target.style.background = 'white' }}>
                                   {chip.label}
@@ -1400,7 +1433,7 @@ export default function UserDashboard() {
                               ].map(chip => (
                                 <button key={chip.val}
                                   onClick={() => appendToCustomText(chip.val)}
-                                  style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0ea5e9', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#0ea5e9', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                                  style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0ea5e9', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#0ea5e9', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
                                   onMouseEnter={e => { e.target.style.background = '#f0f9ff' }}
                                   onMouseLeave={e => { e.target.style.background = 'white' }}>
                                   {chip.label}
@@ -1431,7 +1464,7 @@ export default function UserDashboard() {
                         <div key={i}
                           className="sample-chip"
                           onClick={() => { setCustomText(sample.text); setCustomCharCount(sample.text.length); customTextRef.current?.focus() }}
-                          style={{ padding: '12px 16px', background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                          style={{ padding: '12px 16px', background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                           <span style={{ padding: '2px 8px', background: '#f0fdfa', color: '#0d9488', borderRadius: '8px', fontSize: '10px', fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0, marginTop: '1px' }}>{sample.lang}</span>
                           <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>{sample.text}</span>
                         </div>
@@ -1502,7 +1535,7 @@ export default function UserDashboard() {
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                       {['Family', 'Solo', 'Couple', 'Friends', 'Adventure'].map(t => (
                         <button key={t} onClick={() => setTripType(tripType === t ? '' : t)}
-                          style={{ padding: '6px 13px', borderRadius: '20px', border: `1.5px solid ${tripType === t ? '#0d9488' : '#e2e8f0'}`, background: tripType === t ? '#f0fdfa' : 'white', color: tripType === t ? '#0d9488' : '#64748b', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif' }}>
+                          style={{ padding: '6px 13px', borderRadius: '20px', border: `1.5px solid ${tripType === t ? '#0d9488' : '#e2e8f0'}`, background: tripType === t ? '#f0fdfa' : 'white', color: tripType === t ? '#0d9488' : '#64748b', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', fontFamily: 'Inter, sans-serif' }}>
                           {t}
                         </button>
                       ))}
@@ -1621,7 +1654,7 @@ export default function UserDashboard() {
                               )}
                               <button className="tier-card"
                                 onClick={() => { setSelectedTier(tier.id); setFormErrors(p => ({ ...p, tier: '' })) }}
-                                style={{ width: '100%', padding: '16px 10px', borderRadius: '16px', border: `2px solid ${isSelected ? tier.color : '#e2e8f0'}`, background: isSelected ? tier.bg : 'white', cursor: 'pointer', textAlign: 'center', fontFamily: 'Inter, sans-serif', boxShadow: isSelected ? `0 4px 16px ${tier.color}25` : '0 1px 4px rgba(0,0,0,0.04)' }}>
+                                style={{ width: '100%', padding: '16px 10px', borderRadius: '16px', border: `2px solid ${isSelected ? tier.color : '#e2e8f0'}`, background: isSelected ? tier.bg : 'white', cursor: 'pointer', textAlign: 'center', fontFamily: 'Inter, sans-serif', boxShadow: isSelected ? `0 4px 16px ${tier.color}25` : '0 1px 4px rgba(0,0,0,0.04)', transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease, border-color 0.3s ease' }}>
                                 <div style={{ fontSize: '24px', marginBottom: '7px' }}>{tier.emoji}</div>
                                 <div style={{ fontSize: '12px', fontWeight: '800', color: isSelected ? tier.color : '#475569', marginBottom: '2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{tier.label}</div>
                                 <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '7px' }}>{tier.tagline}</div>
@@ -1656,7 +1689,7 @@ export default function UserDashboard() {
                           display: 'flex', alignItems: 'center', gap: '10px',
                           padding: '10px 16px', marginBottom: '16px',
                           background: '#faf5ff', border: '1px dashed #c4b5fd',
-                          borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s'
+                          borderRadius: '12px', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
                         }}
                         onMouseEnter={e => e.currentTarget.style.background = '#f3e8ff'}
                         onMouseLeave={e => e.currentTarget.style.background = '#faf5ff'}>
@@ -1680,7 +1713,7 @@ export default function UserDashboard() {
                         ].map(opt => (
                           <button key={opt.val}
                             onClick={() => { setDestinationMode(opt.val); setSelectedDestination(''); setFormErrors(p => ({ ...p, destination: '' })) }}
-                            style={{ flex: 1, padding: '13px 18px', borderRadius: '14px', border: `2px solid ${destinationMode === opt.val ? '#8b5cf6' : '#e2e8f0'}`, background: destinationMode === opt.val ? '#f5f3ff' : 'white', color: destinationMode === opt.val ? '#7c3aed' : '#64748b', cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s', boxShadow: destinationMode === opt.val ? '0 4px 14px rgba(139,92,246,0.15)' : 'none' }}>
+                            style={{ flex: 1, padding: '13px 18px', borderRadius: '14px', border: `2px solid ${destinationMode === opt.val ? '#8b5cf6' : '#e2e8f0'}`, background: destinationMode === opt.val ? '#f5f3ff' : 'white', color: destinationMode === opt.val ? '#7c3aed' : '#64748b', cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: destinationMode === opt.val ? '0 4px 14px rgba(139,92,246,0.15)' : 'none' }}>
                             <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '2px' }}>{opt.label}</div>
                             <div style={{ fontSize: '11px', color: '#94a3b8' }}>{opt.sub}</div>
                           </button>
@@ -1739,7 +1772,7 @@ export default function UserDashboard() {
                                   setFormErrors(p => ({ ...p, destination: '' }))
                                   checkSeasonWithAI(dest.name, startDate || null)
                                 }}
-                                style={{ padding: '11px 13px', borderRadius: '12px', border: `1.5px solid ${selectedDestination === dest.name ? dest.accent : '#e2e8f0'}`, background: selectedDestination === dest.name ? dest.lightBg : 'white', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}>
+                                style={{ padding: '11px 13px', borderRadius: '12px', border: `1.5px solid ${selectedDestination === dest.name ? dest.accent : '#e2e8f0'}`, background: selectedDestination === dest.name ? dest.lightBg : 'white', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'Inter, sans-serif', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                                 <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: dest.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{dest.icon}</div>
                                 <div>
                                   <div style={{ fontSize: '12px', fontWeight: '700', color: selectedDestination === dest.name ? dest.accent : '#0f172a' }}>{dest.name}</div>
@@ -1762,7 +1795,7 @@ export default function UserDashboard() {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px' }}>
                         {transportModes.map(mode => (
                           <button key={mode.id} onClick={() => setTransportMode(mode.id)}
-                            style={{ padding: '14px 10px', borderRadius: '14px', border: `2px solid ${transportMode === mode.id ? mode.color : '#e2e8f0'}`, background: transportMode === mode.id ? mode.bg : 'white', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif', boxShadow: transportMode === mode.id ? `0 3px 10px ${mode.color}25` : 'none' }}>
+                            style={{ padding: '14px 10px', borderRadius: '14px', border: `2px solid ${transportMode === mode.id ? mode.color : '#e2e8f0'}`, background: transportMode === mode.id ? mode.bg : 'white', cursor: 'pointer', textAlign: 'center', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', fontFamily: 'Inter, sans-serif', boxShadow: transportMode === mode.id ? `0 3px 10px ${mode.color}25` : 'none' }}>
                             <div style={{ color: transportMode === mode.id ? mode.color : '#94a3b8', display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>{mode.icon}</div>
                             <div style={{ fontSize: '12px', fontWeight: '700', color: transportMode === mode.id ? mode.color : '#64748b', marginBottom: '2px' }}>{mode.label}</div>
                             <div style={{ fontSize: '10px', color: '#94a3b8' }}>{mode.desc}</div>
@@ -1781,7 +1814,7 @@ export default function UserDashboard() {
                 className="gen-btn"
                 onClick={handleGenerate}
                 disabled={generating || !isReady}
-                style={{ padding: '15px 36px', background: generating || !isReady ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: generating || !isReady ? '#94a3b8' : 'white', border: 'none', borderRadius: '16px', fontSize: '15px', fontWeight: '800', cursor: generating || !isReady ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '9px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating && isReady ? '0 4px 18px rgba(13,148,136,0.4)' : 'none', letterSpacing: '-0.2px' }}>
+                style={{ padding: '15px 36px', background: generating || !isReady ? '#E2E8F0' : 'linear-gradient(135deg,#F97316,#F59E0B)', color: generating || !isReady ? '#94a3b8' : 'white', border: 'none', borderRadius: '16px', fontSize: '15px', fontWeight: '800', cursor: generating || !isReady ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '9px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating && isReady ? '0 8px 22px rgba(249,115,22,0.32)' : 'none', letterSpacing: '-0.2px', transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease' }}>
                 {generating ? (
                   <><div style={{ width: '17px', height: '17px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                     {GEN_STEPS[genStep]}</>
@@ -1842,7 +1875,7 @@ export default function UserDashboard() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
             <div>
-              <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#0f172a', margin: '0 0 8px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.3px' }}>
+              <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#0F172A', margin: '0 0 8px', fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.3px' }}>
                 Popular Destinations
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -1875,7 +1908,7 @@ export default function UserDashboard() {
                   setSelectedDestination(dest.name)
                   window.scrollTo({ top: 300, behavior: 'smooth' })
                 }}
-                style={{ background: 'white', border: `2px solid ${selectedDestination === dest.name && planMode !== 'custom' ? dest.accent : 'transparent'}`, borderRadius: '22px', overflow: 'hidden', cursor: 'pointer', boxShadow: selectedDestination === dest.name && planMode !== 'custom' ? `0 8px 28px ${dest.accent}25` : '0 2px 12px rgba(0,0,0,0.07)', animation: `fadeUp ${0.5 + i * 0.07}s ease`, position: 'relative' }}>
+                style={{ background: 'white', border: `2px solid ${selectedDestination === dest.name && planMode !== 'custom' ? dest.accent : 'transparent'}`, borderRadius: '22px', overflow: 'hidden', cursor: 'pointer', boxShadow: selectedDestination === dest.name && planMode !== 'custom' ? `0 8px 28px ${dest.accent}25` : '0 2px 12px rgba(0,0,0,0.07)', animation: `fadeUp ${0.5 + i * 0.07}s ease`, position: 'relative', transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease, border-color 0.3s ease' }}>
 
                 {/* Photo */}
                 <div style={{ position: 'relative', height: '190px', overflow: 'hidden', background: dest.photoBg }}>

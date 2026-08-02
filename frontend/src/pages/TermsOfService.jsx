@@ -10,15 +10,16 @@ export default function TermsOfService() {
   const lastUpdated = 'May 2026'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#FAFAF8', fontFamily: 'Inter, sans-serif' }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800&family=Inter:wght@400;500;600;700&display=swap');`}</style>
       <Navbar />
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: '48px 24px 80px' }}>
 
         <div style={{ marginBottom: '40px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '20px', padding: '5px 14px', marginBottom: '16px' }}>
-            <span style={{ fontSize: '11px', color: '#0d9488', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase' }}>Legal</span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '20px', padding: '5px 14px', marginBottom: '16px' }}>
+            <span style={{ fontSize: '11px', color: '#B45309', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase' }}>Legal</span>
           </div>
-          <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#0f172a', margin: '0 0 8px', letterSpacing: '-0.5px' }}>Terms of Service</h1>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '38px', fontWeight: '700', color: '#0F172A', margin: '0 0 8px', letterSpacing: '-0.5px' }}>Terms of Service</h1>
           <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Last updated: {lastUpdated}</p>
         </div>
 
@@ -183,7 +184,9 @@ Website: tripzio.io/terms`
         ))}
 
         <div style={{ textAlign: 'center', marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
-          <button onClick={() => navigate(-1)} style={{ padding: '10px 24px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+          <button onClick={() => navigate(-1)} style={{ padding: '10px 24px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 6px 16px rgba(249,115,22,0.3)', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
             ← Back
           </button>
         </div>

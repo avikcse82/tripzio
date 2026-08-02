@@ -18,7 +18,7 @@ const ProtectedRoute = ({ children, role }) => {
           width: '48px',
           height: '48px',
           border: '3px solid #e2e8f0',
-          borderTop: '3px solid #0ea5e9',
+          borderTop: '3px solid #0d9488',
           borderRadius: '50%',
           animation: 'spin 0.7s linear infinite'
         }} />

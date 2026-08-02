@@ -123,7 +123,7 @@ from pydantic import BaseModel
 from models.schemas import ItineraryRequest, AgentItineraryRequest
 from core.config import settings
 from core.security import decode_access_token
-from database import get_user_by_email, get_user_by_id, save_trip, check_guest_rate_limit, record_guest_generation
+from database import get_user_by_email, get_user_by_id, save_or_replace_draft, check_guest_rate_limit, record_guest_generation
 from routers.weather import get_weather
 import asyncio
 import httpx
@@ -1520,7 +1520,7 @@ async def generate_itinerary(
         ai_response["generated_at"] = datetime.now().isoformat()
 
         try:
-            save_trip({
+            _saved_trip = save_or_replace_draft(str(current_user["id"]), {
                 "user_id": str(current_user["id"]),
                 "title": f"{ai_response.get('destination', 'Trip')} — {req.days} days",
                 "from_city": req.from_city,
@@ -1536,6 +1536,8 @@ async def generate_itinerary(
                 "itinerary": ai_response,
                 "climate_data": weather_data,
             })
+            if _saved_trip:
+                ai_response["trip_id"] = _saved_trip.get("id")
         except Exception as e:
             logger.warning(f"Failed to save trip: {e}")
 
@@ -2075,7 +2077,7 @@ Do NOT show direct source→destination if via city is specified."""
 
         # Save to DB
         try:
-            save_trip({
+            _saved_trip = save_or_replace_draft(str(current_user["id"]), {
                 "user_id": str(current_user["id"]),
                 "title": ai_response.get("destination", "Custom Trip"),
                 "from_city": ai_response.get("from_city", ""),
@@ -2091,6 +2093,8 @@ Do NOT show direct source→destination if via city is specified."""
                 "itinerary": ai_response,
                 "climate_data": {},
             })
+            if _saved_trip:
+                ai_response["trip_id"] = _saved_trip.get("id")
         except Exception as e:
             logger.warning(f"Save failed: {e}")
 

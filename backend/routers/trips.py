@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, Any
-from database import get_supabase_client, save_trip, get_user_trips
+from database import get_supabase_client, save_trip, update_trip, get_user_trips
 from routers.users import get_current_user
 import logging
 
@@ -34,14 +34,19 @@ class SaveTripRequest(BaseModel):
     itinerary: dict
     weather: Optional[Any] = None
     hotels: Optional[Any] = None
+    # If this itinerary was already auto-saved as a draft on generation
+    # (see routers/itinerary.py's save_or_replace_draft), its id is echoed
+    # back to the frontend as itinerary.trip_id — pass it here so an
+    # explicit Save promotes that SAME row instead of inserting a duplicate.
+    trip_id: Optional[str] = None
 
 
 # ─── Free tier limit ───────────────────────────────────────────────────────────
 
 def check_save_limit(user_id: str):
-    """Free plan: max 3 saved trips."""
+    """Free plan: max 3 KEPT trips (locked=true). Unsaved drafts don't count."""
     try:
-        existing = get_user_trips(user_id)
+        existing = get_user_trips(user_id, locked_only=True)
         if len(existing) >= 3:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -57,6 +62,12 @@ def check_save_limit(user_id: str):
         logger.error(f"Error checking save limit: {e}")
 
 
+def _find_user_trip(user_id: str, trip_id: str):
+    """Fetch a single trip owned by this user, draft or kept."""
+    trips = get_user_trips(user_id)
+    return next((t for t in trips if str(t.get("id")) == str(trip_id)), None)
+
+
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 @router.post("/save", status_code=201)
@@ -65,8 +76,6 @@ def save_trip_route(
     current_user: dict = Depends(get_current_user)
 ):
     user_id = str(current_user["id"])
-
-    check_save_limit(user_id)
 
     trip_data = {
         "user_id": user_id,
@@ -80,9 +89,22 @@ def save_trip_route(
         "itinerary": body.itinerary,
         "weather": body.weather,
         "hotels": body.hotels,
+        "locked": True,
     }
 
-    saved = save_trip(trip_data)
+    if body.trip_id:
+        existing = _find_user_trip(user_id, body.trip_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Trip not found.")
+        # Only counts against the quota when this draft is being promoted —
+        # re-saving an already-kept trip is free
+        if not existing.get("locked"):
+            check_save_limit(user_id)
+        saved = update_trip(body.trip_id, user_id, trip_data)
+    else:
+        check_save_limit(user_id)
+        saved = save_trip(trip_data)
+
     if not saved:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -92,11 +114,37 @@ def save_trip_route(
     return saved
 
 
+@router.post("/{trip_id}/lock", status_code=200)
+def lock_trip_route(
+    trip_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Marks a draft as kept once the user shares/emails/downloads it, so the
+    next generated plan won't silently overwrite it. Same quota rules as an
+    explicit save — sharing a 4th plan on the free tier just leaves it as an
+    (still-viewable) draft rather than failing the share/download itself;
+    the frontend calls this fire-and-forget and never blocks on it.
+    """
+    user_id = str(current_user["id"])
+    existing = _find_user_trip(user_id, trip_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Trip not found.")
+    if existing.get("locked"):
+        return existing
+
+    check_save_limit(user_id)
+    updated = update_trip(trip_id, user_id, {"locked": True})
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to lock trip.")
+    return updated
+
+
 @router.get("/stats")
 def get_stats(current_user: dict = Depends(get_current_user)):
-    """Live counts for Dashboard stats cards."""
+    """Live counts for Dashboard stats cards — kept trips only, not drafts."""
     user_id = str(current_user["id"])
-    trips = get_user_trips(user_id)
+    trips = get_user_trips(user_id, locked_only=True)
 
     total = len(trips)
     total_days = sum(t.get("days", 0) for t in trips)
@@ -112,9 +160,9 @@ def get_stats(current_user: dict = Depends(get_current_user)):
 
 @router.get("/")
 def list_trips(current_user: dict = Depends(get_current_user)):
-    """All saved trips for current user, newest first."""
+    """All KEPT trips for current user, newest first — drafts are excluded."""
     user_id = str(current_user["id"])
-    trips = get_user_trips(user_id)
+    trips = get_user_trips(user_id, locked_only=True)
     return trips
 
 
@@ -124,8 +172,7 @@ def get_trip(
     current_user: dict = Depends(get_current_user)
 ):
     user_id = str(current_user["id"])
-    trips = get_user_trips(user_id)
-    trip = next((t for t in trips if str(t.get("id")) == trip_id), None)
+    trip = _find_user_trip(user_id, trip_id)
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found.")
     return trip

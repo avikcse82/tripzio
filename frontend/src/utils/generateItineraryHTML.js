@@ -167,6 +167,64 @@ function buildDayCards(dayPlans) {
   }).join('')
 }
 
+// ── Compute per-city day ranges for the accommodation summary ──
+// Prefers circuit_legs (has explicit day counts per city); falls back to
+// scanning day_plans titles ("City Name — Day title") for single-city trips
+// or circuits where circuit_legs wasn't populated.
+function computeCityDayRanges(data) {
+  const ranges = {}
+  const legs = data.circuit_legs || []
+  if (legs.length > 0) {
+    let start = 1
+    legs.forEach(leg => {
+      const span = leg.days || 1
+      const end = start + span - 1
+      const key = String(leg.city || '').toLowerCase().trim()
+      if (key) ranges[key] = start === end ? `Day ${start}` : `Day ${start}-${end}`
+      start = end + 1
+    })
+    return ranges
+  }
+  const minMax = {}
+  ;(data.day_plans || []).forEach(day => {
+    // Titles look like "City Name Day N — subtitle" — strip the "Day N" tail
+    // so all days in the same city group under one key
+    const segment = String(day.title || '').split(/\s[—–]\s|\s-\s/)[0] || ''
+    const city = segment.replace(/\s*Day\s+\d+\s*$/i, '').trim().toLowerCase()
+    if (!city) return
+    if (!minMax[city]) minMax[city] = { min: day.day, max: day.day }
+    else {
+      minMax[city].min = Math.min(minMax[city].min, day.day)
+      minMax[city].max = Math.max(minMax[city].max, day.day)
+    }
+  })
+  Object.keys(minMax).forEach(city => {
+    const r = minMax[city]
+    ranges[city] = r.min === r.max ? `Day ${r.min}` : `Day ${r.min}-${r.max}`
+  })
+  return ranges
+}
+
+// ── Build accommodation summary rows (city + day range → hotel name) ──
+function buildAccommodationSummary(data) {
+  const accom = data.accommodation || []
+  const dayRanges = computeCityDayRanges(data)
+  return accom.map(a => {
+    // accommodation entries carry "area" (not city) from the API
+    const cityLabel = a.city || (a.area || '').split(',').pop().trim() || data.destination || ''
+    const key = String(cityLabel).toLowerCase()
+    const matchKey = Object.keys(dayRanges).find(k => k && (key.includes(k) || k.includes(key)))
+    const dayRange = matchKey ? dayRanges[matchKey] : ''
+    return `
+    <div class="flex items-center justify-between py-3 border-b border-slate-200 last:border-0">
+      <div class="font-medium text-sm text-slate-900">
+        ${h(cityLabel)}${dayRange ? ` <span class="text-slate-400 font-normal text-xs">(${h(dayRange)})</span>` : ''}
+      </div>
+      <div class="font-semibold text-sm text-slate-900 text-right">${h(a.name || '')}</div>
+    </div>`
+  }).join('')
+}
+
 // ── Build hotel cards HTML ──────────────────────────────────────
 function buildHotels(accommodation) {
   return (accommodation || []).slice(0, 4).map((hotel, i) => `
@@ -562,6 +620,20 @@ ${data.day_plans?.length ? `
     </div>
     <div class="space-y-8" id="dayContainer">
       ${buildDayCards(data.day_plans)}
+    </div>
+  </div>
+</section>` : ''}
+
+<!-- Accommodation Summary -->
+${data.accommodation?.length ? `
+<section class="py-16 bg-white">
+  <div class="max-w-3xl mx-auto px-6">
+    <div class="text-center mb-10">
+      <span style="color:${brand}" class="text-xs font-semibold uppercase tracking-widest">Quick Reference</span>
+      <h2 class="font-serif text-2xl md:text-3xl font-bold mt-3 tracking-tight">Accommodation Summary</h2>
+    </div>
+    <div class="bg-slate-50 border border-slate-200 rounded-2xl px-6 md:px-8">
+      ${buildAccommodationSummary(data)}
     </div>
   </div>
 </section>` : ''}

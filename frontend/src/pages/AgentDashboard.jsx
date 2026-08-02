@@ -962,8 +962,41 @@ export default function AgentDashboard() {
     else setPromptWarning('')
   }
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa (vivid — shows first)
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
 return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', fontFamily: 'Inter, sans-serif', position: 'relative' }}>
+      {/* Full-page fixed rotating photo background — same proven setInterval pattern as UserLogin/AgentLogin */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.70) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.08), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.06), transparent 40%)',
+        }} />
+      </div>
+
       {/* ── Generation Overlay ─────────────────────────────────── */}
       <GenerationOverlay
         generating={generating}
@@ -976,16 +1009,16 @@ return (
         clientName={selectedClient?.name || ''}
       />
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::placeholder { color: #94a3b8; }
         input:focus, textarea:focus { border-color: #0d9488 !important; box-shadow: 0 0 0 3px rgba(13,148,136,0.1) !important; outline: none; }
-        .crow { transition: all 0.2s; cursor: pointer; }
-        .crow:hover { border-color: #0d9488 !important; box-shadow: 0 2px 12px rgba(13,148,136,0.1) !important; }
+        .crow { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, box-shadow 0.3s ease; cursor: pointer; }
+        .crow:hover { border-color: #0d9488 !important; box-shadow: 0 8px 24px rgba(13,148,136,0.14) !important; transform: translateY(-2px); }
         .crow.open { border-color: #0d9488 !important; box-shadow: 0 4px 20px rgba(13,148,136,0.12) !important; }
-        .abtn { transition: all 0.15s; }
-        .abtn:hover { transform: translateY(-1px); }
-        .gbtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(13,148,136,0.45) !important; }
+        .abtn { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease; }
+        .abtn:hover { transform: translateY(-2px); }
+        .gbtn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(249,115,22,0.4) !important; }
         .chip:hover { border-color: #0d9488 !important; color: #0d9488 !important; background: #f0fdfa !important; }
         .samp:hover { border-color: #0d9488 !important; background: #f0fdfa !important; cursor: pointer; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -1003,15 +1036,15 @@ return (
         {/* ── HEADER ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '24px', animation: 'fadeUp 0.3s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '50px', height: '50px', borderRadius: '14px', background: 'linear-gradient(135deg,#0f172a,#134e4a)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}>
-              <Briefcase size={22} color="white" />
+            <div style={{ width: '50px', height: '50px', borderRadius: '14px', background: 'rgba(13,148,136,0.14)', border: '1px solid rgba(13,148,136,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Briefcase size={22} color="#0D9488" />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '3px' }}>
                 <div style={{ width: '6px', height: '6px', background: '#0d9488', borderRadius: '50%', animation: 'blink 2s infinite' }} />
                 <span style={{ fontSize: '10px', color: '#0d9488', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Agent Portal</span>
               </div>
-              <h1 style={{ fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: '900', color: '#0f172a', margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <h1 style={{ fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: '700', color: '#0f172a', margin: 0, fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>
                 {user?.business_name || user?.full_name}
               </h1>
             </div>
@@ -1022,7 +1055,7 @@ return (
               <RefreshCw size={15} />
             </button>
             <button onClick={() => { setShowAddForm(!showAddForm); setAddErrors({}); setNewClient({ name: '', phone: '', city: '' }) }}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 20px', background: showAddForm ? 'white' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: showAddForm ? '#64748b' : 'white', border: showAddForm ? '1.5px solid #e2e8f0' : 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: showAddForm ? 'none' : '0 4px 14px rgba(13,148,136,0.35)', fontFamily: 'Inter, sans-serif' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 20px', background: showAddForm ? 'white' : 'linear-gradient(135deg,#F97316,#F59E0B)', color: showAddForm ? '#64748b' : 'white', border: showAddForm ? '1.5px solid #e2e8f0' : 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease', boxShadow: showAddForm ? 'none' : '0 8px 22px rgba(249,115,22,0.32)', fontFamily: 'Inter, sans-serif' }}>
               {showAddForm ? <X size={15} /> : <Plus size={15} />}
               {showAddForm ? 'Cancel' : 'Add Client'}
             </button>
@@ -1296,15 +1329,15 @@ return (
                                 {!hasPlan && (
                                   <>
                                     <button className="abtn" onClick={() => openGenerate(client, 'new')}
-                                      style={{ width: '100%', padding: '14px 16px', background: 'linear-gradient(135deg,#0f172a,#134e4a)', color: 'white', border: 'none', borderRadius: '12px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}>
-                                      <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                        <Zap size={15} color="#5eead4" fill="#5eead4" />
+                                      style={{ width: '100%', padding: '14px 16px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '12px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', boxShadow: '0 8px 22px rgba(249,115,22,0.32)' }}>
+                                      <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <Zap size={15} color="white" fill="white" />
                                       </div>
                                       <div style={{ textAlign: 'left' }}>
                                         <div style={{ fontSize: '13px', fontWeight: '700' }}>Generate Trip Plan</div>
-                                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>Create their first itinerary</div>
+                                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)' }}>Create their first itinerary</div>
                                       </div>
-                                      <ArrowRight size={14} color="#94a3b8" style={{ marginLeft: 'auto' }} />
+                                      <ArrowRight size={14} color="white" style={{ marginLeft: 'auto' }} />
                                     </button>
                                   </>
                                 )}
@@ -1314,15 +1347,15 @@ return (
                                   <>
                                     {/* Modify Plan */}
                                     <button className="abtn" onClick={() => openGenerate(client, 'modify')}
-                                      style={{ width: '100%', padding: '13px 16px', background: 'linear-gradient(135deg,#0f172a,#134e4a)', color: 'white', border: 'none', borderRadius: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}>
-                                      <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                        <Edit3 size={14} color="#5eead4" />
+                                      style={{ width: '100%', padding: '13px 16px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', boxShadow: '0 8px 22px rgba(249,115,22,0.32)' }}>
+                                      <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <Edit3 size={14} color="white" />
                                       </div>
                                       <div style={{ textAlign: 'left' }}>
                                         <div style={{ fontSize: '13px', fontWeight: '700' }}>Modify Plan</div>
-                                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>Add/remove cities, change dates</div>
+                                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)' }}>Add/remove cities, change dates</div>
                                       </div>
-                                      <ArrowRight size={13} color="#94a3b8" style={{ marginLeft: 'auto' }} />
+                                      <ArrowRight size={13} color="white" style={{ marginLeft: 'auto' }} />
                                     </button>
 
                                     {/* New Plan */}
@@ -1925,7 +1958,7 @@ return (
               {/* GENERATE BUTTON */}
               <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <button className="gbtn" onClick={handleGenerate} disabled={generating || (customExtractedDate && !isValidFutureDate(customExtractedDate)) || !!promptWarning || !!cityCheckWarning}
-                  style={{ padding: '13px 28px', background: generating ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: generating ? '#94a3b8' : 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: generating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating ? '0 4px 16px rgba(13,148,136,0.4)' : 'none', transition: 'all 0.2s' }}>
+                  style={{ padding: '13px 28px', background: generating ? '#e2e8f0' : 'linear-gradient(135deg,#F97316,#F59E0B)', color: generating ? '#94a3b8' : 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: generating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating ? '0 8px 22px rgba(249,115,22,0.32)' : 'none', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease' }}>
                   {generating
                     ? <><div style={{ width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />{GEN_STEPS[genStep]}</>
                     : <><Zap size={15} fill="white" />{generateMode === 'modify' ? 'Regenerate Plan' : planMode === 'custom' ? 'Build Circuit Plan' : 'Generate Itinerary'}</>}
@@ -1984,7 +2017,7 @@ return (
             <div style={{ padding: '24px', animation: 'fadeUp 0.3s ease' }}>
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ fontSize: '11px', fontWeight: '700', color: '#0d9488', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Agency Performance</div>
-                <h2 style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>Analytics Dashboard</h2>
+                <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a', fontFamily: "'Playfair Display', Georgia, serif", margin: 0 }}>Analytics Dashboard</h2>
               </div>
 
               {/* ── Stats Cards ── */}

@@ -192,13 +192,13 @@ export default function GenerationOverlay({
         position: 'absolute', inset: 0,
         backgroundImage: `url(${bg})`,
         backgroundSize: 'cover', backgroundPosition: 'center',
-        filter: 'blur(10px) brightness(0.3)',
+        filter: 'blur(14px) brightness(1.08) saturate(1.05)',
         transform: 'scale(1.08)',
         transition: 'background-image 1s ease',
       }} />
 
-      {/* Dark overlay */}
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,12,24,0.78)' }} />
+      {/* Light warm overlay */}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(250,250,248,0.86) 0%,rgba(250,250,248,0.90) 100%)' }} />
 
       {/* Content */}
       <div style={{
@@ -210,29 +210,29 @@ export default function GenerationOverlay({
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '8px',
-            background: 'rgba(13,148,136,0.15)',
-            border: '1px solid rgba(13,148,136,0.35)',
+            background: '#F0FDFA',
+            border: '1px solid #99F6E4',
             borderRadius: '20px', padding: '5px 14px', marginBottom: '14px',
           }}>
             <div style={{
               width: '7px', height: '7px', background: '#0d9488',
               borderRadius: '50%', animation: 'ovPulse 1.5s infinite',
             }} />
-            <span style={{ fontSize: '11px', color: '#5eead4', fontWeight: '700', letterSpacing: '0.5px' }}>
+            <span style={{ fontSize: '11px', color: '#0D9488', fontWeight: '700', letterSpacing: '0.5px' }}>
               AI GENERATING
             </span>
           </div>
 
           <h2 style={{
-            fontSize: 'clamp(20px,4vw,30px)', fontWeight: '900',
-            color: 'white', margin: '0 0 6px', lineHeight: 1.2,
+            fontSize: 'clamp(20px,4vw,30px)', fontWeight: '800',
+            color: '#0F172A', margin: '0 0 6px', lineHeight: 1.2,
             fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
           }}>
             Planning your {destDisplay}
           </h2>
 
           {isAgent && clientName && (
-            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
+            <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
               for {clientName}
             </p>
           )}
@@ -248,7 +248,7 @@ export default function GenerationOverlay({
               {progress}%
             </span>
           </div>
-          <div style={{ height: '5px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+          <div style={{ height: '5px', background: '#E7E3D8', borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{
               height: '100%',
               width: `${progress}%`,
@@ -261,10 +261,11 @@ export default function GenerationOverlay({
 
         {/* Steps */}
         <div style={{
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.07)',
+          background: 'rgba(255,255,255,0.85)',
+          border: '1px solid #E7E3D8',
           borderRadius: '16px', padding: '18px',
           marginBottom: '20px',
+          boxShadow: '0 8px 30px rgba(15,23,42,0.06)',
         }}>
           {steps.map((step, i) => {
             const isDone    = i < genStep
@@ -274,8 +275,8 @@ export default function GenerationOverlay({
               <div key={i} style={{
                 display: 'flex', alignItems: 'flex-start', gap: '10px',
                 padding: '7px 0',
-                borderBottom: i < steps.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                opacity: isPending ? 0.35 : 1,
+                borderBottom: i < steps.length - 1 ? '1px solid #F1F5F9' : 'none',
+                opacity: isPending ? 0.4 : 1,
                 transition: 'opacity 0.4s',
               }}>
                 <div style={{
@@ -283,9 +284,9 @@ export default function GenerationOverlay({
                   flexShrink: 0, marginTop: '1px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '11px',
-                  background: isDone ? '#0d9488' : isCurrent ? 'rgba(13,148,136,0.15)' : 'rgba(255,255,255,0.04)',
+                  background: isDone ? '#0d9488' : isCurrent ? '#F0FDFA' : '#F8FAFC',
                   border: isCurrent ? '1.5px solid #0d9488' : 'none',
-                  color: isDone ? 'white' : '#64748b',
+                  color: isDone ? 'white' : '#94A3B8',
                 }}>
                   {isDone ? '✓' : isCurrent ? (
                     <div style={{
@@ -296,7 +297,7 @@ export default function GenerationOverlay({
                 </div>
                 <span style={{
                   fontSize: '12.5px', lineHeight: 1.5,
-                  color: isDone ? '#5eead4' : isCurrent ? 'white' : '#475569',
+                  color: isDone ? '#0D9488' : isCurrent ? '#0F172A' : '#94A3B8',
                   fontWeight: isCurrent ? '600' : '400',
                 }}>
                   {isCurrent ? typedText : step}
@@ -316,20 +317,20 @@ export default function GenerationOverlay({
 
         {/* Fun fact */}
         <div style={{
-          background: 'rgba(13,148,136,0.07)',
-          border: '1px solid rgba(13,148,136,0.18)',
+          background: '#FEF3C7',
+          border: '1px solid #FDE68A',
           borderRadius: '12px', padding: '12px 16px',
           display: 'flex', gap: '10px', alignItems: 'flex-start',
         }}>
           <span style={{ fontSize: '15px', flexShrink: 0 }}>💡</span>
-          <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
+          <p style={{ fontSize: '12px', color: '#92400E', margin: 0, lineHeight: 1.6 }}>
             {facts[factIdx % facts.length]}
           </p>
         </div>
 
         <p style={{
           textAlign: 'center', fontSize: '11px',
-          color: '#334155', marginTop: '14px', marginBottom: 0,
+          color: '#94A3B8', marginTop: '14px', marginBottom: 0,
         }}>
           Usually 30–90 seconds · Complex routes take a little longer
         </p>

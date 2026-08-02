@@ -107,7 +107,9 @@ export default function FeedbackWidget({ tripId, destination, onClose }) {
           </button>
         )}
         <button onClick={handleSubmit} disabled={!rating || submitting}
-          style={{ flex: 2, padding: '9px', border: 'none', borderRadius: '10px', background: !rating ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: !rating ? '#94a3b8' : 'white', fontSize: '12px', fontWeight: '800', cursor: !rating ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+          style={{ flex: 2, padding: '9px', border: 'none', borderRadius: '10px', background: !rating ? '#e2e8f0' : 'linear-gradient(135deg,#F97316,#F59E0B)', color: !rating ? '#94a3b8' : 'white', fontSize: '12px', fontWeight: '800', cursor: !rating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease', boxShadow: rating ? '0 6px 16px rgba(249,115,22,0.3)' : 'none' }}
+          onMouseEnter={e => { if (rating) e.currentTarget.style.transform = 'translateY(-2px)' }}
+          onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
           {submitting ? 'Submitting...' : '⭐ Submit Rating'}
         </button>
       </div>

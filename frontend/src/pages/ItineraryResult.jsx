@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
@@ -71,13 +71,18 @@ const isCircuit = (data) => {
     (data.circuit_legs && data.circuit_legs.length > 1)
 }
 
+// Order-independent fingerprint of a { city: {name, ...} } selection map —
+// used to tell whether the current selection has already been finalised
+const hotelsSignature = (hotels) =>
+  Object.keys(hotels || {}).sort().map(c => `${c.toLowerCase()}:${hotels[c]?.name || ''}`).join('|')
+
 // ── Shared train card — used in BOTH circuit and single-destination
 // views. Single source of truth so the availability button (or any
 // future train-card change) only ever needs to be added ONE place.
 function TrainCard({ opt, isExpanded, onToggle, colorIndex = 0, colors, bgs, borders, icons }) {
   return (
     <div className="transport-card"
-      style={{ background: 'white', border: `1.5px solid ${isExpanded ? colors[colorIndex % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+      style={{ background: 'white', border: `1.5px solid ${isExpanded ? colors[colorIndex % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.2s ease' }}
       onClick={onToggle}>
       <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -152,24 +157,37 @@ export default function ItineraryResult() {
       .catch(() => {})
   }, [isAgent])
 
-  // Get data from navigation state OR localStorage fallback
-  let data = location.state?.itinerary
+  // Get data from navigation state OR localStorage fallback. Memoized on
+  // location.state — without this, the localStorage/JSON.parse fallback
+  // (hit on page refresh or a direct URL visit, exactly like this route)
+  // produces a NEW object reference on every render, which made every
+  // `useEffect([..., data])` below re-fire every render — including the
+  // hotels fetch effect, whose setGoogleHotels(newObj) call then triggered
+  // another render, forever ("Maximum update depth exceeded").
+  const data = useMemo(() => {
+    let d = location.state?.itinerary
+    // If no state (e.g. page refresh or ErrorBoundary redirect), try localStorage
+    if (!d) {
+      try {
+        // Check guest plan first (for /guest/result refreshes)
+        const guestSaved = localStorage.getItem('tripzio_guest_plan')
+        if (guestSaved) d = JSON.parse(guestSaved)
+      } catch (e) { d = null }
+    }
+    if (!d) {
+      try {
+        const saved = localStorage.getItem('tripzio_last_itinerary')
+        if (saved) d = JSON.parse(saved)
+      } catch (e) { d = null }
+    }
+    // MyTrips passes the DB row id separately (savedTripId) since older
+    // saves may not have trip_id embedded in the itinerary blob itself
+    if (d && !d.trip_id && location.state?.savedTripId) {
+      d.trip_id = location.state.savedTripId
+    }
+    return d
+  }, [location.state])
   const clientName = location.state?.clientName || localStorage.getItem('tripzio_last_client') || null
-
-  // If no state (e.g. page refresh or ErrorBoundary redirect), try localStorage
-  if (!data) {
-    try {
-      // Check guest plan first (for /guest/result refreshes)
-      const guestSaved = localStorage.getItem('tripzio_guest_plan')
-      if (guestSaved) data = JSON.parse(guestSaved)
-    } catch (e) { data = null }
-  }
-  if (!data) {
-    try {
-      const saved = localStorage.getItem('tripzio_last_itinerary')
-      if (saved) data = JSON.parse(saved)
-    } catch (e) { data = null }
-  }
   const [activeDay, setActiveDay]               = useState(1)
   const [activeTab, setActiveTab]               = useState('itinerary')
   const [expandedTransport, setExpandedTransport] = useState(0)
@@ -182,6 +200,11 @@ export default function ItineraryResult() {
   const [saving, setSaving]                     = useState(false)
   const [shareUrl, setShareUrl]                 = useState(null)
   const [altGenerating, setAltGenerating]       = useState(null) // name of alt being generated
+  // True once the user has used Save/Share/WhatsApp/Email/Download at least
+  // once — combined with a finalised hotel selection, this shows the
+  // "Finish Planning" banner. Carried across handleFinalise's navigate()
+  // remount via location.state, same as appliedHotels below.
+  const [hasDistributed, setHasDistributed]     = useState(() => location.state?.hasDistributed || false)
 
   // ── Hotel selection state ─────────────────────────────────────
   const [selectedHotels, setSelectedHotels]     = useState(() => {
@@ -190,8 +213,20 @@ export default function ItineraryResult() {
       return saved ? JSON.parse(saved) : {}
     } catch { return {} }
   })
+  // Snapshot of selectedHotels as of the last successful Finalise — carried
+  // across the post-finalise navigate() via location.state so the sticky bar
+  // stays hidden after a remount, but reappears the moment the user changes
+  // a selection again (selectedHotels no longer matches this snapshot)
+  const [appliedHotels, setAppliedHotels]       = useState(() => location.state?.appliedHotels || {})
   const [finalising, setFinalising]             = useState(false)
   const [shareLoading, setShareLoading]         = useState(false)
+
+  // ── Tracks the freshest itinerary object so PDF/export reads it even
+  // if location.state hasn't finished propagating the post-navigate() data yet
+  const latestItineraryRef = useRef(data)
+  useEffect(() => {
+    latestItineraryRef.current = data
+  }, [data])
 
   // ── Guest mode ────────────────────────────────────────────────
   const isGuest = location.state?.isGuest === true || data?.is_guest === true
@@ -249,6 +284,48 @@ export default function ItineraryResult() {
 
   const circuit = data ? isCircuit(data) : false
   const cities  = data ? parseCircuitCities(data) : []
+
+  // Decorative destination photos for the hero — looked up by name, fails open to a generic India travel photo if unmatched
+  const CITY_PHOTO_MAP = {
+    goa: 'https://images.unsplash.com/photo-1587922546307-776227941871?w=500&q=75',
+    kerala: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=500&q=75',
+    rajasthan: 'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=500&q=75',
+    jaipur: 'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=500&q=75',
+    varanasi: 'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=500&q=75',
+    manali: 'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=500&q=75',
+    shimla: 'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=500&q=75',
+    darjeeling: 'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=500&q=75',
+    andaman: 'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=500&q=75',
+    rishikesh: 'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=500&q=75',
+    ladakh: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=500&q=75',
+    gokarna: 'https://images.unsplash.com/photo-1587922546307-776227941871?w=500&q=75',
+  }
+  // Unmatched cities get a picsum photo seeded by city name — deterministic
+  // and distinct per city, instead of every unmatched city sharing one
+  // hardcoded fallback photo (was showing the same image for every day)
+  const getCityPhoto = (name) => {
+    const key = String(name || '').toLowerCase().trim()
+    const matchKey = Object.keys(CITY_PHOTO_MAP).find(k => key.includes(k))
+    if (matchKey) return CITY_PHOTO_MAP[matchKey]
+    const seed = key.replace(/[^a-z0-9]/g, '').slice(0, 24) || 'trip'
+    return `https://picsum.photos/seed/${seed}/500/375`
+  }
+  const heroPhotoSource = circuit && cities.length > 0 ? cities : (data?.destination ? [data.destination] : [])
+  const heroPhotos = (heroPhotoSource.length > 0 ? heroPhotoSource : ['trip']).slice(0, 3).map(name => ({
+    name, photo: getCityPhoto(name)
+  }))
+
+  // Resolve which city a given day_plan entry belongs to — day_plans has no
+  // city/location field from the API, so fall back to parsing it out of the
+  // day's title, which in practice looks like "City Name Day N — subtitle"
+  // (e.g. "Cherrapunji Day 3 — Living Root Bridges & Waterfalls")
+  const resolveDayCity = (day) => {
+    if (day.city) return day.city
+    if (day.location) return day.location
+    const segment = (day.title || '').split(/\s[—–]\s|\s-\s/)[0] || ''
+    const city = segment.replace(/\s*Day\s+\d+\s*$/i, '').trim()
+    return city || data.destination || ''
+  }
 
   // Track itinerary view
   useEffect(() => {
@@ -391,6 +468,9 @@ export default function ItineraryResult() {
           itinerary: data,
           weather: null,
           hotels: null,
+          // If generation already auto-saved this as a draft, promote that
+          // SAME row instead of inserting a duplicate — see backend/routers/trips.py
+          trip_id: data.trip_id || undefined,
         })
       })
 
@@ -404,13 +484,29 @@ export default function ItineraryResult() {
 
       if (!resp.ok) throw new Error(result?.detail || 'Save failed')
 
+      if (result?.id) data.trip_id = result.id
       setIsSaved(true)
+      setHasDistributed(true)
       toast.success('Trip saved to My Trips! ❤️')
     } catch (e) {
       toast.error(e.message || 'Could not save trip. Please try again.')
     } finally {
       setSaving(false)
     }
+  }
+
+  // Fire-and-forget: marks this trip's auto-saved draft as "kept" once the
+  // user shares/emails/downloads it, so the next generated plan won't
+  // silently overwrite it. Never blocks or surfaces errors for the action
+  // that triggered it — a failed lock just leaves the draft as-is.
+  const lockTripIfNeeded = () => {
+    if (!data?.trip_id) return
+    const token = localStorage.getItem('tripzio_token')
+    if (!token) return
+    fetch(`${API_URL}/trips/${data.trip_id}/lock`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {})
   }
 
   const handleShare = async () => {
@@ -443,6 +539,8 @@ export default function ItineraryResult() {
         await navigator.clipboard.writeText(shareUrl)
         toast.success('Share link copied! 🔗')
       }
+      setHasDistributed(true)
+      lockTripIfNeeded()
     } catch (e) {
       toast.error('Could not create share link. Try again.')
     } finally {
@@ -479,10 +577,14 @@ export default function ItineraryResult() {
       Analytics.whatsappShared(data?.destination, false)
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
       toast.success('Opening WhatsApp!')
+      setHasDistributed(true)
+      lockTripIfNeeded()
     } catch (e) {
       const text = `🌍 *My Tripzio Trip Plan*\n\n📍 *${data.destination}*\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ *Highlights:*\n${data.highlights?.map(h => `• ${h}`).join('\n')}\n\n_Plan yours free at tripzio.io_`
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
       toast.success('Opening WhatsApp!')
+      setHasDistributed(true)
+      lockTripIfNeeded()
     }
   }
 
@@ -563,6 +665,8 @@ export default function ItineraryResult() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
     Analytics.whatsappShared(data?.destination, true)
     toast.success('Opening WhatsApp with full plan!')
+    setHasDistributed(true)
+    lockTripIfNeeded()
   }
 
   const handleSendEmail = async () => {
@@ -577,6 +681,8 @@ export default function ItineraryResult() {
       })
       if (resp.ok) {
         setEmailSent(true)
+        setHasDistributed(true)
+        lockTripIfNeeded()
         setShowEmailModal(false)
         toast.success('Itinerary emailed to ' + emailTo + ' 📧')
         setEmailTo('')
@@ -594,9 +700,14 @@ export default function ItineraryResult() {
 
   const handleDownload = () => {
     try {
-      generateTripPDF({ data, user, isAgent, clientName, agentProfile })
-      Analytics.pdfDownloaded(data?.destination)
+      // Use the latest finalised itinerary (may be ahead of location.state
+      // right after handleFinalise's navigate() call) instead of stale `data`
+      const pdfData = latestItineraryRef.current || data
+      generateTripPDF({ data: pdfData, user, isAgent, clientName, agentProfile })
+      Analytics.pdfDownloaded(pdfData?.destination)
       toast.success('PDF downloaded! 🎉')
+      setHasDistributed(true)
+      lockTripIfNeeded()
     } catch (e) {
       console.error('PDF error:', e)
       toast.error('Could not generate PDF. Please try again.')
@@ -626,36 +737,49 @@ export default function ItineraryResult() {
       // Everything else (trains, places, activities, budget) untouched
       const updated = { ...data }
 
+      const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
       if (updated.day_plans) {
-        const firstDayPerCity = {}
         updated.day_plans = updated.day_plans.map(day => {
-          const city = (day.city || day.location || '').toLowerCase()
-          const match = Object.keys(selectedHotels).find(c =>
+          const city = resolveDayCity(day).toLowerCase().trim()
+          const match = city && Object.keys(selectedHotels).find(c =>
             city.includes(c.toLowerCase()) || c.toLowerCase().includes(city)
           )
           if (!match) return day
           const hotelName = selectedHotels[match].name
           const updated_day = { ...day, stay: hotelName }
 
-          if (!firstDayPerCity[match]) {
-            firstDayPerCity[match] = true
-            const desc = day.description || ''
-            // Replace "check into hotel near [any area]" with "check into [HotelName]"
-            // Also handles: "check in at hotel", "check into your hotel", "check-in at hotel"
-            const replaced = desc.replace(
-              /check[- ]?(?:in(?:to)?)\s+(?:at\s+)?(?:your\s+)?(?:the\s+)?(?:hotel|accommodation|property|room)(?:\s+(?:near|in|at|close to|around)\s+[^.!?]+)?/gi,
-              `check into ${hotelName}`
-            )
-            updated_day.description = replaced !== desc ? replaced : `Check into ${hotelName}. ${desc}`
-          }
+          // The AI names a SPECIFIC (placeholder) hotel directly in the prose
+          // (e.g. "Check-in at Cherrapunji Holiday Resort") rather than using
+          // generic phrases — so replace that exact name first, then fall back
+          // to generic references ("the hotel", "return to resort", etc.) for
+          // anything the exact-name pass didn't catch. Built as ONE regex per
+          // day so a freshly-inserted hotel name is never re-matched by the
+          // generic pass on a second .replace() call.
+          const oldName = (day.stay || '').trim()
+          const alternatives = [
+            oldName ? escapeRegex(oldName) : null,
+            'check[- ]?(?:in(?:to)?)\\s+(?:at\\s+)?(?:your\\s+)?(?:the\\s+)?(?:hotel|accommodation|property|room)(?:\\s+(?:near|in|at|close to|around)\\s+[^.!?]+)?',
+            '(?:the\\s+|your\\s+)?(?:hotel|resort|accommodation|property)',
+          ].filter(Boolean)
+          const combined = new RegExp(`\\b(?:${alternatives.join('|')})\\b`, 'gi')
+
+          ;['morning', 'afternoon', 'evening', 'tips', 'description'].forEach(field => {
+            const original = day[field]
+            if (!original) return
+            const text = original.replace(combined, (m) => (/^check/i.test(m) ? `check into ${hotelName}` : hotelName))
+            if (text !== original) updated_day[field] = text
+          })
+
           return updated_day
         })
       }
 
       if (updated.accommodation) {
         updated.accommodation = updated.accommodation.map(a => {
-          const city = (a.city || a.location || '').toLowerCase()
-          const match = Object.keys(selectedHotels).find(c =>
+          // accommodation entries carry "area" (not city/location) from the API
+          const city = (a.city || a.location || a.area || '').toLowerCase()
+          const match = city && Object.keys(selectedHotels).find(c =>
             city.includes(c.toLowerCase()) || c.toLowerCase().includes(city)
           )
           return match ? { ...a, name: selectedHotels[match].name } : a
@@ -663,10 +787,12 @@ export default function ItineraryResult() {
       }
 
       localStorage.setItem('tripzio_selected_hotels', JSON.stringify(selectedHotels))
+      latestItineraryRef.current = updated
+      setAppliedHotels(selectedHotels)
       toast.success('Plan updated with your hotel selections! 🏨', { duration: 4000 })
       setActiveTab('itinerary')
       window.scrollTo({ top: 0, behavior: 'smooth' })
-      navigate('/itinerary/result', { state: { itinerary: updated, isGuest: location.state?.isGuest }, replace: true })
+      navigate('/itinerary/result', { state: { itinerary: updated, isGuest: location.state?.isGuest, appliedHotels: selectedHotels, hasDistributed }, replace: true })
     } catch (e) {
       toast.error('Could not update plan. Please try again.')
     } finally {
@@ -737,6 +863,7 @@ export default function ItineraryResult() {
               trip_type: planData.trip_type || null,
               plan_tier: planData.plan_tier || 'silver',
               itinerary: planData,
+              trip_id: planData.trip_id || undefined,
             }),
           })
           localStorage.removeItem('tripzio_guest_plan')
@@ -768,7 +895,7 @@ export default function ItineraryResult() {
           <div style={{ fontSize: '48px' }}>🗺️</div>
           <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>No itinerary found</h2>
           <button onClick={() => navigate(isAgent ? '/agent/dashboard' : '/dashboard')}
-            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer' }}>
+            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer' }}>
             {isAgent ? 'Back to Dashboard' : 'Go to Dashboard'}
           </button>
         </div>
@@ -820,6 +947,15 @@ export default function ItineraryResult() {
     })
   }
 
+  // Has a selection been finalised at least once, and does the CURRENT
+  // selection still match what was last finalised (vs. changed since)?
+  const hasFinalisedHotels = Object.keys(appliedHotels).length > 0
+  const pendingHotelChange = Object.keys(selectedHotels).length > 0 &&
+    hotelsSignature(selectedHotels) !== hotelsSignature(appliedHotels)
+  // Plan is "wrapped up" once hotels are finalised (with no pending edits)
+  // and the user has shared/emailed/downloaded it at least once
+  const readyToFinishPlanning = hasFinalisedHotels && !pendingHotelChange && hasDistributed && !isGuest
+
   const tabs = [
     { id: 'itinerary', label: '📅 Day Plan' },
     { id: 'hotels',    label: `🏨 Hotels${circuit ? ` (${cities.length} cities)` : ''}` },
@@ -864,21 +1000,56 @@ export default function ItineraryResult() {
   // No limits — show everything SerpAPI returned
   const hotelsToShow  = isUpgraded ? tierHotels : activeHotels
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa (vivid — shows first)
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
   return (
     <>
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#e8f8f5 0%,#f0f9ff 40%,#f8fafc 100%)', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', fontFamily: 'Inter, sans-serif', position: 'relative' }}>
+      {/* Full-page fixed rotating photo background — same proven setInterval pattern as UserLogin/AgentLogin */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.75) 0%,rgba(250,250,248,0.82) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.06), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.04), transparent 40%)',
+        }} />
+      </div>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         .tab-btn:hover { background: #f1f5f9 !important; }
         .day-btn:hover { border-color: #0d9488 !important; }
         .city-tab:hover { background: #f8fafc !important; }
-        .hotel-card { transition: all 0.25s ease; }
-        .hotel-card:hover { transform: translateY(-3px) !important; box-shadow: 0 12px 32px rgba(0,0,0,0.1) !important; }
-        .transport-card { transition: all 0.2s ease; }
-        .transport-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08) !important; }
-        .alt-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important; }
-        .action-btn:hover { transform: translateY(-1px); }
+        .hotel-card { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease; }
+        .hotel-card:hover { transform: translateY(-4px) !important; box-shadow: 0 16px 32px rgba(15,23,42,0.1) !important; }
+        .transport-card { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease; }
+        .transport-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(15,23,42,0.1) !important; }
+        .alt-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(15,23,42,0.1) !important; }
+        .action-btn:hover { transform: translateY(-2px); }
+        .polaroid-bounce:hover { transform: scale(1.08) rotate(0deg) !important; z-index: 10; }
+        .day-card-bounce:hover { transform: translateY(-5px); box-shadow: 0 16px 32px rgba(15,23,42,0.1) !important; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to{transform:rotate(360deg)} }
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
@@ -896,46 +1067,47 @@ export default function ItineraryResult() {
         </button>
 
         {/* ── HERO ── */}
-        <div style={{ background: 'linear-gradient(135deg,#0f172a 0%,#134e4a 100%)', borderRadius: '24px', padding: '36px', marginBottom: '28px', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'radial-gradient(circle,rgba(13,148,136,0.3) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
+        <div style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.85)', borderRadius: '24px', padding: '36px', marginBottom: '28px', position: 'relative', overflow: 'hidden', boxShadow: '0 8px 30px rgba(15,23,42,0.06)' }}>
+          <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'radial-gradient(circle,rgba(13,148,136,0.12) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
             <div style={{ flex: 1, minWidth: '240px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '22px' }}>{tier.emoji}</span>
-                <span style={{ background: tier.bg, color: tier.color, border: `1px solid ${tier.border}`, padding: '4px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>
-                  {data.plan_tier?.toUpperCase()} PLAN
+                <span style={{ background: tier.bg, color: tier.color, border: `2px dashed ${tier.color}`, padding: '5px 16px', borderRadius: '30px', fontSize: '12px', fontWeight: '800', transform: 'rotate(-4deg)', display: 'inline-block' }}>
+                  {tier.emoji} {data.plan_tier?.toUpperCase()} PLAN
                 </span>
                 {circuit && (
-                  <span style={{ background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ background: '#EEF2FF', color: '#4338CA', border: '1px solid #C7D2FE', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <Route size={11} /> Circuit · {cities.length} cities
                   </span>
                 )}
                 {data.start_date && (
-                  <span style={{ background: 'rgba(255,255,255,0.1)', color: '#94a3b8', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ background: '#F8FAFC', color: '#64748B', border: '1px solid #E7E3D8', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Calendar size={11} /> {new Date(data.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
                 )}
               </div>
-              <h1 style={{ fontSize: 'clamp(24px,4vw,40px)', fontWeight: '900', color: 'white', margin: '0 0 8px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.5px' }}>
-                {data.destination} 🌏
+              <h1 style={{ fontSize: 'clamp(24px,4vw,40px)', fontWeight: '700', color: '#0F172A', margin: '0 0 8px', fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.5px' }}>
+                {circuit && cities.length > 1 ? cities.join(' & ') : data.destination} 🌏
               </h1>
               {/* Circuit route pills */}
               {circuit && cities.length > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
                   {cities.map((city, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ background: `${cityAccents[i % cityAccents.length].color}30`, color: cityAccents[i % cityAccents.length].color, border: `1px solid ${cityAccents[i % cityAccents.length].color}50`, padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>
+                      <span style={{ background: cityAccents[i % cityAccents.length].bg, color: cityAccents[i % cityAccents.length].color, border: `1px solid ${cityAccents[i % cityAccents.length].border}`, padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>
                         {city}
                       </span>
-                      {i < cities.length - 1 && <span style={{ color: '#94a3b8', fontSize: '12px' }}>→</span>}
+                      {i < cities.length - 1 && <span style={{ color: '#94A3B8', fontSize: '12px' }}>→</span>}
                     </div>
                   ))}
                 </div>
               )}
-              <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0, maxWidth: '500px', lineHeight: 1.6 }}>{data.summary}</p>
+              <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '500px', lineHeight: 1.6 }}>{data.summary}</p>
             </div>
 
+            {/* Right column — action buttons + destination polaroid photos */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', alignItems: 'flex-end' }}>
             {/* Action buttons — role aware */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
               {isAgent ? (
@@ -944,28 +1116,28 @@ export default function ItineraryResult() {
                   {/* Back to dashboard */}
                   <button className="action-btn"
                     onClick={() => navigate('/agent/dashboard')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#0F172A', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <ArrowLeft size={15} /> Dashboard
                   </button>
 
                   {/* Send full plan to client */}
                   <button className="action-btn"
                     onClick={handleAgentWhatsApp}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(37,211,102,0.4)' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: '0 4px 12px rgba(37,211,102,0.32)' }}>
                     <MessageCircle size={15} />
                     {clientName ? `Send to ${clientName}` : 'Send to Client'}
                   </button>
 
                   {/* Download */}
                   <button className="action-btn" onClick={handleDownload}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#0F172A', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <Download size={15} /> Download
                   </button>
 
                   {/* Agent branding badge */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px' }}>
-                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#5eead4' }} />
-                    <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #E7E3D8', borderRadius: '12px' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#0D9488' }} />
+                    <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '600' }}>
                       {user?.business_name || user?.full_name}
                     </span>
                   </div>
@@ -974,15 +1146,15 @@ export default function ItineraryResult() {
                 // ── GUEST buttons — gate all actions behind auth modal ──
                 <>
                   <button className="action-btn" onClick={handleGuestAction}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(13,148,136,0.4)' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: '0 8px 22px rgba(249,115,22,0.32)' }}>
                     <Heart size={15} /> Save This Plan
                   </button>
                   <button className="action-btn" onClick={handleGuestAction}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#0F172A', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <Share2 size={15} /> Share
                   </button>
                   <button className="action-btn" onClick={handleGuestAction}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#0F172A', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <Download size={15} /> Download PDF
                   </button>
                 </>
@@ -991,35 +1163,54 @@ export default function ItineraryResult() {
                 <>
                   {!readOnly && (
                     <button className="action-btn" onClick={handleSave} disabled={saving}
-                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: isSaved ? '#16a34a' : 'rgba(255,255,255,0.1)', color: 'white', border: `1px solid ${isSaved ? '#16a34a' : 'rgba(255,255,255,0.2)'}`, borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: isSaved ? '#16a34a' : 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: isSaved ? '1px solid #16a34a' : 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: saving ? 'not-allowed' : 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: isSaved ? 'none' : '0 8px 22px rgba(249,115,22,0.32)' }}>
                       <Heart size={15} fill={isSaved ? 'white' : 'none'} />
                       {isSaved ? 'View My Trips →' : saving ? 'Saving...' : 'Save Trip'}
                     </button>
                   )}
                   {readOnly && (
                     <button className="action-btn" onClick={() => navigate('/my-trips')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#0F172A', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                       ← My Trips
                     </button>
                   )}
                   <button className="action-btn" onClick={handleShare}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#0F172A', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <Share2 size={15} /> {shareLoading ? 'Creating...' : 'Share'}
                   </button>
                   <button className="action-btn" onClick={handleWhatsApp}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <MessageCircle size={15} /> WhatsApp
                   </button>
                   <button className="action-btn" onClick={() => setShowEmailModal(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <Mail size={15} /> Email
                   </button>
                   <button className="action-btn" onClick={handleDownload}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#0F172A', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <Download size={15} /> Download
                   </button>
                 </>
               )}
+            </div>
+
+            {/* Destination polaroid photos — fill the empty space, looked up by trip's actual cities/destination */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {heroPhotos.map((p, i) => (
+                <div key={i} className="polaroid-bounce" style={{
+                  background: 'white', padding: '6px 6px 20px', borderRadius: '6px',
+                  boxShadow: '0 10px 24px rgba(15,23,42,0.14)', width: '84px', height: '96px',
+                  transform: `rotate(${i % 2 === 0 ? '-4deg' : '4deg'})`,
+                  transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  position: 'relative',
+                }}>
+                  <img src={p.photo} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '2px' }} />
+                  <div style={{ position: 'absolute', bottom: '4px', left: 0, right: 0, textAlign: 'center', fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic', fontSize: '9px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}>
+                    {p.name}
+                  </div>
+                </div>
+              ))}
+            </div>
             </div>
           </div>
 
@@ -1033,10 +1224,10 @@ export default function ItineraryResult() {
               circuit ? { icon: <Route size={14} />, label: 'Cities', value: `${cities.length} destinations` } : null,
             ].filter(Boolean).map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ color: '#5eead4' }}>{s.icon}</div>
+                <div style={{ color: '#0D9488' }}>{s.icon}</div>
                 <div>
-                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
-                  <div style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{s.value}</div>
+                  <div style={{ fontSize: '10px', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{s.value}</div>
                 </div>
               </div>
             ))}
@@ -1192,7 +1383,7 @@ export default function ItineraryResult() {
             {tabs.map(tab => (
               <button key={tab.id} className="tab-btn"
                 onClick={() => setActiveTab(tab.id)}
-                style={{ padding: '14px 14px', border: 'none', borderBottom: `2px solid ${activeTab === tab.id ? '#0d9488' : 'transparent'}`, background: 'transparent', color: activeTab === tab.id ? '#0d9488' : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}>
+                style={{ padding: '14px 14px', border: 'none', borderBottom: `2px solid ${activeTab === tab.id ? '#0d9488' : 'transparent'}`, background: 'transparent', color: activeTab === tab.id ? '#0d9488' : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'Inter, sans-serif', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease' }}>
                 {tab.label}
               </button>
             ))}
@@ -1216,7 +1407,7 @@ export default function ItineraryResult() {
                   {data.day_plans?.map(d => (
                     <button key={d.day} className="day-btn"
                       onClick={() => setActiveDay(d.day)}
-                      style={{ padding: '8px 16px', borderRadius: '20px', border: `2px solid ${activeDay === d.day ? '#0d9488' : '#e2e8f0'}`, background: activeDay === d.day ? '#f0fdfa' : 'white', color: activeDay === d.day ? '#0d9488' : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                      style={{ padding: '8px 16px', borderRadius: '20px', border: `2px solid ${activeDay === d.day ? '#0d9488' : '#e2e8f0'}`, background: activeDay === d.day ? '#f0fdfa' : 'white', color: activeDay === d.day ? '#0d9488' : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, background 0.2s ease' }}>
                       Day {d.day}
                     </button>
                   ))}
@@ -1224,23 +1415,43 @@ export default function ItineraryResult() {
 
                 {data.day_plans?.filter(d => d.day === activeDay).map(day => (
                   <div key={day.day} style={{ animation: 'fadeUp 0.3s ease' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-                      <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                        Day {day.day} — {day.title}
-                      </h3>
-                      <span style={{ background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', padding: '5px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: '700' }}>
+                    <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', marginBottom: '26px', flexWrap: 'wrap' }}>
+                      <div style={{ width: '56px', height: '56px', borderRadius: '16px', flexShrink: 0, background: 'linear-gradient(135deg,#F97316,#F59E0B)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', Georgia, serif", fontWeight: '800', fontSize: '24px', color: 'white', boxShadow: '0 10px 24px rgba(249,115,22,0.32)' }}>
+                        {String(day.day).padStart(2, '0')}
+                      </div>
+                      <div style={{ flex: 1, minWidth: '200px' }}>
+                        <div style={{ fontFamily: 'Inter, sans-serif', fontWeight: '700', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#F97316', marginBottom: '4px' }}>
+                          Day {day.day} of {data.day_plans.length}
+                        </div>
+                        <h3 style={{ fontSize: '25px', fontWeight: '700', color: '#0F172A', fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.4px', lineHeight: 1.2 }}>
+                          {day.title}
+                        </h3>
+                      </div>
+                      <div style={{ position: 'relative', width: '110px', height: '78px', background: 'white', padding: '6px 6px 16px', borderRadius: '4px', flexShrink: 0, boxShadow: 'var(--shadow-soft, 0 8px 30px rgba(15,23,42,0.06))', transform: 'rotate(3deg)' }}>
+                        <div style={{ position: 'absolute', top: '-9px', left: '50%', transform: 'translateX(-50%)', width: '16px', height: '16px', borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%,#FCA5A5,#DC2626)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }} />
+                        <img src={getCityPhoto(resolveDayCity(day))} alt={resolveDayCity(day)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '2px' }} />
+                      </div>
+                      <span style={{ background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '700', whiteSpace: 'nowrap' }}>
                         Est. {day.estimated_cost}
                       </span>
                     </div>
-                    <div style={{ display: 'grid', gap: '12px', marginBottom: '18px' }}>
+
+                    {/* Connecting timeline */}
+                    <div style={{ position: 'relative', marginBottom: '24px', paddingLeft: '8px' }}>
+                      <div style={{ position: 'absolute', left: '23px', top: '6px', bottom: '6px', width: '2px', background: 'linear-gradient(180deg,#FCD34D,#93C5FD,#DDD6FE)' }} />
                       {[
-                        { time: '🌅 Morning', plan: day.morning, bg: '#fef3c7', border: '#fcd34d', color: '#92400e' },
-                        { time: '☀️ Afternoon', plan: day.afternoon, bg: '#eff6ff', border: '#bae6fd', color: '#0369a1' },
-                        { time: '🌆 Evening', plan: day.evening, bg: '#f5f3ff', border: '#ddd6fe', color: '#6d28d9' },
+                        { time: 'Morning', icon: '🌅', plan: day.morning, bg: '#fef3c7', border: '#fcd34d', color: '#92400e' },
+                        { time: 'Afternoon', icon: '☀️', plan: day.afternoon, bg: '#eff6ff', border: '#bae6fd', color: '#0369a1' },
+                        { time: 'Evening', icon: '🌆', plan: day.evening, bg: '#f5f3ff', border: '#ddd6fe', color: '#6d28d9' },
                       ].map((slot, i) => (
-                        <div key={i} style={{ background: slot.bg, border: `1px solid ${slot.border}`, borderRadius: '14px', padding: '16px 20px' }}>
-                          <div style={{ fontSize: '11px', fontWeight: '800', color: slot.color, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{slot.time}</div>
-                          <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.7, margin: 0 }}>{slot.plan}</p>
+                        <div key={i} style={{ position: 'relative', paddingLeft: '56px', marginBottom: '18px' }}>
+                          <div style={{ position: 'absolute', left: 0, top: 0, width: '48px', height: '48px', borderRadius: '50%', background: 'white', border: `2.5px solid ${slot.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '19px', zIndex: 2, boxShadow: '0 4px 10px rgba(0,0,0,0.06)' }}>
+                            {slot.icon}
+                          </div>
+                          <div className="day-card-bounce" style={{ background: slot.bg, border: `1px solid ${slot.border}`, borderRadius: '16px', padding: '16px 20px', transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '800', color: slot.color, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{slot.time}</div>
+                            <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.7, margin: 0 }}>{slot.plan}</p>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1250,7 +1461,7 @@ export default function ItineraryResult() {
                         { icon: <Star size={14} color="#0d9488" />, label: 'Stay', value: day.stay, bg: '#f8fafc', border: '#e2e8f0' },
                         day.tips ? { icon: <Info size={14} color="#f59e0b" />, label: 'Local Tip', value: day.tips, bg: '#fffbeb', border: '#fcd34d' } : null,
                       ].filter(Boolean).map((card, i) => (
-                        <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: '14px', padding: '16px' }}>
+                        <div key={i} className="day-card-bounce" style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: '14px', padding: '16px', transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '8px' }}>
                             {card.icon}
                             <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{card.label}</span>
@@ -1318,7 +1529,7 @@ export default function ItineraryResult() {
                             background: isActive ? cfg.bg : 'white',
                             color: isActive ? cfg.color : isAvailable ? '#64748b' : '#cbd5e1',
                             fontSize: '11px', fontWeight: '700', cursor: isAvailable ? 'pointer' : 'not-allowed',
-                            fontFamily: 'inherit', transition: 'all 0.2s', opacity: isAvailable ? 1 : 0.4,
+                            fontFamily: 'inherit', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease', opacity: isAvailable ? 1 : 0.4,
                             boxShadow: isActive ? `0 2px 8px ${cfg.border}` : 'none',
                           }}>
                           {cfg.emoji} {cfg.label}
@@ -1377,7 +1588,7 @@ export default function ItineraryResult() {
                         <button key={city}
                           className="city-tab"
                           onClick={() => setActiveHotelCity(city)}
-                          style={{ padding: '8px 18px', borderRadius: '10px', border: `1.5px solid ${isActive ? accent.color : 'transparent'}`, background: isActive ? accent.bg : 'transparent', color: isActive ? accent.color : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          style={{ padding: '8px 18px', borderRadius: '10px', border: `1.5px solid ${isActive ? accent.color : 'transparent'}`, background: isActive ? accent.bg : 'transparent', color: isActive ? accent.color : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, background 0.2s ease', fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Building2 size={13} />
                           {city}
                           {hotelsLoading && <div style={{ width: '10px', height: '10px', border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
@@ -1422,7 +1633,18 @@ export default function ItineraryResult() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '16px' }}>
                       {hotelsToShow.length > 0 ? hotelsToShow.map((hotel, i) => (
                         <div key={i} className="hotel-card"
-                          style={{ background: 'white', border: `1.5px solid ${hotel.recommended ? '#0d9488' : '#e2e8f0'}`, borderRadius: '20px', overflow: 'hidden', boxShadow: hotel.recommended ? '0 4px 16px rgba(13,148,136,0.15)' : '0 2px 8px rgba(0,0,0,0.05)', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
+                          style={{
+                            background: 'white',
+                            border: `1.5px solid ${hotel.recommended ? '#0d9488' : '#e2e8f0'}`,
+                            borderRadius: '20px', overflow: 'hidden',
+                            boxShadow: hotel.recommended ? '0 4px 16px rgba(13,148,136,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
+                            animation: `fadeUp ${0.1 + i * 0.07}s ease`,
+                            // Mute other cards once one hotel is picked for this city — still
+                            // clickable so the user can switch their pick directly
+                            opacity: selectedHotels[activeHotelCity] && selectedHotels[activeHotelCity]?.name !== hotel.name ? 0.5 : 1,
+                            filter: selectedHotels[activeHotelCity] && selectedHotels[activeHotelCity]?.name !== hotel.name ? 'grayscale(0.4)' : 'none',
+                            transition: 'opacity 0.25s ease, filter 0.25s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                          }}>
                           <div style={{ height: '150px', background: hotel.photo_url ? 'transparent' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', position: 'relative', overflow: 'hidden' }}>
                             {hotel.photo_url ? (
                               <img src={hotel.photo_url} alt={hotel.name}
@@ -1490,7 +1712,7 @@ export default function ItineraryResult() {
                                 style={{
                                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
                                   padding: '9px', borderRadius: '10px', fontSize: '12px', fontWeight: '700',
-                                  cursor: 'pointer', fontFamily: 'inherit', border: 'none', transition: 'all 0.2s',
+                                  cursor: 'pointer', fontFamily: 'inherit', border: 'none', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease',
                                   background: selectedHotels[activeHotelCity]?.name === hotel.name
                                     ? 'linear-gradient(135deg,#0d9488,#0ea5e9)'
                                     : '#f0fdfa',
@@ -1956,7 +2178,7 @@ export default function ItineraryResult() {
                             : '#f1f5f9',
                           color: activePlaceCategory === cat.id ? 'white' : '#64748b',
                           fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-                          fontFamily: 'inherit', transition: 'all 0.2s',
+                          fontFamily: 'inherit', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease',
                           boxShadow: activePlaceCategory === cat.id ? `0 3px 10px ${getColor(cat.id).badge || '#0d9488'}40` : 'none',
                         }}>
                         {cat.label}
@@ -1987,7 +2209,7 @@ export default function ItineraryResult() {
                           background: 'white', border: `1.5px solid ${col.border}`,
                           borderRadius: '16px', padding: '18px',
                           animation: `fadeUp ${0.1 + i * 0.04}s ease`,
-                          transition: 'all 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                          transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                         }}
                           onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)' }}
                           onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -2103,73 +2325,73 @@ export default function ItineraryResult() {
                   // Tier-aware messaging
                   const tierMsg = {
                     bronze: {
-                      good: { icon: '🎉', color: '#34d399', label: `Smart savings! ₹${savings.toLocaleString('en-IN')} back in your pocket (${savingsPct}% saved)` },
-                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                      good: { icon: '🎉', color: '#059669', label: `Smart savings! ₹${savings.toLocaleString('en-IN')} back in your pocket (${savingsPct}% saved)` },
+                      over: { icon: '⚠', color: '#DC2626', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
                     },
                     silver: {
-                      good: { icon: '✓', color: '#60a5fa', label: `Great value — ₹${savings.toLocaleString('en-IN')} buffer for shopping & extras` },
-                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                      good: { icon: '✓', color: '#0369A1', label: `Great value — ₹${savings.toLocaleString('en-IN')} buffer for shopping & extras` },
+                      over: { icon: '⚠', color: '#DC2626', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
                     },
                     gold: {
                       good: savings > budgetNum * 0.15
-                        ? { icon: '💡', color: '#fbbf24', label: `${savingsPct}% unused — consider upgrading hotels or adding an extra day` }
-                        : { icon: '⭐', color: '#34d399', label: `Premium experience — budget well utilized` },
-                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                        ? { icon: '💡', color: '#B45309', label: `${savingsPct}% unused — consider upgrading hotels or adding an extra day` }
+                        : { icon: '⭐', color: '#059669', label: `Premium experience — budget well utilized` },
+                      over: { icon: '⚠', color: '#DC2626', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
                     },
                     diamond: {
                       good: savings > budgetNum * 0.1
-                        ? { icon: '💎', color: '#fbbf24', label: `${savingsPct}% unused — upgrade to luxury suites or private transfers` }
-                        : { icon: '💎', color: '#34d399', label: `Full luxury experience — every rupee working for you` },
-                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                        ? { icon: '💎', color: '#B45309', label: `${savingsPct}% unused — upgrade to luxury suites or private transfers` }
+                        : { icon: '💎', color: '#059669', label: `Full luxury experience — every rupee working for you` },
+                      over: { icon: '⚠', color: '#DC2626', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
                     },
                     platinum: {
-                      good: { icon: '✨', color: '#c084fc', label: `Ultra luxury — uncompromising experience` },
-                      over: { icon: '⚠', color: '#f87171', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
+                      good: { icon: '✨', color: '#7C3AED', label: `Ultra luxury — uncompromising experience` },
+                      over: { icon: '⚠', color: '#DC2626', label: `₹${Math.abs(savings).toLocaleString('en-IN')} over budget` }
                     }
                   }
 
                   const msg = (tierMsg[tier] || tierMsg.silver)[isOver ? 'over' : 'good']
 
                   return (
-                    <div style={{ background: 'linear-gradient(135deg,#0f172a,#134e4a)', borderRadius: '16px', padding: '24px' }}>
+                    <div style={{ background: '#F8FAFC', border: '1.5px solid #E7E3D8', borderRadius: '16px', padding: '24px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
                         <div>
-                          <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>Total estimated cost</div>
-                          <div style={{ fontSize: '36px', fontWeight: '900', color: 'white', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{data.cost_breakdown?.total}</div>
+                          <div style={{ fontSize: '13px', color: '#64748B', marginBottom: '4px' }}>Total estimated cost</div>
+                          <div style={{ fontSize: '36px', fontWeight: '700', color: '#0F172A', fontFamily: "'Playfair Display', Georgia, serif" }}>{data.cost_breakdown?.total}</div>
                         </div>
                         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                          <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '14px', padding: '14px 20px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Your budget</div>
-                            <div style={{ fontSize: '22px', fontWeight: '800', color: '#5eead4', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>₹{budgetNum.toLocaleString('en-IN')}</div>
+                          <div style={{ background: 'white', border: '1px solid #99F6E4', borderRadius: '14px', padding: '14px 20px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px' }}>Your budget</div>
+                            <div style={{ fontSize: '22px', fontWeight: '800', color: '#0D9488', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>₹{budgetNum.toLocaleString('en-IN')}</div>
                           </div>
-                          <div style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', padding: '14px 20px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Budget used</div>
-                            <div style={{ fontSize: '22px', fontWeight: '800', color: isOver ? '#f87171' : '#5eead4', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{utilizationPct}%</div>
+                          <div style={{ background: 'white', border: '1px solid #E7E3D8', borderRadius: '14px', padding: '14px 20px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px' }}>Budget used</div>
+                            <div style={{ fontSize: '22px', fontWeight: '800', color: isOver ? '#DC2626' : '#0D9488', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{utilizationPct}%</div>
                           </div>
                         </div>
                       </div>
 
                       {/* Budget bar */}
                       <div style={{ marginBottom: '14px' }}>
-                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${Math.min(utilizationPct, 100)}%`, background: isOver ? '#f87171' : utilizationPct >= 90 ? '#34d399' : utilizationPct >= 75 ? '#60a5fa' : '#fbbf24', borderRadius: '6px', transition: 'width 1s ease' }} />
+                        <div style={{ height: '6px', background: '#E7E3D8', borderRadius: '6px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.min(utilizationPct, 100)}%`, background: isOver ? '#EF4444' : utilizationPct >= 90 ? '#16A34A' : utilizationPct >= 75 ? '#0EA5E9' : '#F59E0B', borderRadius: '6px', transition: 'width 1s ease' }} />
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px' }}>
-                          <span style={{ fontSize: '10px', color: '#64748b' }}>₹0</span>
-                          <span style={{ fontSize: '10px', color: '#64748b' }}>₹{budgetNum.toLocaleString('en-IN')}</span>
+                          <span style={{ fontSize: '10px', color: '#94A3B8' }}>₹0</span>
+                          <span style={{ fontSize: '10px', color: '#94A3B8' }}>₹{budgetNum.toLocaleString('en-IN')}</span>
                         </div>
                       </div>
 
                       {/* Tier-aware message */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: `rgba(${isOver ? '239,68,68' : '52,211,153'},0.1)`, border: `1px solid rgba(${isOver ? '239,68,68' : '52,211,153'},0.25)`, borderRadius: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: isOver ? '#FEF2F2' : '#F0FDF4', border: `1px solid ${isOver ? '#FECACA' : '#BBF7D0'}`, borderRadius: '10px' }}>
                         <span style={{ fontSize: '16px' }}>{msg.icon}</span>
-                        <span style={{ fontSize: '13px', color: msg.color, fontWeight: '600' }}>{msg.label}</span>
+                        <span style={{ fontSize: '13px', color: msg.color, fontWeight: '700' }}>{msg.label}</span>
                       </div>
 
                       {/* Upgrade suggestion for Gold+ with leftover */}
                       {!isOver && savings > budgetNum * 0.15 && ['gold', 'diamond', 'platinum'].includes(tier) && (
-                        <div style={{ marginTop: '10px', padding: '12px 16px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: '10px' }}>
-                          <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: '700', marginBottom: '6px' }}>💡 With your remaining ₹{savings.toLocaleString('en-IN')} you could:</div>
+                        <div style={{ marginTop: '10px', padding: '12px 16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px' }}>
+                          <div style={{ fontSize: '12px', color: '#B45309', fontWeight: '700', marginBottom: '6px' }}>💡 With your remaining ₹{savings.toLocaleString('en-IN')} you could:</div>
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             {[
                               '⬆ Upgrade to better hotel',
@@ -2177,7 +2399,7 @@ export default function ItineraryResult() {
                               '🗓 Extend by 1-2 days',
                               '🍽 Add a fine dining night',
                             ].map((opt, i) => (
-                              <span key={i} style={{ fontSize: '11px', color: '#fcd34d', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>
+                              <span key={i} style={{ fontSize: '11px', color: '#B45309', background: 'white', border: '1px solid #FDE68A', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>
                                 {opt}
                               </span>
                             ))}
@@ -2250,7 +2472,7 @@ export default function ItineraryResult() {
                       background: 'white', border: `1px solid ${isThisGenerating ? '#0d9488' : '#e2e8f0'}`,
                       borderRadius: '16px', padding: '20px',
                       cursor: isAnyGenerating ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                      transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.2s ease', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                       opacity: isAnyGenerating && !isThisGenerating ? 0.5 : 1,
                     }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
@@ -2279,6 +2501,8 @@ export default function ItineraryResult() {
         )}
       </div>
     </div>
+
+    <Footer />
 
     {/* Feedback Widget — bottom right corner */}
     {showFeedback && data && (
@@ -2331,8 +2555,10 @@ export default function ItineraryResult() {
       </div>
     )}
 
-    {/* ── Finalise Plan sticky bar — shows when hotels selected ── */}
-    {Object.keys(selectedHotels).length > 0 && !finalising && (
+    {/* ── Finalise Plan sticky bar — shows when there's a hotel selection
+         that hasn't been applied to the plan yet. Hides once finalised;
+         reappears if the user changes a selection afterwards. ── */}
+    {pendingHotelChange && !finalising && (
       <div style={{ position: 'fixed', bottom: isGuest && !showAuthModal ? '60px' : '0', left: 0, right: 0, zIndex: 89, background: 'white', borderTop: '2px solid #0d9488', padding: '12px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.1)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
           {/* Selected summary */}
@@ -2346,7 +2572,7 @@ export default function ItineraryResult() {
           </div>
           {/* Single finalise button */}
           <button onClick={handleFinalise}
-            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(13,148,136,0.35)' }}>
+            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: '0 8px 22px rgba(249,115,22,0.32)', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease' }}>
             ✈ Finalise Plan with Selected Hotels
           </button>
         </div>
@@ -2361,6 +2587,24 @@ export default function ItineraryResult() {
           <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>
             Updating your plan with selected hotels...
           </span>
+        </div>
+      </div>
+    )}
+
+    {/* ── Finish Planning banner — shows once hotels are finalised (no
+         pending changes) AND the user has shared/emailed/downloaded the
+         plan at least once ── */}
+    {readyToFinishPlanning && (
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 89, background: 'white', borderTop: '2px solid #16a34a', padding: '14px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.1)' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '20px' }}>✅</span>
+            <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>Your plan is ready! Finished planning?</span>
+          </div>
+          <button onClick={() => navigate(isAgent ? '/agent/dashboard' : '/dashboard')}
+            style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#16a34a,#22c55e)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: '0 8px 22px rgba(22,163,74,0.32)' }}>
+            🏁 Finish Planning → Dashboard
+          </button>
         </div>
       </div>
     )}
@@ -2403,7 +2647,7 @@ export default function ItineraryResult() {
             {[['register','Sign Up'], ['login','Sign In']].map(([tab, label]) => (
               <button key={tab}
                 onClick={() => { setAuthTab(tab); setAuthErrors({}) }}
-                style={{ flex: 1, padding: '9px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', background: authTab === tab ? 'white' : 'transparent', color: authTab === tab ? '#0f172a' : '#64748b', boxShadow: authTab === tab ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
+                style={{ flex: 1, padding: '9px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease', background: authTab === tab ? 'white' : 'transparent', color: authTab === tab ? '#0f172a' : '#64748b', boxShadow: authTab === tab ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
                 {label}
               </button>
             ))}
@@ -2457,4 +2701,3 @@ export default function ItineraryResult() {
     </>
   )
 }
-<Footer />

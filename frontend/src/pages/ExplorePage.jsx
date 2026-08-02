@@ -3,7 +3,7 @@
 // 100+ destinations covering ALL Indian states
 // Free — no paid APIs, picsum photos with destination seeds
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import {
@@ -1018,39 +1018,78 @@ export default function ExplorePage() {
     })
   }
 
+  const BG_PHOTOS = [
+    'https://images.unsplash.com/photo-1587922546307-776227941871?w=1400&q=65', // Goa
+    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1400&q=65', // Kerala
+    'https://images.unsplash.com/photo-1524229648276-e66561fe45a9?w=1400&q=65', // Rajasthan
+    'https://images.unsplash.com/photo-1586053226626-febc8817962f?w=1400&q=65', // Andaman
+    'https://images.unsplash.com/photo-1658593345227-965f61fd6ba1?w=1400&q=65', // Darjeeling
+    'https://images.unsplash.com/photo-1561361058-c24cecae35ca?w=1400&q=65', // Varanasi
+    'https://images.unsplash.com/photo-1650341259809-9314b0de9268?w=1400&q=65', // Rishikesh
+    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1400&q=65', // Ladakh
+    'https://images.unsplash.com/photo-1574988050647-33c6773e5e9a?w=1400&q=65', // Manali
+    'https://images.unsplash.com/photo-1597074866923-dc0589150358?w=1400&q=65', // Shimla
+  ]
+  const [bgIdx, setBgIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setBgIdx(p => (p + 1) % BG_PHOTOS.length), 4500)
+    return () => clearInterval(t)
+  }, [])
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', fontFamily: 'Inter, sans-serif', position: 'relative' }}>
+      {/* Full-page fixed rotating photo background */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -2, overflow: 'hidden' }}>
+        {BG_PHOTOS.map((photo, i) => (
+          <img key={photo} src={photo} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: bgIdx === i ? 1 : 0, transition: 'opacity 2.2s ease',
+          }} />
+        ))}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.70) 100%), radial-gradient(circle at 15% 10%, rgba(13,148,136,0.08), transparent 40%), radial-gradient(circle at 88% 85%, rgba(249,115,22,0.06), transparent 40%)',
+        }} />
+      </div>
+
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        .dest-card:hover { transform: translateY(-6px); box-shadow: 0 20px 48px rgba(0,0,0,0.12) !important; }
-        .dest-card { transition: all 0.28s cubic-bezier(0.4,0,0.2,1); }
-        .plan-btn:hover { filter: brightness(1.08); }
+        .dest-card:hover { transform: translateY(-6px); box-shadow: 0 20px 48px rgba(15,23,42,0.14) !important; }
+        .dest-card { transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease; }
+        .plan-btn:hover { filter: brightness(1.08); transform: translateY(-2px); }
+        .plan-btn { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s ease; }
+        .cat-pill { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, background 0.2s ease; }
+        .cat-pill:hover { transform: translateY(-2px); }
+        .cta-btn:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(249,115,22,0.4) !important; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
 
       <Navbar />
 
       {/* Hero */}
-      <div style={{ background: 'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%)', padding: '60px 24px 48px', textAlign: 'center' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(13,148,136,0.15)', border: '1px solid rgba(13,148,136,0.3)', borderRadius: '20px', padding: '5px 14px', marginBottom: '18px' }}>
-          <TrendingUp size={12} color="#0d9488" />
-          <span style={{ fontSize: '11px', color: '#0d9488', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Explore India</span>
-        </div>
-        <h1 style={{ fontSize: 'clamp(28px,5vw,48px)', fontWeight: '900', color: 'white', letterSpacing: '-1px', marginBottom: '12px', lineHeight: 1.1 }}>
-          Where do you want to go?
-        </h1>
-        <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', marginBottom: '28px', maxWidth: '480px', margin: '0 auto 28px' }}>
-          {ALL_DESTINATIONS.length}+ handpicked destinations across every state in India
-        </p>
-        {/* Search */}
-        <div style={{ maxWidth: '500px', margin: '0 auto', position: 'relative' }}>
-          <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search destinations, states, activities..."
-            style={{ width: '100%', padding: '14px 16px 14px 44px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', color: 'white', fontSize: '14px', fontFamily: 'Inter, sans-serif', outline: 'none' }}
-            onFocus={e => e.currentTarget.style.borderColor = '#0d9488'}
-            onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}
-          />
+      <div style={{ padding: '60px 24px 40px', textAlign: 'center' }}>
+        <div style={{ maxWidth: '620px', margin: '0 auto', background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.85)', borderRadius: '28px', padding: '40px 32px', boxShadow: '0 8px 30px rgba(15,23,42,0.06)' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: '20px', padding: '5px 14px', marginBottom: '18px' }}>
+            <TrendingUp size={12} color="#0D9488" />
+            <span style={{ fontSize: '11px', color: '#0D9488', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Explore India</span>
+          </div>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(28px,5vw,46px)', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.8px', marginBottom: '12px', lineHeight: 1.15 }}>
+            Where do you want <em style={{ fontStyle: 'italic', color: '#0D9488' }}>to go?</em>
+          </h1>
+          <p style={{ fontSize: '15px', color: '#64748B', marginBottom: '28px', maxWidth: '480px', margin: '0 auto 28px' }}>
+            {ALL_DESTINATIONS.length}+ handpicked destinations across every state in India
+          </p>
+          {/* Search */}
+          <div style={{ maxWidth: '460px', margin: '0 auto', position: 'relative' }}>
+            <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search destinations, states, activities..."
+              style={{ width: '100%', padding: '14px 16px 14px 44px', background: 'white', border: '1.5px solid #E7E3D8', borderRadius: '14px', color: '#0F172A', fontSize: '14px', fontFamily: 'Inter, sans-serif', outline: 'none', boxShadow: '0 2px 8px rgba(15,23,42,0.04)' }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(13,148,136,0.1)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = '#E7E3D8'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(15,23,42,0.04)' }}
+            />
+          </div>
         </div>
       </div>
 
@@ -1059,8 +1098,8 @@ export default function ExplorePage() {
         {/* Category pills */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
           {CATEGORIES.map(cat => (
-            <button key={cat.id} onClick={() => setCategory(cat.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '24px', border: `1.5px solid ${category === cat.id ? cat.color : '#e2e8f0'}`, background: category === cat.id ? cat.color : 'white', color: category === cat.id ? 'white' : '#64748b', fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif', boxShadow: category === cat.id ? `0 4px 14px ${cat.color}40` : 'none' }}>
+            <button key={cat.id} onClick={() => setCategory(cat.id)} className="cat-pill"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '24px', border: `1.5px solid ${category === cat.id ? cat.color : '#e2e8f0'}`, background: category === cat.id ? cat.color : 'white', color: category === cat.id ? 'white' : '#64748b', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Inter, sans-serif', boxShadow: category === cat.id ? `0 4px 14px ${cat.color}40` : 'none' }}>
               {cat.icon}{cat.label}
             </button>
           ))}
@@ -1175,8 +1214,8 @@ export default function ExplorePage() {
           <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 20px' }}>
             Our AI plans trips to anywhere in India — just describe what you want
           </p>
-          <button onClick={() => navigate('/dashboard')}
-            style={{ padding: '13px 28px', background: 'linear-gradient(135deg,#0d9488,#0284c7)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 4px 16px rgba(13,148,136,0.35)' }}>
+          <button onClick={() => navigate('/dashboard')} className="cta-btn"
+            style={{ padding: '13px 28px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 8px 22px rgba(249,115,22,0.32)', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease' }}>
             Plan a Custom Trip with AI ✨
           </button>
         </div>
