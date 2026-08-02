@@ -239,6 +239,13 @@ export default function UserLogin() {
                 </button>
               </div>
               {errors.password && <p style={{ color: '#DC2626', fontSize: '12px', marginTop: '5px' }}>⚠ {errors.password}</p>}
+              {isLogin && (
+                <div style={{ textAlign: 'right', marginTop: '8px' }}>
+                  <Link to="/forgot-password" style={{ fontSize: '12.5px', color: '#0D9488', fontWeight: '600', textDecoration: 'none' }}>
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Submit */}

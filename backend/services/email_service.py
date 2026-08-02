@@ -307,3 +307,56 @@ async def send_welcome_email(to_email: str, full_name: str, role: str = "user") 
     except Exception as e:
         logger.error(f"Welcome email error: {e}")
         return {"success": False}
+
+
+async def send_password_reset_email(to_email: str, full_name: str, reset_url: str) -> dict:
+    """Send password reset link via Resend"""
+    if not RESEND_API_KEY:
+        return {"success": False, "error": "Email not configured"}
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:20px;">
+    <div style="background:linear-gradient(135deg,#0d9488,#0ea5e9);border-radius:16px;padding:32px;text-align:center;margin-bottom:20px;">
+      <div style="font-size:40px;margin-bottom:8px;">🔒</div>
+      <div style="font-size:26px;font-weight:900;color:white;letter-spacing:-1px;">Reset your password</div>
+    </div>
+    <div style="background:white;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <p style="font-size:15px;color:#1e293b;margin:0 0 12px;font-weight:700;">Hi {full_name},</p>
+      <p style="font-size:14px;color:#64748b;margin:0 0 16px;line-height:1.6;">
+        We received a request to reset your Tripzio password. Click the button below to choose a new one.
+        This link expires in 30 minutes.
+      </p>
+      <div style="text-align:center;margin:20px 0;">
+        <a href="{reset_url}" style="background:linear-gradient(135deg,#0d9488,#0ea5e9);color:white;padding:14px 36px;border-radius:12px;text-decoration:none;font-weight:800;font-size:15px;display:inline-block;box-shadow:0 4px 16px rgba(13,148,136,0.35);">Reset Password</a>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;margin:16px 0 0;line-height:1.6;">
+        If you didn't request this, you can safely ignore this email — your password won't change.
+      </p>
+    </div>
+    <div style="text-align:center;font-size:11px;color:#94a3b8;padding:12px;">
+      <p style="margin:0;"><strong>Tripzio</strong> · tripzio.io</p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(
+                RESEND_URL,
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={"from": FROM_EMAIL, "to": [to_email], "subject": "Reset your Tripzio password", "html": html}
+            )
+            result = response.json()
+            if response.status_code in (200, 201):
+                logger.info(f"Password reset email sent to {to_email}")
+                return {"success": True}
+            else:
+                logger.error(f"Password reset email failed: {result}")
+                return {"success": False}
+    except Exception as e:
+        logger.error(f"Password reset email error: {e}")
+        return {"success": False}

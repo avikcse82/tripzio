@@ -272,6 +272,13 @@ const AgentLogin = () => {
             {touched.password && errors.password && (
               <p style={{ color: '#DC2626', fontSize: '11px', marginTop: '4px' }}>⚠ {errors.password}</p>
             )}
+            {isLogin && (
+              <div style={{ textAlign: 'right', marginTop: '8px' }}>
+                <Link to="/forgot-password" style={{ fontSize: '12px', color: '#7C3AED', fontWeight: '600', textDecoration: 'none' }}>
+                  Forgot password?
+                </Link>
+              </div>
+            )}
             {!isLogin && form.password && (
               <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {[

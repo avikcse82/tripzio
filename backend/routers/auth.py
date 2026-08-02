@@ -1,11 +1,13 @@
 from fastapi import APIRouter, HTTPException, status
-from models.schemas import UserRegister, UserLogin, Token
+from datetime import timedelta
+from models.schemas import UserRegister, UserLogin, Token, ForgotPasswordRequest, ResetPasswordRequest
 from core.security import (
     get_password_hash,
     verify_password,
-    create_access_token
+    create_access_token,
+    decode_access_token
 )
-from database import get_user_by_email, create_user
+from database import get_user_by_email, create_user, update_user
 import logging
 
 logger = logging.getLogger(__name__)
@@ -111,4 +113,70 @@ async def login(credentials: UserLogin):
         token_type="bearer",
         role=user["role"],
         full_name=user["full_name"]
+    )
+
+
+@router.post("/forgot-password")
+async def forgot_password(body: ForgotPasswordRequest):
+    """
+    Always returns the same generic message whether or not the email is
+    registered — never confirm/deny an account's existence (user enumeration).
+    """
+    user = get_user_by_email(body.email)
+    if user:
+        reset_token = create_access_token(
+            data={"sub": user["email"], "purpose": "password_reset"},
+            expires_delta=timedelta(minutes=30)
+        )
+        reset_url = f"https://tripzio.io/reset-password?token={reset_token}"
+        try:
+            from services.email_service import send_password_reset_email
+            await send_password_reset_email(
+                to_email=user["email"],
+                full_name=user["full_name"],
+                reset_url=reset_url
+            )
+        except Exception as e:
+            logger.warning(f"Password reset email failed: {e}")
+
+    return {"message": "If an account exists with that email, we've sent a password reset link."}
+
+
+@router.post("/reset-password", response_model=Token)
+async def reset_password(body: ResetPasswordRequest):
+    payload = decode_access_token(body.token)
+    if not payload or payload.get("purpose") != "password_reset":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link is invalid or has expired. Please request a new one."
+        )
+
+    user = get_user_by_email(payload.get("sub", ""))
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link is invalid or has expired. Please request a new one."
+        )
+
+    hashed_password = get_password_hash(body.new_password)
+    updated_user = update_user(user["id"], {"password": hashed_password})
+    if not updated_user:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset password. Please try again."
+        )
+
+    logger.info(f"Password reset for: {updated_user['email']}")
+
+    access_token = create_access_token(data={
+        "sub": updated_user["email"],
+        "role": updated_user["role"],
+        "id": str(updated_user["id"])
+    })
+
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        role=updated_user["role"],
+        full_name=updated_user["full_name"]
     )

@@ -7,6 +7,8 @@ import ErrorBoundary from './components/ErrorBoundary'
 import LandingPage from './pages/LandingPage'
 import UserLogin from './pages/UserLogin'
 import AgentLogin from './pages/AgentLogin'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import UserDashboard from './pages/UserDashboard'
 import AgentDashboard from './pages/AgentDashboard'
 import AgentProfile from './pages/AgentProfile'
@@ -84,6 +86,10 @@ function AppRoutes() {
         <Route path="/login" element={<PublicRoute><UserLogin /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><UserLogin /></PublicRoute>} />
         <Route path="/agent/login" element={<PublicRoute><AgentLogin /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+        {/* No PublicRoute wrapper — a user must be able to complete a reset
+            link even if this browser has a stale logged-in session */}
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/dashboard" element={<ProtectedRoute role="user"><UserDashboard /></ProtectedRoute>} />
         <Route path="/destinations/suggest" element={<ProtectedRoute role="user"><DestinationSuggestions /></ProtectedRoute>} />
         <Route path="/itinerary/result" element={<ProtectedRoute><ItineraryResult /></ProtectedRoute>} />

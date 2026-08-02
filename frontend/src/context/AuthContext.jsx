@@ -45,6 +45,31 @@ export const AuthProvider = ({ children }) => {
     return response.data
   }
 
+  const forgotPassword = async (email) => {
+    const response = await axios.post(`${API_URL}/auth/forgot-password`, { email })
+    return response.data
+  }
+
+  const resetPassword = async (resetToken, newPassword) => {
+    const response = await axios.post(`${API_URL}/auth/reset-password`, { token: resetToken, new_password: newPassword })
+    const { access_token, role, full_name } = response.data
+    // The reset token's JWT payload carries the email (sub claim) — decode
+    // it client-side just to populate the user object, same as login/register
+    // build one from form input. Trust boundary is unaffected: the server
+    // already verified everything before issuing this fresh access_token.
+    let email = ''
+    try {
+      email = JSON.parse(atob(access_token.split('.')[1])).sub || ''
+    } catch { /* ignore — email just won't be pre-filled locally */ }
+    const userObj = { email, full_name, role }
+    localStorage.setItem('tripzio_token', access_token)
+    localStorage.setItem('tripzio_user', JSON.stringify(userObj))
+    axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+    setToken(access_token)
+    setUser(userObj)
+    return response.data
+  }
+
   const logout = () => {
     localStorage.removeItem('tripzio_token')
     localStorage.removeItem('tripzio_user')
@@ -60,7 +85,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{
       user, token, loading,
-      register, login, logout,
+      register, login, logout, forgotPassword, resetPassword,
       isAuthenticated, isAgent, isUser
     }}>
       {children}
