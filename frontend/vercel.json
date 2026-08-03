@@ -11,6 +11,10 @@
     {
       "source": "/:slug([a-z0-9-]+)-trip-planner",
       "destination": "/api/seo-destination?slug=:slug"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
