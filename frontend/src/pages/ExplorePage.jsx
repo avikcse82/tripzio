@@ -18,7 +18,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Manali', region: 'Himachal Pradesh', category: 'Hill Station',
     duration: '5-7', budget: 12000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/manali/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Manali_City.jpg/1280px-Manali_City.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Neerajsinghazm', authorUrl: 'https://commons.wikimedia.org/wiki/File:Manali_City.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏔️', badge: 'Trending', badgeColor: '#f59e0b',
     accent: '#8b5cf6', lightBg: '#f5f3ff', border: '#e9d5ff',
     tags: ['Adventure', 'Snow', 'Trekking'], season: 'Mar-Jun, Sep-Nov',
@@ -27,7 +28,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Shimla', region: 'Himachal Pradesh', category: 'Hill Station',
     duration: '4-6', budget: 11000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/shimla/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Landscape_of_Shimla_%2C_Himachal_Pradesh.jpg/1280px-Landscape_of_Shimla_%2C_Himachal_Pradesh.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Navneet Sharma', authorUrl: 'https://commons.wikimedia.org/wiki/User:Navneetsharmaiit', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '❄️', badge: 'Winter Special', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Snow', 'Mall Road', 'Heritage'], season: 'Oct-Feb',
@@ -36,7 +38,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Dharamshala', region: 'Himachal Pradesh', category: 'Hill Station',
     duration: '4-5', budget: 10000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/dharamshala/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Dharamshala_03_%28Cropped%29.jpg/1280px-Dharamshala_03_%28Cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Amit Phulera', authorUrl: 'https://commons.wikimedia.org/wiki/User:ArmouredCyborg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '☸️', badge: 'Spiritual', badgeColor: '#8b5cf6',
     accent: '#8b5cf6', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Tibetan Culture', 'Trekking', 'Monasteries'], season: 'Mar-Jun',
@@ -45,7 +48,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kasol', region: 'Himachal Pradesh', category: 'Hill Station',
     duration: '3-5', budget: 8000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/kasol/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/a/a2/Kasol_mountain_view.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'BenSalo', authorUrl: 'https://commons.wikimedia.org/wiki/User:BenSalo', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🌲', badge: 'Backpacker Fav', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['Backpacking', 'River', 'Trekking'], season: 'Mar-Jun, Sep-Nov',
@@ -54,7 +58,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Spiti Valley', region: 'Himachal Pradesh', category: 'Hill Station',
     duration: '7-10', budget: 18000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/spiti/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Spiti_River_Kaza_Himachal_Jun18_D72_7232.jpg/1280px-Spiti_River_Kaza_Himachal_Jun18_D72_7232.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Timothy A', authorUrl: 'https://upload.wikimedia.org/wikipedia/commons/3/3f/Spiti_River_Kaza_Himachal_Jun18_D72_7232.jpg?utm_source=commons.wikimedia.org&utm_campaign=api&utm_content=original', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏜️', badge: 'Epic', badgeColor: '#ef4444',
     accent: '#ef4444', lightBg: '#fef2f2', border: '#fecaca',
     tags: ['Remote', 'Monasteries', 'High Altitude'], season: 'Jun-Sep',
@@ -63,7 +68,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Darjeeling', region: 'West Bengal', category: 'Hill Station',
     duration: '4-6', budget: 10000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/darjeeling/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/DarjeelingTrainFruitshop_%282%29.jpg/1280px-DarjeelingTrainFruitshop_%282%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Arne Hückelheim', authorUrl: 'https://commons.wikimedia.org/wiki/User:Knipptang', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🍵', badge: 'Top Rated', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['Tea Gardens', 'Toy Train', 'Views'], season: 'Oct-May',
@@ -72,7 +78,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Gangtok', region: 'Sikkim', category: 'Hill Station',
     duration: '4-5', budget: 12000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/gangtok/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Kangch-Goechala.jpg/1280px-Kangch-Goechala.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Ashinpt at enwiki', authorUrl: 'https://en.wikipedia.org/wiki/User:Ashinpt', license: 'CC BY-SA', licenseUrl: 'http://creativecommons.org/licenses/by-sa/3.0/' },
     emoji: '🏔️', badge: 'Hidden Gem', badgeColor: '#6366f1',
     accent: '#6366f1', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Monasteries', 'Views', 'Clean City'], season: 'Mar-May, Sep-Dec',
@@ -81,7 +88,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Ooty', region: 'Tamil Nadu', category: 'Hill Station',
     duration: '3-5', budget: 8000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/ooty/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Ooty_lake.jpg/1280px-Ooty_lake.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Vinayaraj', authorUrl: 'https://commons.wikimedia.org/wiki/User:Vinayaraj', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🌿', badge: 'Family Fav', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['Nilgiris', 'Lakes', 'Gardens'], season: 'Oct-Jun',
@@ -90,7 +98,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kodaikanal', region: 'Tamil Nadu', category: 'Hill Station',
     duration: '3-4', budget: 9000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/kodaikanal/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/Boating_in_Kodaikanal_Lake_with_Mist.jpg/1280px-Boating_in_Kodaikanal_Lake_with_Mist.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'KARTY JazZ', authorUrl: 'https://commons.wikimedia.org/wiki/User:KARTY_JazZ', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌸', badge: 'Romantic', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Lakes', 'Waterfalls', 'Trekking'], season: 'Apr-Jun',
@@ -99,7 +108,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Munnar', region: 'Kerala', category: 'Hill Station',
     duration: '3-5', budget: 10000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/munnar/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Munnar_Overview.jpg/1280px-Munnar_Overview.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Kondephy', authorUrl: 'https://commons.wikimedia.org/wiki/User:Kondephy', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🍃', badge: 'Top Rated', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['Tea Estates', 'Wildlife', 'Valleys'], season: 'Sep-Mar',
@@ -108,7 +118,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Coorg', region: 'Karnataka', category: 'Hill Station',
     duration: '3-4', budget: 10000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/coorg/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Tadiandamol_Valley%2C_Western_Ghats.jpg/1280px-Tadiandamol_Valley%2C_Western_Ghats.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Jyotirmoy', authorUrl: 'https://commons.wikimedia.org/wiki/File:Tadiandamol_Valley%2C_Western_Ghats.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '☕', badge: 'Trending', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Coffee', 'Waterfalls', 'Trekking'], season: 'Oct-Mar',
@@ -117,7 +128,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Mussoorie', region: 'Uttarakhand', category: 'Hill Station',
     duration: '3-5', budget: 10000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/mussoorie/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Mussoorie_Snow_Over_Dehradun_%2814831297545%29.jpg/1280px-Mussoorie_Snow_Over_Dehradun_%2814831297545%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Paul Hamilton', authorUrl: 'https://www.flickr.com/people/8306673@N02', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/2.0' },
     emoji: '🌄', badge: 'Weekend Fav', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Waterfalls', 'Mall Road', 'Views'], season: 'Mar-Jun',
@@ -126,7 +138,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Nainital', region: 'Uttarakhand', category: 'Hill Station',
     duration: '3-4', budget: 9000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/nainital/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Nainital_metro.jpg/1280px-Nainital_metro.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Skalvanov', authorUrl: 'https://commons.wikimedia.org/wiki/File:Nainital_metro.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏞️', badge: 'Family Fav', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['Lake', 'Boating', 'Snow View'], season: 'Mar-Jun',
@@ -135,7 +148,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Shillong', region: 'Meghalaya', category: 'Hill Station',
     duration: '4-5', budget: 11000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/shillong/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Elephant_Falls_II%2C_Shillong.jpg/1280px-Elephant_Falls_II%2C_Shillong.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Prasanta Kr Dutta', authorUrl: 'https://commons.wikimedia.org/wiki/File:Elephant_Falls_II%2C_Shillong.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🎵', badge: 'Hidden Gem', badgeColor: '#6366f1',
     accent: '#6366f1', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Waterfalls', 'Music', 'Lakes'], season: 'Sep-May',
@@ -144,7 +158,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Wayanad', region: 'Kerala', category: 'Hill Station',
     duration: '3-4', budget: 9000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/wayanad/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Blue%2C_Green_%26_White.jpg/1280px-Blue%2C_Green_%26_White.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Karkiabhijeet', authorUrl: 'https://commons.wikimedia.org/wiki/File:Blue%2C_Green_%26_White.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌳', badge: 'Nature Lovers', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['Wildlife', 'Tribal Culture', 'Waterfalls'], season: 'Sep-May',
@@ -153,7 +168,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Lonavala', region: 'Maharashtra', category: 'Hill Station',
     duration: '2-3', budget: 7000, rating: 4.3,
-    photo: 'https://picsum.photos/seed/lonavala/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Lonavla_railway_station_-_Entrance.jpg/1280px-Lonavla_railway_station_-_Entrance.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Superfast1111', authorUrl: 'https://commons.wikimedia.org/wiki/File:Lonavla_railway_station_-_Entrance.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '⛰️', badge: 'Weekend Escape', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Waterfalls', 'Forts', 'Chikki'], season: 'Jun-Sep',
@@ -162,7 +178,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Mahabaleshwar', region: 'Maharashtra', category: 'Hill Station',
     duration: '3-4', budget: 9000, rating: 4.4,
-    photo: 'https://picsum.photos/seed/mahabaleshwar/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/MAHABALESWAR_LANDSCAPE.jpg/1280px-MAHABALESWAR_LANDSCAPE.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Amitban77', authorUrl: 'https://commons.wikimedia.org/wiki/File:MAHABALESWAR_LANDSCAPE.jpg', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/4.0' },
     emoji: '🍓', badge: 'Romantic', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Strawberries', 'Viewpoints', 'Lakes'], season: 'Oct-Jun',
@@ -173,7 +190,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Goa', region: 'Goa', category: 'Beach',
     duration: '4-6', budget: 15000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/goa/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/BeachFun.jpg/1280px-BeachFun.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Sam 8393', authorUrl: 'https://commons.wikimedia.org/wiki/User:Sam_8393', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏖️', badge: 'Most Booked', badgeColor: '#0284c7',
     accent: '#0ea5e9', lightBg: '#eff6ff', border: '#bae6fd',
     tags: ['Beach', 'Nightlife', 'Water Sports'], season: 'Nov-Mar',
@@ -182,7 +200,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Andaman Islands', region: 'Andaman & Nicobar', category: 'Beach',
     duration: '5-7', budget: 25000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/andaman/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/The_Coral_Reef_at_the_Andaman_Islands.jpg/1280px-The_Coral_Reef_at_the_Andaman_Islands.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Ritiks', authorUrl: 'https://commons.wikimedia.org/wiki/User:Ritiks', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🐠', badge: 'Hidden Gem', badgeColor: '#6366f1',
     accent: '#6366f1', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Scuba Diving', 'Pristine Beaches', 'Islands'], season: 'Nov-May',
@@ -191,7 +210,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Pondicherry', region: 'Puducherry', category: 'Beach',
     duration: '3-4', budget: 9000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/pondicherry/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Pondicherry-Rock_beach_aerial_view.jpg/1280px-Pondicherry-Rock_beach_aerial_view.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Karthik Easvur', authorUrl: 'https://commons.wikimedia.org/wiki/User:Karthik_Easvur', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🇫🇷', badge: 'French Vibes', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['French Quarter', 'Cafes', 'Auroville'], season: 'Oct-Mar',
@@ -200,7 +220,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Varkala', region: 'Kerala', category: 'Beach',
     duration: '3-4', budget: 9000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/varkala/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/4/49/Varkala_Beach%2C_Varkala%2C_Kerala.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Devender Goyal', authorUrl: 'https://commons.wikimedia.org/wiki/User:Goyaldevender', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌊', badge: 'Offbeat', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['Cliffside', 'Yoga', 'Ayurveda'], season: 'Nov-Mar',
@@ -209,7 +230,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kovalam', region: 'Kerala', category: 'Beach',
     duration: '3-4', budget: 10000, rating: 4.4,
-    photo: 'https://picsum.photos/seed/kovalam/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Kovalam_beach_trivandrum_kerala.jpg/1280px-Kovalam_beach_trivandrum_kerala.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Georgeumartin', authorUrl: 'https://commons.wikimedia.org/wiki/File:Kovalam_beach_trivandrum_kerala.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌴', badge: 'Classic', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['Lighthouse', 'Ayurveda', 'Surfing'], season: 'Nov-Mar',
@@ -218,7 +240,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Digha', region: 'West Bengal', category: 'Beach',
     duration: '2-3', budget: 6000, rating: 4.1,
-    photo: 'https://picsum.photos/seed/digha/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Jagannath_Temple%2C_Digha_-_%E0%A6%9C%E0%A6%97%E0%A6%A8%E0%A7%8D%E0%A6%A8%E0%A6%BE%E0%A6%A5_%E0%A6%AE%E0%A6%A8%E0%A7%8D%E0%A6%A6%E0%A6%BF%E0%A6%B0%2C_%E0%A6%A6%E0%A7%80%E0%A6%98%E0%A6%BE-%E0%A7%AA.jpg/1280px-Jagannath_Temple%2C_Digha_-_%E0%A6%9C%E0%A6%97%E0%A6%A8%E0%A7%8D%E0%A6%A8%E0%A6%BE%E0%A6%A5_%E0%A6%AE%E0%A6%A8%E0%A7%8D%E0%A6%A6%E0%A6%BF%E0%A6%B0%2C_%E0%A6%A6%E0%A7%80%E0%A6%98%E0%A6%BE-%E0%A7%AA.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'খাঁ শুভেন্দু', authorUrl: 'https://commons.wikimedia.org/wiki/User:%E0%A6%96%E0%A6%BE%E0%A6%81_%E0%A6%B6%E0%A7%81%E0%A6%AD%E0%A7%87%E0%A6%A8%E0%A7%8D%E0%A6%A6%E0%A7%81', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏄', badge: 'Budget Fav', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Beach', 'Seafood', 'Sunrise'], season: 'Nov-Feb',
@@ -227,7 +250,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Puri', region: 'Odisha', category: 'Beach',
     duration: '3-4', budget: 8000, rating: 4.4,
-    photo: 'https://picsum.photos/seed/puri/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Shri_Jagannatha_Temple.jpg/1280px-Shri_Jagannatha_Temple.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Subham9423', authorUrl: 'https://commons.wikimedia.org/wiki/File:Shri_Jagannatha_Temple.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🛕', badge: 'Spiritual', badgeColor: '#f97316',
     accent: '#f97316', lightBg: '#fff7ed', border: '#fed7aa',
     tags: ['Jagannath Temple', 'Beach', 'Rath Yatra'], season: 'Nov-Feb',
@@ -236,7 +260,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Tarkarli', region: 'Maharashtra', category: 'Beach',
     duration: '3-4', budget: 8000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/tarkarli/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Tarkarli_Photo_by_Sandeep_Wairkar.jpg/1280px-Tarkarli_Photo_by_Sandeep_Wairkar.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Rohit Keluskar', authorUrl: 'https://commons.wikimedia.org/wiki/File:Tarkarli_Photo_by_Sandeep_Wairkar.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🤿', badge: 'Offbeat', badgeColor: '#0ea5e9',
     accent: '#0ea5e9', lightBg: '#eff6ff', border: '#bae6fd',
     tags: ['Scuba Diving', 'Snorkeling', 'Backwaters'], season: 'Nov-Mar',
@@ -245,7 +270,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Mandrem', region: 'Goa', category: 'Beach',
     duration: '3-5', budget: 12000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/mandrem/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Mandrem_Beach_and_Mandrem_River%2C_Mandrem%2C_Goa%2C_India_%28edit%29.jpg/1280px-Mandrem_Beach_and_Mandrem_River%2C_Mandrem%2C_Goa%2C_India_%28edit%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Vyacheslav Argenberg', authorUrl: 'https://commons.wikimedia.org/wiki/User:Argenberg', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/4.0' },
     emoji: '🧘', badge: 'Peaceful', badgeColor: '#8b5cf6',
     accent: '#8b5cf6', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Quiet Beach', 'Yoga', 'North Goa'], season: 'Nov-Mar',
@@ -254,7 +280,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Lakshadweep', region: 'Lakshadweep', category: 'Beach',
     duration: '5-7', budget: 30000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/lakshadweep/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/7/72/A_beach_side_resort_at_Kadmat_Island%2C_Lakshadweep.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Manvendra Bhangui from Chennai, India', authorUrl: 'https://www.flickr.com/people/43383965@N00', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/2.0' },
     emoji: '🏝️', badge: 'Exclusive', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['Coral Reefs', 'Lagoons', 'Snorkeling'], season: 'Oct-May',
@@ -265,7 +292,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Jaipur', region: 'Rajasthan', category: 'Heritage',
     duration: '3-4', budget: 10000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/jaipur/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/East_facade_Hawa_Mahal_Jaipur_from_ground_level_%28July_2022%29_-_img_01.jpg/1280px-East_facade_Hawa_Mahal_Jaipur_from_ground_level_%28July_2022%29_-_img_01.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Chainwit.', authorUrl: 'https://commons.wikimedia.org/wiki/User:Chainwit.', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏯', badge: 'Pink City', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Forts', 'Palaces', 'Shopping'], season: 'Oct-Mar',
@@ -274,7 +302,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Jodhpur', region: 'Rajasthan', category: 'Heritage',
     duration: '2-3', budget: 9000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/jodhpur/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/9/99/Mehrangarh_Fort_sanhita.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Sanhitasinha', authorUrl: 'https://commons.wikimedia.org/wiki/File:Mehrangarh_Fort_sanhita.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '💙', badge: 'Blue City', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Mehrangarh Fort', 'Blue Houses', 'Desert'], season: 'Oct-Mar',
@@ -283,7 +312,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Udaipur', region: 'Rajasthan', category: 'Heritage',
     duration: '3-4', budget: 12000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/udaipur/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Evening_view%2C_City_Palace%2C_Udaipur.jpg/1280px-Evening_view%2C_City_Palace%2C_Udaipur.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Geri from Biel/Bienne, Schweiz', authorUrl: 'https://www.flickr.com/people/14196341@N08', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/2.0' },
     emoji: '🏰', badge: 'Most Romantic', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Lakes', 'Palaces', 'Romantic'], season: 'Oct-Mar',
@@ -292,7 +322,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Jaisalmer', region: 'Rajasthan', category: 'Heritage',
     duration: '3-4', budget: 10000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/jaisalmer/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Jaisalmer_Fort.jpg/1280px-Jaisalmer_Fort.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Adrian Sulc', authorUrl: 'https://commons.wikimedia.org/wiki/User:Hinterkappelen', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🐪', badge: 'Desert Magic', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Desert', 'Camel Safari', 'Fort'], season: 'Oct-Mar',
@@ -301,7 +332,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Agra', region: 'Uttar Pradesh', category: 'Heritage',
     duration: '2-3', budget: 7000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/agra/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Taj_Mahal%2C_Agra%2C_India.jpg/1280px-Taj_Mahal%2C_Agra%2C_India.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Yann (talk)', authorUrl: 'https://commons.wikimedia.org/wiki/User:Yann', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🕌', badge: 'UNESCO', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Taj Mahal', 'Mughal History', 'Agra Fort'], season: 'Oct-Mar',
@@ -310,7 +342,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Varanasi', region: 'Uttar Pradesh', category: 'Heritage',
     duration: '3-4', budget: 8000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/varanasi/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Varanasi%2C_India%2C_Ghats%2C_Cremation_ceremony_in_progress.jpg/1280px-Varanasi%2C_India%2C_Ghats%2C_Cremation_ceremony_in_progress.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Vyacheslav Argenberg', authorUrl: 'https://commons.wikimedia.org/wiki/User:Argenberg', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/4.0' },
     emoji: '🪔', badge: 'Spiritual', badgeColor: '#f97316',
     accent: '#f97316', lightBg: '#fff7ed', border: '#fed7aa',
     tags: ['Ghats', 'Temples', 'Ganga Aarti'], season: 'Oct-Mar',
@@ -319,7 +352,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Hampi', region: 'Karnataka', category: 'Heritage',
     duration: '3-4', budget: 7000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/hampi/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Wide_angle_of_Galigopuram_of_Virupaksha_Temple%2C_Hampi_%2804%29_%28cropped%29.jpg/1280px-Wide_angle_of_Galigopuram_of_Virupaksha_Temple%2C_Hampi_%2804%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'iMahesh', authorUrl: 'https://commons.wikimedia.org/wiki/User:I.Mahesh', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🗿', badge: 'UNESCO', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Ruins', 'Boulders', 'History'], season: 'Oct-Mar',
@@ -328,7 +362,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Khajuraho', region: 'Madhya Pradesh', category: 'Heritage',
     duration: '2-3', budget: 7000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/khajuraho/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/1_Khajuraho.jpg/1280px-1_Khajuraho.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'PLBechly', authorUrl: 'https://commons.wikimedia.org/wiki/User:PLBechly', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🛕', badge: 'UNESCO', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Temples', 'Sculptures', 'History'], season: 'Oct-Mar',
@@ -337,7 +372,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Mysore', region: 'Karnataka', category: 'Heritage',
     duration: '2-3', budget: 8000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/mysore/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/5/56/Mysuru_Montage.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Sathyaprakash01', authorUrl: 'https://commons.wikimedia.org/wiki/User:Sathyaprakash01', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '👑', badge: 'Royal', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Palace', 'Dasara', 'Silk'], season: 'Oct-Mar',
@@ -346,7 +382,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Orchha', region: 'Madhya Pradesh', category: 'Heritage',
     duration: '2-3', budget: 6000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/orchha/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/f/f4/Orchha_Fort_and_Bridge.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Mandy', authorUrl: 'https://www.flickr.com/people/49399018@N00', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/2.0' },
     emoji: '🏯', badge: 'Hidden Gem', badgeColor: '#6366f1',
     accent: '#6366f1', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Cenotaphs', 'Forts', 'Offbeat'], season: 'Oct-Mar',
@@ -355,7 +392,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Mahabalipuram', region: 'Tamil Nadu', category: 'Heritage',
     duration: '2-3', budget: 7000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/mahabalipuram/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/A_collage_of_Mamallapuram_town_Tamil_Nadu_India.jpg/1280px-A_collage_of_Mamallapuram_town_Tamil_Nadu_India.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Ms Sarah Welch', authorUrl: 'https://commons.wikimedia.org/wiki/User:Ms_Sarah_Welch', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🗿', badge: 'UNESCO', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Rock Temples', 'Shore Temple', 'Beach'], season: 'Nov-Mar',
@@ -364,7 +402,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Pattadakal', region: 'Karnataka', category: 'Heritage',
     duration: '1-2', budget: 5000, rating: 4.4,
-    photo: 'https://picsum.photos/seed/pattadakal/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Pattadakal_000.JPG/1280px-Pattadakal_000.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Nithin bolar k', authorUrl: 'https://commons.wikimedia.org/wiki/File:Pattadakal_000.JPG', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🛕', badge: 'UNESCO', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Chalukya Temples', 'History', 'Architecture'], season: 'Oct-Mar',
@@ -373,7 +412,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Amritsar', region: 'Punjab', category: 'Heritage',
     duration: '2-3', budget: 7000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/amritsar/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Golden_Temple_Amritsar_Gurudwara_%28cropped%29.jpg/1280px-Golden_Temple_Amritsar_Gurudwara_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Shubhashish', authorUrl: 'https://commons.wikimedia.org/wiki/File:Golden_Temple_Amritsar_Gurudwara_%28cropped%29.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '✨', badge: 'Sacred', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Golden Temple', 'Wagah Border', 'Langar'], season: 'Oct-Mar',
@@ -384,7 +424,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Leh-Ladakh', region: 'Ladakh', category: 'Adventure',
     duration: '7-10', budget: 22000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/ladakh/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Leh_City_seen_from_Shanti_Stupa.JPG/1280px-Leh_City_seen_from_Shanti_Stupa.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Anirvan Shukla', authorUrl: 'https://commons.wikimedia.org/wiki/User:Anir1uph', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🏍️', badge: 'Epic', badgeColor: '#ef4444',
     accent: '#ef4444', lightBg: '#fef2f2', border: '#fecaca',
     tags: ['Bike Trip', 'High Altitude', 'Pangong Lake'], season: 'Jun-Sep',
@@ -393,7 +434,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Rishikesh', region: 'Uttarakhand', category: 'Adventure',
     duration: '3-5', budget: 8000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/rishikesh/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Trayambakeshwar_Temple_VK.jpg/1280px-Trayambakeshwar_Temple_VK.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'VK1983', authorUrl: 'https://commons.wikimedia.org/wiki/File:Trayambakeshwar_Temple_VK.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌊', badge: 'Adrenaline', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['River Rafting', 'Bungee', 'Yoga'], season: 'Sep-Jun',
@@ -402,7 +444,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Ziro Valley', region: 'Arunachal Pradesh', category: 'Adventure',
     duration: '4-5', budget: 12000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/ziro/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/A_cross_section_of_luch_green_valley_of_Ziro.jpg/1280px-A_cross_section_of_luch_green_valley_of_Ziro.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Arunachal2007', authorUrl: 'https://commons.wikimedia.org/wiki/File:A_cross_section_of_luch_green_valley_of_Ziro.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🎵', badge: 'Offbeat', badgeColor: '#6366f1',
     accent: '#6366f1', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Music Festival', 'Tribal Culture', 'Rice Fields'], season: 'Mar-Oct',
@@ -411,7 +454,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Chopta', region: 'Uttarakhand', category: 'Adventure',
     duration: '3-4', budget: 8000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/chopta/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Chopta%2C_starting_point_for_treks_to_Tungnath_and_Chandrashila.jpg/1280px-Chopta%2C_starting_point_for_treks_to_Tungnath_and_Chandrashila.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Alok', authorUrl: 'https://commons.wikimedia.org/wiki/File:Chopta%2C_starting_point_for_treks_to_Tungnath_and_Chandrashila.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '⛺', badge: 'Mini Switzerland', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Trekking', 'Tungnath', 'Chandrashila'], season: 'Apr-Jun, Sep-Nov',
@@ -420,7 +464,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Bir Billing', region: 'Himachal Pradesh', category: 'Adventure',
     duration: '3-4', budget: 9000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/birbilling/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/An_aerial_view_of_Bir%2C_Kangra_valley_sights_nature_culture_Himachal_Pradesh_India_2015.jpg/1280px-An_aerial_view_of_Bir%2C_Kangra_valley_sights_nature_culture_Himachal_Pradesh_India_2015.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Fredi Bach from Switzerland', authorUrl: 'https://www.flickr.com/people/26144976@N07', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/2.0' },
     emoji: '🪂', badge: 'Paragliding Hub', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Paragliding', 'Camping', 'Tibetan Colony'], season: 'Mar-Jun, Sep-Nov',
@@ -429,7 +474,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Dandeli', region: 'Karnataka', category: 'Adventure',
     duration: '2-3', budget: 7000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/dandeli/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/5/53/Dandeli_1.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Vinayak wiki', authorUrl: 'https://commons.wikimedia.org/wiki/User:Vinayak_wiki', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🚣', badge: 'Wildlife + Adventure', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['White Water Rafting', 'Safari', 'Kayaking'], season: 'Oct-May',
@@ -438,7 +484,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kedarnath', region: 'Uttarakhand', category: 'Adventure',
     duration: '3-4', budget: 10000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/kedarnath/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/1/1a/Kedarnath_View1.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Samadolfo', authorUrl: 'https://commons.wikimedia.org/wiki/File:Kedarnath_View1.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🛕', badge: 'Sacred Trek', badgeColor: '#f97316',
     accent: '#f97316', lightBg: '#fff7ed', border: '#fed7aa',
     tags: ['Trek', 'Shiva Temple', 'Char Dham'], season: 'May-Jun, Sep-Oct',
@@ -449,7 +496,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kerala Backwaters', region: 'Kerala', category: 'Nature',
     duration: '5-7', budget: 14000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/kerala/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/House_Boat_DSW.jpg/1280px-House_Boat_DSW.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Augustus Binu : flickr', authorUrl: 'https://en.wikipedia.org/wiki/User:Mydreamsparrow', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🌴', badge: 'God\'s Own', badgeColor: '#22c55e',
     accent: '#22c55e', lightBg: '#f0fdf4', border: '#bbf7d0',
     tags: ['Houseboat', 'Backwaters', 'Ayurveda'], season: 'Sep-Mar',
@@ -458,7 +506,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Jim Corbett', region: 'Uttarakhand', category: 'Nature',
     duration: '3-4', budget: 12000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/corbett/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Kosi_River%2C_Jim_Corbett_National_Park%2C_Ramnagar%2C_Uttarakhand.jpeg/1280px-Kosi_River%2C_Jim_Corbett_National_Park%2C_Ramnagar%2C_Uttarakhand.jpeg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Anamdas', authorUrl: 'https://commons.wikimedia.org/wiki/User:Anamdas', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🐯', badge: 'Tiger Reserve', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Tiger Safari', 'Wildlife', 'Bird Watching'], season: 'Nov-Jun',
@@ -467,7 +516,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Ranthambore', region: 'Rajasthan', category: 'Nature',
     duration: '3-4', budget: 14000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/ranthambore/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Ranthambhore_Fort.jpg/1280px-Ranthambhore_Fort.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Manojmeena', authorUrl: 'https://commons.wikimedia.org/wiki/File:Ranthambhore_Fort.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🐅', badge: 'Best Tiger Sighting', badgeColor: '#ef4444',
     accent: '#ef4444', lightBg: '#fef2f2', border: '#fecaca',
     tags: ['Tiger Safari', 'Fort', 'Photography'], season: 'Oct-Jun',
@@ -476,7 +526,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kaziranga', region: 'Assam', category: 'Nature',
     duration: '3-4', budget: 12000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/kaziranga/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Beauty_of_Kaziranga_National_Park.jpg/1280px-Beauty_of_Kaziranga_National_Park.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Diganta Talukdar', authorUrl: 'https://commons.wikimedia.org/wiki/File:Beauty_of_Kaziranga_National_Park.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🦏', badge: 'UNESCO', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['One-Horned Rhino', 'Elephant Safari', 'UNESCO'], season: 'Nov-Apr',
@@ -485,7 +536,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Sundarbans', region: 'West Bengal', category: 'Nature',
     duration: '3-4', budget: 10000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/sundarbans/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Save_the_sundarbans_20.jpg/1280px-Save_the_sundarbans_20.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Shihabur Rahman', authorUrl: 'https://commons.wikimedia.org/wiki/User:Ahamedbinshihab', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🐅', badge: 'UNESCO', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Royal Bengal Tiger', 'Mangroves', 'Boat Safari'], season: 'Sep-Mar',
@@ -494,7 +546,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Periyar', region: 'Kerala', category: 'Nature',
     duration: '2-3', budget: 9000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/periyar/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Fish_net_over_Periyar_River_0.jpg/1280px-Fish_net_over_Periyar_River_0.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'KannanVM', authorUrl: 'https://commons.wikimedia.org/wiki/User:KannanVM', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🐘', badge: 'Wildlife', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['Elephant Safari', 'Boat Ride', 'Spices'], season: 'Sep-May',
@@ -503,7 +556,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Valley of Flowers', region: 'Uttarakhand', category: 'Nature',
     duration: '4-5', budget: 12000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/valleyofflowers/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Glimpse_of_Nanda_Devi_amidst_the_clouds_from_Valley_of_Flowers.jpg/1280px-Glimpse_of_Nanda_Devi_amidst_the_clouds_from_Valley_of_Flowers.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'John Muir Fan 86', authorUrl: 'https://commons.wikimedia.org/wiki/User:John_Muir_Fan_86', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌺', badge: 'UNESCO', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Alpine Flowers', 'Trek', 'UNESCO'], season: 'Jul-Sep',
@@ -512,7 +566,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Majuli', region: 'Assam', category: 'Nature',
     duration: '2-3', budget: 8000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/majuli/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Doriya_River_of_Majuli.jpg/1280px-Doriya_River_of_Majuli.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Dhrubazaan Photography', authorUrl: 'https://commons.wikimedia.org/wiki/File:Doriya_River_of_Majuli.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏝️', badge: 'River Island', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['River Island', 'Vaishnavite Culture', 'Masks'], season: 'Oct-Mar',
@@ -521,7 +576,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Coorg Wildlife', region: 'Karnataka', category: 'Nature',
     duration: '3-4', budget: 11000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/nagarhole/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Tadiandamol_Valley%2C_Western_Ghats.jpg/1280px-Tadiandamol_Valley%2C_Western_Ghats.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Jyotirmoy', authorUrl: 'https://commons.wikimedia.org/wiki/File:Tadiandamol_Valley%2C_Western_Ghats.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🐆', badge: 'Leopard Country', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Nagarhole', 'Leopards', 'Elephants'], season: 'Oct-May',
@@ -532,7 +588,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Tirupati', region: 'Andhra Pradesh', category: 'Spiritual',
     duration: '2-3', budget: 8000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/tirupati/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Tirumala_090615.jpg/1280px-Tirumala_090615.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Nikhilb239', authorUrl: 'https://commons.wikimedia.org/wiki/User:Nikhilb239', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🙏', badge: 'Most Visited', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Balaji Temple', 'Pilgrimage', 'Tirumala'], season: 'All Year',
@@ -541,7 +598,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Shirdi', region: 'Maharashtra', category: 'Spiritual',
     duration: '1-2', budget: 5000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/shirdi/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/e/e4/Sai_baba_samadhi_mandir_.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Sanskar RM Khatri', authorUrl: 'https://commons.wikimedia.org/wiki/File:Sai_baba_samadhi_mandir_.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '✨', badge: 'Sacred', badgeColor: '#f97316',
     accent: '#f97316', lightBg: '#fff7ed', border: '#fed7aa',
     tags: ['Sai Baba', 'Pilgrimage', 'Devotion'], season: 'All Year',
@@ -550,7 +608,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Bodh Gaya', region: 'Bihar', category: 'Spiritual',
     duration: '2-3', budget: 6000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/bodhgaya/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/Mahabodhi_temple_at_Bodhgaya_in_Bihar_21.jpg/1280px-Mahabodhi_temple_at_Bodhgaya_in_Bihar_21.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Amitabha Gupta', authorUrl: 'https://commons.wikimedia.org/wiki/File:Mahabodhi_temple_at_Bodhgaya_in_Bihar_21.jpg', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/4.0' },
     emoji: '☸️', badge: 'UNESCO', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Buddha', 'Mahabodhi Temple', 'Monasteries'], season: 'Oct-Mar',
@@ -559,7 +618,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Vrindavan', region: 'Uttar Pradesh', category: 'Spiritual',
     duration: '2-3', budget: 6000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/vrindavan/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Iskon_Temple%2C_Vrindawan.jpg/1280px-Iskon_Temple%2C_Vrindawan.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Rishabh gaur', authorUrl: 'https://commons.wikimedia.org/wiki/File:Iskon_Temple%2C_Vrindawan.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🪈', badge: 'Krishna Land', badgeColor: '#8b5cf6',
     accent: '#8b5cf6', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Krishna Temples', 'Holi', 'Devotion'], season: 'Oct-Mar',
@@ -568,7 +628,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Haridwar', region: 'Uttarakhand', category: 'Spiritual',
     duration: '2-3', budget: 6000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/haridwar/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Ganga_aarti_haridwar_01.jpg/1280px-Ganga_aarti_haridwar_01.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'pavankunar', authorUrl: 'https://commons.wikimedia.org/wiki/File:Ganga_aarti_haridwar_01.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌊', badge: 'Ganga Aarti', badgeColor: '#f97316',
     accent: '#f97316', lightBg: '#fff7ed', border: '#fed7aa',
     tags: ['Ganga Aarti', 'Kumbh Mela', 'Ghats'], season: 'Oct-Apr',
@@ -577,7 +638,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Madurai', region: 'Tamil Nadu', category: 'Spiritual',
     duration: '2-3', budget: 7000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/madurai/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Meenakshi_Amman_West_Tower.jpg/1280px-Meenakshi_Amman_West_Tower.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'KennyOMG', authorUrl: 'https://commons.wikimedia.org/wiki/User:KennyOMG', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🛕', badge: 'Temple City', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Meenakshi Temple', 'Culture', 'Food'], season: 'Oct-Mar',
@@ -586,7 +648,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Pushkar', region: 'Rajasthan', category: 'Spiritual',
     duration: '2-3', budget: 7000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/pushkar/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Pushkar.jpg/1280px-Pushkar.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Bernard Gagnon', authorUrl: 'https://commons.wikimedia.org/wiki/User:Bgag', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🪷', badge: 'Sacred Lake', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Brahma Temple', 'Camel Fair', 'Sacred Lake'], season: 'Oct-Mar',
@@ -606,7 +669,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Tawang', region: 'Arunachal Pradesh', category: 'Northeast',
     duration: '5-6', budget: 15000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/tawang/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/The_buddist_monastry.jpg/1280px-The_buddist_monastry.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Kthatapalli', authorUrl: 'https://commons.wikimedia.org/wiki/File:The_buddist_monastry.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏔️', badge: 'Hidden Gem', badgeColor: '#6366f1',
     accent: '#6366f1', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Monastery', 'High Altitude', 'Snow'], season: 'Mar-Oct',
@@ -615,7 +679,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Cherrapunji', region: 'Meghalaya', category: 'Northeast',
     duration: '3-4', budget: 10000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/cherrapunji/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Cherrapunji.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'RMehra~commonswiki', authorUrl: 'https://commons.wikimedia.org/wiki/File:Cherrapunji.jpg', license: 'CC BY-SA', licenseUrl: 'http://creativecommons.org/licenses/by-sa/3.0/' },
     emoji: '🌧️', badge: 'Wettest Place', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Living Root Bridges', 'Waterfalls', 'Caves'], season: 'Oct-May',
@@ -624,7 +689,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Dzukou Valley', region: 'Nagaland', category: 'Northeast',
     duration: '3-4', budget: 9000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/dzukou/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Breathtaking_beauty_of_Dzukou_Valley_in_Manipur-Nagaland_border_%28edit%29.jpg/1280px-Breathtaking_beauty_of_Dzukou_Valley_in_Manipur-Nagaland_border_%28edit%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Samudra Bikash Hazarika', authorUrl: 'https://commons.wikimedia.org/wiki/File:Breathtaking_beauty_of_Dzukou_Valley_in_Manipur-Nagaland_border_%28edit%29.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌸', badge: 'Valley of Flowers', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Trek', 'Seasonal Flowers', 'Camping'], season: 'Jun-Sep',
@@ -633,7 +699,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Loktak Lake', region: 'Manipur', category: 'Northeast',
     duration: '2-3', budget: 8000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/loktak/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/The_Loktak_Lake.jpg/1280px-The_Loktak_Lake.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Sudiptorana', authorUrl: 'https://commons.wikimedia.org/wiki/File:The_Loktak_Lake.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏞️', badge: 'Floating Islands', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['Floating Islands', 'Sangai Deer', 'Unique'], season: 'Oct-Mar',
@@ -642,7 +709,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Dawki', region: 'Meghalaya', category: 'Northeast',
     duration: '2-3', budget: 8000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/dawki/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Umngot_river%2C_Dawki.jpg/1280px-Umngot_river%2C_Dawki.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Vikramjit Kakati', authorUrl: 'https://commons.wikimedia.org/wiki/User:Donvikro', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '💎', badge: 'Crystal Clear', badgeColor: '#0ea5e9',
     accent: '#0ea5e9', lightBg: '#eff6ff', border: '#bae6fd',
     tags: ['Crystal Clear River', 'Boating', 'Bangladesh Border'], season: 'Oct-May',
@@ -653,7 +721,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kashmir', region: 'Jammu & Kashmir', category: 'Honeymoon',
     duration: '5-7', budget: 20000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/kashmir/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Flag_of_the_Jammu_Kashmir_Peoples_Party.png/1280px-Flag_of_the_Jammu_Kashmir_Peoples_Party.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Mehmeme', authorUrl: 'https://commons.wikimedia.org/wiki/File:Flag_of_the_Jammu_Kashmir_Peoples_Party.png', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌷', badge: 'Heaven on Earth', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Shikara', 'Dal Lake', 'Snow'], season: 'Apr-Jun, Sep-Oct',
@@ -662,7 +731,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Alleppey', region: 'Kerala', category: 'Honeymoon',
     duration: '2-3', budget: 10000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/alleppey/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Alappuzha_Boat_Beauty_W.jpg/1280px-Alappuzha_Boat_Beauty_W.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Augustus Binu/ facebook', authorUrl: 'https://en.wikipedia.org/wiki/User:Bellus_Delphina', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🚢', badge: 'Houseboat Capital', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['Houseboat', 'Backwaters', 'Romantic'], season: 'Sep-Mar',
@@ -671,7 +741,7 @@ const ALL_DESTINATIONS = [
   {
     name: 'Andaman', region: 'Andaman & Nicobar', category: 'Honeymoon',
     duration: '5-6', budget: 28000, rating: 4.9,
-    photo: 'https://picsum.photos/seed/andaman2/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/1/1f/Andaman_Islands.PNG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
     emoji: '🏝️', badge: 'Beach Paradise', badgeColor: '#0ea5e9',
     accent: '#0ea5e9', lightBg: '#eff6ff', border: '#bae6fd',
     tags: ['Private Beach', 'Diving', 'Luxury'], season: 'Nov-May',
@@ -682,7 +752,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Pondicherry', region: 'Puducherry', category: 'Weekend',
     duration: '2-3', budget: 8000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/pondy/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Pondicherry-Rock_beach_aerial_view.jpg/1280px-Pondicherry-Rock_beach_aerial_view.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Karthik Easvur', authorUrl: 'https://commons.wikimedia.org/wiki/User:Karthik_Easvur', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🥐', badge: 'French Town', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['French Quarter', 'Beach', 'Cafes'], season: 'Oct-Mar',
@@ -691,7 +762,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Chikmagalur', region: 'Karnataka', category: 'Weekend',
     duration: '2-3', budget: 8000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/chikmagalur/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Chikmagalur%2C_India._%287793316622%29.jpg/1280px-Chikmagalur%2C_India._%287793316622%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Prof. Mohamed Shareef from Mysore', authorUrl: 'https://www.flickr.com/people/46721134@N04', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/2.0' },
     emoji: '☕', badge: 'Coffee Country', badgeColor: '#92400e',
     accent: '#92400e', lightBg: '#fef3c7', border: '#fcd34d',
     tags: ['Coffee Estates', 'Trekking', 'Waterfall'], season: 'Sep-May',
@@ -700,7 +772,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Alibag', region: 'Maharashtra', category: 'Weekend',
     duration: '2-3', budget: 7000, rating: 4.2,
-    photo: 'https://picsum.photos/seed/alibag/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/Alibag_Sea_beach_3%2C_Maharashtra.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Vishaltomar ifm', authorUrl: 'https://commons.wikimedia.org/wiki/File:Alibag_Sea_beach_3%2C_Maharashtra.JPG', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🏖️', badge: 'Mumbai Escape', badgeColor: '#0ea5e9',
     accent: '#0ea5e9', lightBg: '#eff6ff', border: '#bae6fd',
     tags: ['Beach', 'Fort', 'Ferry'], season: 'Oct-Mar',
@@ -709,7 +782,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Pondicherry from Chennai', region: 'Puducherry', category: 'Weekend',
     duration: '2-3', budget: 7000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/pondy2/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Pondicherry-Rock_beach_aerial_view.jpg/1280px-Pondicherry-Rock_beach_aerial_view.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Karthik Easvur', authorUrl: 'https://commons.wikimedia.org/wiki/User:Karthik_Easvur', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🌊', badge: 'Quick Escape', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Beach', 'Yoga', 'French Food'], season: 'Oct-Mar',
@@ -720,7 +794,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Rann of Kutch', region: 'Gujarat', category: 'Desert',
     duration: '3-4', budget: 12000, rating: 4.8,
-    photo: 'https://picsum.photos/seed/rannofkutch/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Rann_of_Kutch_-_White_Desert.jpg/1280px-Rann_of_Kutch_-_White_Desert.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Superfast1111', authorUrl: 'https://commons.wikimedia.org/wiki/File:Rann_of_Kutch_-_White_Desert.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🌕', badge: 'White Desert', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['White Desert', 'Full Moon', 'Tribal Craft'], season: 'Nov-Feb',
@@ -740,7 +815,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Mcleod Ganj', region: 'Himachal Pradesh', category: 'Backpacking',
     duration: '3-5', budget: 7000, rating: 4.6,
-    photo: 'https://picsum.photos/seed/mcleodganj/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/McLeod_Ganj_Dharamkot_Dharmsala_Himachal_Pradesh_India_April_2014.jpg/1280px-McLeod_Ganj_Dharamkot_Dharmsala_Himachal_Pradesh_India_April_2014.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Rignam Wangkhang', authorUrl: 'https://www.flickr.com/people/97968725@N02', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/2.0' },
     emoji: '🎒', badge: 'Backpacker Hub', badgeColor: '#8b5cf6',
     accent: '#8b5cf6', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Tibetan Exile HQ', 'Trekking', 'Cafes'], season: 'Mar-Jun, Sep-Nov',
@@ -758,7 +834,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Rishikesh', region: 'Uttarakhand', category: 'Backpacking',
     duration: '3-5', budget: 6000, rating: 4.7,
-    photo: 'https://picsum.photos/seed/rishikesh2/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Trayambakeshwar_Temple_VK.jpg/1280px-Trayambakeshwar_Temple_VK.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'VK1983', authorUrl: 'https://commons.wikimedia.org/wiki/File:Trayambakeshwar_Temple_VK.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🧘', badge: 'Yoga Capital', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Yoga', 'Cheap Stays', 'Rafting'], season: 'Sep-Jun',
@@ -770,7 +847,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Jagdalpur', region: 'Chhattisgarh', category: 'Nature',
     duration: '3-4', budget: 8000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/jagdalpur/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/The_Chitrakote_Falls.jpg/1280px-The_Chitrakote_Falls.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Shaswat Nimesh', authorUrl: 'https://commons.wikimedia.org/wiki/User:Writingwithlight', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌊', badge: 'Waterfall Capital', badgeColor: '#0d9488',
     accent: '#0d9488', lightBg: '#f0fdfa', border: '#99f6e4',
     tags: ['Chitrakote Falls', 'Tribal Culture', 'Bastar'], season: 'Oct-Mar',
@@ -779,7 +857,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kurukshetra', region: 'Haryana', category: 'Spiritual',
     duration: '1-2', budget: 5000, rating: 4.3,
-    photo: 'https://picsum.photos/seed/kurukshetra/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/1/13/Kurukshetra_junction_kkde.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Sid Sharma5911', authorUrl: 'https://commons.wikimedia.org/wiki/File:Kurukshetra_junction_kkde.jpg', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/4.0' },
     emoji: '⚔️', badge: 'Mahabharata Land', badgeColor: '#f97316',
     accent: '#f97316', lightBg: '#fff7ed', border: '#fed7aa',
     tags: ['Gita Jayanti', 'Sacred Tanks', 'History'], season: 'Oct-Mar',
@@ -788,7 +867,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Morni Hills', region: 'Haryana', category: 'Hill Station',
     duration: '2-3', budget: 6000, rating: 4.2,
-    photo: 'https://picsum.photos/seed/mornihills/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Mornihills.jpg/1280px-Mornihills.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Sid Sharma5911', authorUrl: 'https://commons.wikimedia.org/wiki/File:Mornihills.jpg', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/4.0' },
     emoji: '🌿', badge: 'Hidden Gem', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['Lakes', 'Trekking', 'Weekend'], season: 'Sep-Jun',
@@ -797,7 +877,7 @@ const ALL_DESTINATIONS = [
   {
     name: 'Deoghar', region: 'Jharkhand', category: 'Spiritual',
     duration: '2-3', budget: 6000, rating: 4.4,
-    photo: 'https://picsum.photos/seed/deoghar/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/9/90/Baba_Baidyanath_Jyotirlinga_Temple.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
     emoji: '🛕', badge: 'Baidyanath Dham', badgeColor: '#f97316',
     accent: '#f97316', lightBg: '#fff7ed', border: '#fed7aa',
     tags: ['Shiva Temple', 'Pilgrimage', 'Jyotirlinga'], season: 'Jul-Aug, Oct-Mar',
@@ -806,7 +886,7 @@ const ALL_DESTINATIONS = [
   {
     name: 'Netarhat', region: 'Jharkhand', category: 'Hill Station',
     duration: '2-3', budget: 7000, rating: 4.4,
-    photo: 'https://picsum.photos/seed/netarhat/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/c/ce/Pine_trees_of_Netarhat_Hill_station.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
     emoji: '🌅', badge: 'Queen of Chotanagpur', badgeColor: '#8b5cf6',
     accent: '#8b5cf6', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Sunrise', 'Dense Forest', 'Waterfalls'], season: 'Oct-Jun',
@@ -815,7 +895,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Aizawl', region: 'Mizoram', category: 'Northeast',
     duration: '3-4', budget: 10000, rating: 4.3,
-    photo: 'https://picsum.photos/seed/aizawl/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Mizoram_Assembly_House_%28wider_view%29.jpg/1280px-Mizoram_Assembly_House_%28wider_view%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'GeoEvan (www.polgeonow.com)', authorUrl: 'https://commons.wikimedia.org/wiki/User:GeoEvan', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/4.0' },
     emoji: '🌄', badge: 'Peaceful City', badgeColor: '#6366f1',
     accent: '#6366f1', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Hilltop City', 'Clean', 'Mizo Culture'], season: 'Oct-Mar',
@@ -824,7 +905,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Phawngpui', region: 'Mizoram', category: 'Northeast',
     duration: '3-4', budget: 11000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/phawngpui/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/5/5d/2007-blue-mtn-farpak.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'Yathin S Krishnappa', authorUrl: 'https://commons.wikimedia.org/wiki/User:Yathin_sk', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0' },
     emoji: '🏔️', badge: 'Blue Mountain', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Blue Mountain', 'Trekking', 'Rhododendrons'], season: 'Mar-Jun',
@@ -833,7 +915,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Agartala', region: 'Tripura', category: 'Heritage',
     duration: '3-4', budget: 9000, rating: 4.2,
-    photo: 'https://picsum.photos/seed/agartala/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Ujjayanta_palace_Tripura_State_Museum_Agartala_India.jpg/1280px-Ujjayanta_palace_Tripura_State_Museum_Agartala_India.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Sharada Prasad CS', authorUrl: 'https://www.flickr.com/people/11124467@N02', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/2.0' },
     emoji: '🏯', badge: 'Palace City', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Ujjayanta Palace', 'Temples', 'Bangladesh Border'], season: 'Oct-Mar',
@@ -842,7 +925,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Unakoti', region: 'Tripura', category: 'Heritage',
     duration: '2-3', budget: 7000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/unakoti/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Unakoti_3.jpg/1280px-Unakoti_3.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Barunghosh', authorUrl: 'https://commons.wikimedia.org/wiki/File:Unakoti_3.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🗿', badge: 'Rock Carvings', badgeColor: '#7c3aed',
     accent: '#7c3aed', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Rock Carvings', 'Shiva', 'Forest'], season: 'Oct-Mar',
@@ -851,7 +935,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Chandigarh', region: 'Chandigarh', category: 'City',
     duration: '2-3', budget: 8000, rating: 4.3,
-    photo: 'https://picsum.photos/seed/chandigarh/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/Open_Hand_monument%2C_Chandigarh.jpg/1280px-Open_Hand_monument%2C_Chandigarh.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Raakesh Blokhra', authorUrl: 'https://www.flickr.com/photos/78766043@N00', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/2.0' },
     emoji: '🌳', badge: 'Garden City', badgeColor: '#16a34a',
     accent: '#16a34a', lightBg: '#f0fdf4', border: '#86efac',
     tags: ['Rock Garden', 'Sukhna Lake', 'Planned City'], season: 'Oct-Mar',
@@ -860,7 +945,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Daman', region: 'Daman & Diu', category: 'Beach',
     duration: '2-3', budget: 7000, rating: 4.1,
-    photo: 'https://picsum.photos/seed/daman/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Vanganga_Garden%2C_Silvassa_%2832345632184%29.jpg/1280px-Vanganga_Garden%2C_Silvassa_%2832345632184%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Ashish Gupta from Noida, India', authorUrl: 'https://www.flickr.com/people/36853543@N00', license: 'CC BY', licenseUrl: 'https://creativecommons.org/licenses/by/2.0' },
     emoji: '🏖️', badge: 'Portuguese Vibes', badgeColor: '#0ea5e9',
     accent: '#0ea5e9', lightBg: '#eff6ff', border: '#bae6fd',
     tags: ['Beach', 'Portuguese Fort', 'Seafood'], season: 'Oct-Mar',
@@ -880,7 +966,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Mumbai', region: 'Maharashtra', category: 'City',
     duration: '3-4', budget: 12000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/mumbai/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Mumbai_Bandra-Worli_Sea_Link.jpg/1280px-Mumbai_Bandra-Worli_Sea_Link.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Rutiknatekar', authorUrl: 'https://commons.wikimedia.org/wiki/File:Mumbai_Bandra-Worli_Sea_Link.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🏙️', badge: 'Maximum City', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Bollywood', 'Street Food', 'Gateway of India'], season: 'Nov-Feb',
@@ -889,7 +976,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Delhi', region: 'Delhi', category: 'City',
     duration: '3-4', budget: 10000, rating: 4.4,
-    photo: 'https://picsum.photos/seed/delhi/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Forecourt%2C_Rashtrapati_Bhavan_-_1.jpg/1280px-Forecourt%2C_Rashtrapati_Bhavan_-_1.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Ronakshah1990', authorUrl: 'https://commons.wikimedia.org/wiki/File:Forecourt%2C_Rashtrapati_Bhavan_-_1.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🕌', badge: 'Capital', badgeColor: '#ef4444',
     accent: '#ef4444', lightBg: '#fef2f2', border: '#fecaca',
     tags: ['History', 'Street Food', 'Monuments'], season: 'Oct-Mar',
@@ -898,7 +986,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kolkata', region: 'West Bengal', category: 'City',
     duration: '3-4', budget: 8000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/kolkata/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Kolkata_maidan.jpg/1280px-Kolkata_maidan.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'NalGup20', authorUrl: 'https://commons.wikimedia.org/wiki/File:Kolkata_maidan.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🎨', badge: 'Cultural Capital', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Durga Puja', 'Art', 'Mishti Doi'], season: 'Oct-Feb',
@@ -907,7 +996,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Bangalore', region: 'Karnataka', category: 'City',
     duration: '2-3', budget: 10000, rating: 4.3,
-    photo: 'https://picsum.photos/seed/bangalore/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/View_from_Visvesvaraya_Industrial_and_Technological_Museum_%282025%29_02.jpg/1280px-View_from_Visvesvaraya_Industrial_and_Technological_Museum_%282025%29_02.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Gpkp', authorUrl: 'https://commons.wikimedia.org/wiki/User:Gpkp', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌆', badge: 'Silicon Valley', badgeColor: '#3b82f6',
     accent: '#3b82f6', lightBg: '#eff6ff', border: '#bfdbfe',
     tags: ['Pubs', 'Gardens', 'Tech City'], season: 'All Year',
@@ -916,7 +1006,7 @@ const ALL_DESTINATIONS = [
   {
     name: 'Hyderabad', region: 'Telangana', category: 'City',
     duration: '2-3', budget: 9000, rating: 4.5,
-    photo: 'https://picsum.photos/seed/hyderabad/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/8/88/Downtown_hyderabad_drone.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
     emoji: '🍖', badge: 'Biryani Capital', badgeColor: '#f97316',
     accent: '#f97316', lightBg: '#fff7ed', border: '#fed7aa',
     tags: ['Biryani', 'Charminar', 'Golconda'], season: 'Oct-Mar',
@@ -925,7 +1015,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Chennai', region: 'Tamil Nadu', category: 'City',
     duration: '2-3', budget: 9000, rating: 4.3,
-    photo: 'https://picsum.photos/seed/chennai/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/3/32/Chennai_Central.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled',
+    photoCredit: { author: 'jamal haider from india', authorUrl: 'https://www.flickr.com/photos/48522238@N00', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/2.0' },
     emoji: '🎭', badge: 'Cultural Hub', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Temples', 'Marina Beach', 'Classical Music'], season: 'Nov-Feb',
@@ -934,7 +1025,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Ahmedabad', region: 'Gujarat', category: 'City',
     duration: '2-3', budget: 8000, rating: 4.4,
-    photo: 'https://picsum.photos/seed/ahmedabad/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Sabarmati_riverside.jpg/1280px-Sabarmati_riverside.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Tarun802', authorUrl: 'https://commons.wikimedia.org/wiki/File:Sabarmati_riverside.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🪁', badge: 'Heritage City', badgeColor: '#f59e0b',
     accent: '#f59e0b', lightBg: '#fffbeb', border: '#fcd34d',
     tags: ['Pol Houses', 'Navratri', 'Kite Festival'], season: 'Oct-Mar',
@@ -943,7 +1035,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Pune', region: 'Maharashtra', category: 'City',
     duration: '2-3', budget: 9000, rating: 4.3,
-    photo: 'https://picsum.photos/seed/pune/600/400',
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Pune_West_skyline_-_March_2017.jpg/1280px-Pune_West_skyline_-_March_2017.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Ujjawal.Gayakwad', authorUrl: 'https://commons.wikimedia.org/wiki/File:Pune_West_skyline_-_March_2017.jpg', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🎓', badge: 'Oxford of East', badgeColor: '#8b5cf6',
     accent: '#8b5cf6', lightBg: '#f5f3ff', border: '#ddd6fe',
     tags: ['Forts', 'Cafes', 'Osho Ashram'], season: 'Oct-Mar',
@@ -1136,7 +1229,7 @@ export default function ExplorePage() {
         {/* Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: '20px' }}>
           {filtered.map((dest, i) => (
-            <div key={dest.name} className="dest-card"
+            <div key={`${dest.name}-${dest.category}`} className="dest-card"
               style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', border: '1.5px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', animation: `fadeUp ${0.1 + (i % 12) * 0.03}s ease` }}>
 
               {/* Photo */}
@@ -1168,6 +1261,15 @@ export default function ExplorePage() {
                 <div style={{ position: 'absolute', bottom: '10px', left: '10px' }}>
                   <span style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.8)', fontSize: '9px', fontWeight: '600', padding: '2px 7px', borderRadius: '10px' }}>{dest.season}</span>
                 </div>
+                {dest.photoCredit && (
+                  <div style={{ position: 'absolute', bottom: '1px', right: '0', maxWidth: '75%' }}>
+                    <span style={{ fontSize: '8px', lineHeight: '9px', color: 'rgba(255,255,255,0.5)', padding: '0 6px', display: 'block', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <a href={dest.photoCredit.authorUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{dest.photoCredit.author}</a>
+                      {' / '}
+                      <a href={dest.photoCredit.licenseUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{dest.photoCredit.license}</a>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Body */}
