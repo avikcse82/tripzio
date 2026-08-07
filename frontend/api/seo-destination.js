@@ -3,32 +3,41 @@
 // Fetches page data from FastAPI, returns fully rendered HTML to Google bot
 // Cached by Vercel CDN after first render
 
+import { DESTINATION_PHOTOS } from './_destinationPhotos.js'
+
 export const config = {
   runtime: 'edge',
 }
 
 const API_URL = process.env.VITE_API_URL || 'https://tripzio-production.up.railway.app'
 
+// Rotating accent colors for day cards — same palette used across the app
+const DAY_ACCENTS = ['#0D9488', '#F97316', '#6366F1', '#0EA5E9', '#EC4899', '#16A34A']
+
 // ── HTML renderer ─────────────────────────────────────────────────────────
 function renderHTML(data, slug) {
   const d = data
   const canonicalUrl = `https://tripzio.io/${slug}-trip-planner`
+  const heroPhoto = DESTINATION_PHOTOS[slug]
 
   // Render day plans
-  const dayPlansHTML = (d.sample_plan?.day_plans || []).map((day, i) => `
-    <div class="day-card">
+  const dayPlansHTML = (d.sample_plan?.day_plans || []).map((day, i) => {
+    const accent = DAY_ACCENTS[i % DAY_ACCENTS.length]
+    return `
+    <div class="day-card" style="animation-delay:${(i * 0.08).toFixed(2)}s; border-left-color:${accent}">
       <div class="day-header">
-        <span class="day-badge">Day ${i + 1}</span>
+        <span class="day-badge" style="background:${accent}">Day ${i + 1}</span>
         <h3 class="day-title">${escHtml(day.title || '')}</h3>
       </div>
       <p class="day-desc">${escHtml(day.description || '')}</p>
       <div class="day-meta">
-        ${day.stay ? `<span class="meta-item">🏨 ${escHtml(day.stay)}</span>` : ''}
-        ${day.transport ? `<span class="meta-item">🚂 ${escHtml(day.transport)}</span>` : ''}
-        ${day.cost ? `<span class="meta-item">💰 ${escHtml(day.cost)}</span>` : ''}
+        ${day.stay ? `<span class="meta-chip">🏨 ${escHtml(day.stay)}</span>` : ''}
+        ${day.transport ? `<span class="meta-chip">🚂 ${escHtml(day.transport)}</span>` : ''}
+        ${day.cost ? `<span class="meta-chip meta-chip-cost">💰 ${escHtml(day.cost)}</span>` : ''}
       </div>
     </div>
-  `).join('')
+  `
+  }).join('')
 
   // Render best months
   const monthsHTML = (d.best_months || []).map(m => `
@@ -115,14 +124,14 @@ function renderHTML(data, slug) {
   <meta property="og:url" content="${canonicalUrl}" />
   <meta property="og:title" content="${escHtml(d.meta_title || '')}" />
   <meta property="og:description" content="${escHtml(d.meta_description || '')}" />
-  <meta property="og:image" content="https://tripzio.io/og-image.png" />
+  <meta property="og:image" content="${heroPhoto?.photo || 'https://tripzio.io/og-image.png'}" />
   <meta property="og:site_name" content="Tripzio" />
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escHtml(d.meta_title || '')}" />
   <meta name="twitter:description" content="${escHtml(d.meta_description || '')}" />
-  <meta name="twitter:image" content="https://tripzio.io/og-image.png" />
+  <meta name="twitter:image" content="${heroPhoto?.photo || 'https://tripzio.io/og-image.png'}" />
 
   <!-- Structured Data -->
   <script type="application/ld+json">${JSON.stringify(faqStructuredData)}</script>
@@ -142,14 +151,23 @@ function renderHTML(data, slug) {
     .logo{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:800;color:#0F172A;font-family:'Plus Jakarta Sans',sans-serif}
     .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,#0D9488,#0EA5E9);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:14px}
     .nav-cta{background:linear-gradient(135deg,#F97316,#F59E0B);color:white;padding:8px 18px;border-radius:10px;font-weight:700;font-size:13px}
-    .hero{background:linear-gradient(135deg,#FEF3C7 0%,#E8F7F4 100%);padding:64px 24px;text-align:center}
+    .hero{position:relative;background:linear-gradient(135deg,#FEF3C7 0%,#E8F7F4 100%);padding:72px 24px 56px;text-align:center;background-size:cover;background-position:center}
+    .hero.has-photo{color:white}
+    .hero.has-photo .hero-badge{background:rgba(255,255,255,0.14);backdrop-filter:blur(8px);border-color:rgba(255,255,255,0.35);color:white}
+    .hero.has-photo h1{color:white;text-shadow:0 2px 16px rgba(0,0,0,0.25)}
+    .hero.has-photo .hero-sub{color:rgba(255,255,255,0.92)}
+    .hero.has-photo .prompt-chip{background:rgba(255,255,255,0.14);backdrop-filter:blur(8px);border-color:rgba(255,255,255,0.3);color:rgba(255,255,255,0.95)}
+    .hero.has-photo .cta-note{color:rgba(255,255,255,0.8)}
     .hero-badge{display:inline-block;background:white;border:1px solid #FDE68A;border-radius:20px;padding:5px 14px;color:#B45309;font-size:11px;font-weight:700;letter-spacing:.5px;margin-bottom:20px}
     .hero h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(28px,5vw,48px);font-weight:700;color:#0F172A;line-height:1.15;margin-bottom:16px}
     .hero-sub{font-size:17px;color:#475569;margin-bottom:32px;line-height:1.6}
     .prompt-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:32px}
     .prompt-chip{background:white;border:1px solid #E7E3D8;border-radius:20px;padding:6px 14px;font-size:12px;color:#64748B;font-style:italic}
-    .cta-btn{display:inline-flex;align-items:center;gap:8px;padding:16px 36px;background:linear-gradient(135deg,#F97316,#F59E0B);color:white;border-radius:14px;font-size:16px;font-weight:700;box-shadow:0 8px 24px rgba(249,115,22,.32)}
+    .cta-btn{display:inline-flex;align-items:center;gap:8px;padding:16px 36px;background:linear-gradient(135deg,#F97316,#F59E0B);color:white;border-radius:14px;font-size:16px;font-weight:700;box-shadow:0 8px 24px rgba(249,115,22,.32);transition:transform .3s cubic-bezier(0.34,1.56,0.64,1),box-shadow .3s ease}
+    .cta-btn:hover{transform:translateY(-3px) scale(1.02);box-shadow:0 12px 32px rgba(249,115,22,.4)}
     .cta-note{font-size:12px;color:#64748B;margin-top:12px}
+    .hero-credit{position:absolute;bottom:8px;right:14px;font-size:9px;color:rgba(255,255,255,0.55)}
+    .hero-credit a{color:inherit;text-decoration:none}
     .facts-bar{background:white;border-bottom:1px solid #E7E3D8;padding:18px 24px}
     .facts-inner{max-width:900px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:center}
     .fact-item{display:flex;align-items:center;gap:8px}
@@ -160,23 +178,29 @@ function renderHTML(data, slug) {
     .section{margin-bottom:56px}
     .section-title{font-family:'Playfair Display',Georgia,serif;font-size:26px;font-weight:700;color:#0F172A;margin-bottom:20px}
     .section-sub{color:#64748b;font-size:14px;margin-bottom:24px}
-    .day-card{background:white;border:1px solid #E7E3D8;border-radius:16px;padding:20px 24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,.04)}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+    .day-card{background:white;border:1px solid #E7E3D8;border-left:4px solid #0D9488;border-radius:16px;padding:20px 24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,.04);animation:fadeUp .5s ease backwards;transition:transform .35s cubic-bezier(0.34,1.56,0.64,1),box-shadow .35s ease}
+    .day-card:hover{transform:translateY(-6px);box-shadow:0 16px 32px rgba(15,23,42,.12)}
     .day-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-    .day-badge{background:linear-gradient(135deg,#0D9488,#0EA5E9);color:white;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px}
+    .day-badge{color:white;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px}
     .day-title{font-size:15px;font-weight:700}
     .day-desc{font-size:13px;color:#64748b;line-height:1.6;margin-bottom:12px}
-    .day-meta{display:flex;gap:16px;flex-wrap:wrap}
-    .meta-item{font-size:12px;color:#0d9488;font-weight:600}
-    .budget-box{background:linear-gradient(135deg,#F0FDF4,#F0F9FF);border:1px solid #86efac;border-radius:16px;padding:20px 24px;display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:24px}
+    .day-meta{display:flex;gap:8px;flex-wrap:wrap}
+    .meta-chip{font-size:11px;color:#0d9488;font-weight:700;background:#F0FDFA;border:1px solid #99F6E4;padding:4px 10px;border-radius:20px}
+    .meta-chip-cost{color:#B45309;background:#FFFBEB;border-color:#FDE68A}
+    .budget-box{background:linear-gradient(135deg,#F0FDF4,#F0F9FF);border:1px solid #86efac;border-radius:16px;padding:20px 24px;display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:24px;transition:transform .35s cubic-bezier(0.34,1.56,0.64,1),box-shadow .35s ease}
+    .budget-box:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
     .budget-amount{font-family:'Playfair Display',Georgia,serif;font-size:28px;font-weight:700;color:#0d9488}
     .budget-label{font-size:13px;font-weight:700;color:#166534;margin-bottom:4px}
     .why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-    .why-item{background:white;border:1px solid #E7E3D8;border-radius:14px;padding:16px;display:flex;gap:12px}
+    .why-item{background:white;border:1px solid #E7E3D8;border-radius:14px;padding:16px;display:flex;gap:12px;animation:fadeUp .5s ease backwards;transition:transform .35s cubic-bezier(0.34,1.56,0.64,1),box-shadow .35s ease}
+    .why-item:hover{transform:translateY(-5px);box-shadow:0 14px 28px rgba(15,23,42,.1)}
     .why-check{color:#0d9488;font-size:18px;flex-shrink:0;margin-top:2px}
     .why-title{font-size:13px;font-weight:700;margin-bottom:4px}
     .why-desc{font-size:12px;color:#64748b;line-height:1.5}
     .months-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
-    .month-card{border-radius:12px;padding:12px;text-align:center}
+    .month-card{border-radius:12px;padding:12px;text-align:center;transition:transform .3s cubic-bezier(0.34,1.56,0.64,1),box-shadow .3s ease}
+    .month-card:hover{transform:translateY(-4px) scale(1.03);box-shadow:0 10px 20px rgba(15,23,42,.08)}
     .month-excellent{background:#f0fdf4;border:1px solid #86efac}
     .month-good{background:#f0f9ff;border:1px solid #bae6fd}
     .month-avoid{background:#fef2f2;border:1px solid #fca5a5}
@@ -188,10 +212,12 @@ function renderHTML(data, slug) {
     .month-excellent .month-rating{color:#166534}
     .month-good .month-rating{color:#0369a1}
     .month-avoid .month-rating{color:#991b1b}
-    .faq-item{background:white;border:1px solid #E7E3D8;border-radius:12px;padding:16px 20px;margin-bottom:12px}
+    .faq-item{background:white;border:1px solid #E7E3D8;border-radius:12px;padding:16px 20px;margin-bottom:12px;transition:transform .3s cubic-bezier(0.34,1.56,0.64,1),box-shadow .3s ease}
+    .faq-item:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(15,23,42,.08)}
     .faq-q{font-size:14px;font-weight:700;margin-bottom:8px}
     .faq-a{font-size:13px;color:#64748b;line-height:1.6}
     .final-cta{background:linear-gradient(120deg,#0D9488,#0EA5E9 55%,#F97316);border-radius:24px;padding:48px 32px;text-align:center}
+    .final-cta .cta-btn:hover{transform:translateY(-3px) scale(1.02);box-shadow:0 12px 32px rgba(0,0,0,.2)}
     .final-cta h2{font-family:'Playfair Display',Georgia,serif;font-size:26px;font-weight:700;color:white;margin-bottom:12px}
     .final-cta p{color:rgba(255,255,255,0.85);font-size:15px;margin-bottom:28px}
     .final-cta .cta-btn{background:white;color:#0F172A;box-shadow:0 8px 24px rgba(0,0,0,0.15)}
@@ -214,7 +240,7 @@ function renderHTML(data, slug) {
     </div>
   </nav>
 
-  <section class="hero">
+  <section class="hero${heroPhoto ? ' has-photo' : ''}"${heroPhoto ? ` style="background-image:linear-gradient(180deg, rgba(15,23,42,.4) 0%, rgba(15,23,42,.55) 55%, rgba(15,23,42,.82) 100%), url('${heroPhoto.photo}')"` : ''}>
     <div style="max-width:800px;margin:0 auto">
       <div class="hero-badge">✨ AI-POWERED · FREE TO START</div>
       <h1>${escHtml(d.hero_title || `Plan Your ${d.destination_name} Trip`)}</h1>
@@ -225,6 +251,12 @@ function renderHTML(data, slug) {
       <a href="/guest" class="cta-btn">Plan My ${escHtml(d.destination_name)} Trip Free →</a>
       <p class="cta-note">No signup needed · Takes 30-90 seconds · Real trains & hotels</p>
     </div>
+    ${heroPhoto?.credit ? `
+    <div class="hero-credit">
+      <a href="${heroPhoto.credit.authorUrl}" target="_blank" rel="noopener noreferrer">${escHtml(heroPhoto.credit.author)}</a>
+      /
+      <a href="${heroPhoto.credit.licenseUrl}" target="_blank" rel="noopener noreferrer">${escHtml(heroPhoto.credit.license)}</a>
+    </div>` : ''}
   </section>
 
   <div class="facts-bar">

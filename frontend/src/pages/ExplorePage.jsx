@@ -721,8 +721,8 @@ const ALL_DESTINATIONS = [
   {
     name: 'Kashmir', region: 'Jammu & Kashmir', category: 'Honeymoon',
     duration: '5-7', budget: 20000, rating: 4.9,
-    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Flag_of_the_Jammu_Kashmir_Peoples_Party.png/1280px-Flag_of_the_Jammu_Kashmir_Peoples_Party.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
-    photoCredit: { author: 'Mehmeme', authorUrl: 'https://commons.wikimedia.org/wiki/File:Flag_of_the_Jammu_Kashmir_Peoples_Party.png', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
+    photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Dal_Lake_Hazratbal_Srinagar.jpg/1280px-Dal_Lake_Hazratbal_Srinagar.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail',
+    photoCredit: { author: 'Suhail Skindar Sofi', authorUrl: 'https://commons.wikimedia.org/wiki/User:Sofisuhail007', license: 'CC BY-SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
     emoji: '🌷', badge: 'Heaven on Earth', badgeColor: '#ec4899',
     accent: '#ec4899', lightBg: '#fdf2f8', border: '#fbcfe8',
     tags: ['Shikara', 'Dal Lake', 'Snow'], season: 'Apr-Jun, Sep-Oct',
