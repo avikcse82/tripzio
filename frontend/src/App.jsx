@@ -94,7 +94,9 @@ function AppRoutes() {
         <Route path="/destinations/suggest" element={<ProtectedRoute role="user"><DestinationSuggestions /></ProtectedRoute>} />
         <Route path="/itinerary/result" element={<ProtectedRoute><ItineraryResult /></ProtectedRoute>} />
         <Route path="/my-trips" element={<ProtectedRoute role="user"><MyTrips /></ProtectedRoute>} />
-        <Route path="/explore" element={<ProtectedRoute role="user"><ExplorePage /></ProtectedRoute>} />
+        {/* Public — pure static destination content, no auth needed to browse.
+            Clicking "Plan This" still correctly requires login via /dashboard. */}
+        <Route path="/explore" element={<ExplorePage />} />
         <Route path="/saved" element={<ProtectedRoute role="user"><ComingSoon /></ProtectedRoute>} />
         <Route path="/agent/dashboard" element={<ProtectedRoute role="agent"><AgentDashboard /></ProtectedRoute>} />
         <Route path="/agent/profile" element={<ProtectedRoute role="agent"><AgentProfile /></ProtectedRoute>} />

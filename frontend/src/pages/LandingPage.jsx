@@ -580,7 +580,10 @@ export default function LandingPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '16px' }}>
             {DESTINATIONS.map((dest, i) => (
-              <Link key={dest.name} to="/login"
+              // Plain <a>, not React Router <Link> — /xxx-trip-planner is served
+              // by a Vercel edge rewrite, not a client-side route, so it needs a
+              // real page load rather than SPA navigation (which would 404)
+              <a key={dest.name} href={`/${dest.name.toLowerCase()}-trip-planner`}
                 style={{ position: 'relative', height: '200px', borderRadius: '20px', overflow: 'hidden', textDecoration: 'none', display: 'block', animation: `fadeUp ${0.1 + i * 0.05}s ease` }}
                 onMouseEnter={e => { e.currentTarget.querySelector('img').style.transform = 'scale(1.08)' }}
                 onMouseLeave={e => { e.currentTarget.querySelector('img').style.transform = 'scale(1)' }}>
@@ -595,7 +598,7 @@ export default function LandingPage() {
                     <MapPin size={10} /> {dest.region} · Tap to plan
                   </div>
                 </div>
-              </Link>
+              </a>
             ))}
           </div>
 

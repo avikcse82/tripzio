@@ -38,6 +38,30 @@ export default function Footer() {
           </p>
         </div>
 
+        {/* Popular destination guides — real <a> tags (not client-side
+            navigate()) so search engines can actually crawl/discover these
+            SEO pages, which are served by a Vercel edge rewrite, not React Router */}
+        <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #E7E3D8' }}>
+          <p style={{ fontSize: '11px', fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px' }}>
+            Popular Trip Planners
+          </p>
+          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+            {[
+              ['goa', 'Goa'], ['manali', 'Manali'], ['kerala', 'Kerala'],
+              ['rajasthan', 'Rajasthan'], ['ladakh', 'Ladakh'], ['darjeeling', 'Darjeeling'],
+              ['andaman', 'Andaman'], ['varanasi', 'Varanasi'], ['shimla', 'Shimla'], ['char-dham', 'Char Dham'],
+            ].map(([slug, label]) => (
+              <a key={slug} href={`/${slug}-trip-planner`}
+                style={{ fontSize: '12px', color: '#64748B', textDecoration: 'none' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#0d9488'}
+                onMouseLeave={e => e.currentTarget.style.color = '#64748B'}
+              >
+                {label} Trip Planner
+              </a>
+            ))}
+          </div>
+        </div>
+
         {/* Links + Copyright */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', paddingTop: '20px', borderTop: '1px solid #E7E3D8' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

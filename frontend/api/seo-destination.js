@@ -199,8 +199,6 @@ function renderHTML(data, slug) {
     .footer-links{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;font-size:13px}
     .footer-link{color:#64748B}
     .footer-copy{font-size:12px}
-    /* React app loads after this — handles SPA navigation */
-    #react-root{display:none}
   </style>
 </head>
 <body>
@@ -283,10 +281,6 @@ function renderHTML(data, slug) {
     <div class="footer-links">${destLinks}</div>
     <p class="footer-copy">© 2026 Tripzio · AI Travel Planner for India · <a href="/" class="footer-link">tripzio.io</a></p>
   </footer>
-
-  <!-- React app loads for SPA navigation after initial render -->
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>`
 }
@@ -341,17 +335,22 @@ export default async function handler(request) {
 
   } catch (error) {
     console.error(`SEO Edge Function error for ${slug}:`, error.message)
-    // On error — return minimal HTML so page doesn't break
+    // On error — return a minimal but real page so a visitor sees something
+    // useful instead of a blank screen (noindex, so Google skips it either way)
+    const niceName = slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     const fallbackHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>${slug.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())} Trip Planner | Tripzio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>${escHtml(niceName)} Trip Planner | Tripzio</title>
   <meta name="robots" content="noindex"/>
+  <style>body{font-family:-apple-system,Inter,sans-serif;background:#FAFAF8;color:#0F172A;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}a{color:#0D9488;font-weight:700;text-decoration:none}</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
+  <h1>${escHtml(niceName)} trip planning, made easy</h1>
+  <p style="margin:12px 0 24px;color:#64748b">This page is having trouble loading right now.</p>
+  <a href="/guest">Plan your ${escHtml(niceName)} trip on Tripzio →</a>
 </body>
 </html>`
     return new Response(fallbackHtml, {

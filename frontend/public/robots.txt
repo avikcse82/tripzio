@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+# Auth pages and personalized/private app views — no unique content for search,
+# no reason to spend crawl budget here
+Disallow: /login
+Disallow: /register
+Disallow: /agent/login
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /dashboard
+Disallow: /agent/dashboard
+Disallow: /agent/profile
+Disallow: /my-trips
+Disallow: /saved
+Disallow: /destinations/suggest
+Disallow: /itinerary/result
+Disallow: /guest/result
+
+Sitemap: https://tripzio.io/sitemap.xml
