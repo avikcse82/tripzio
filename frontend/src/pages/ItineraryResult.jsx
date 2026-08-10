@@ -18,6 +18,15 @@ import { generateTripPDF } from '../utils/generateItineraryHTML'
 import FeedbackWidget from '../components/FeedbackWidget'
 import FestivalAlert from '../components/FestivalAlert'
 
+// CJ Affiliate — Booking.com APAC (advertiser 7854081), Tripzio publisher/site ID 101855193.
+// The Evergreen Link (17293139) is CJ's only deep-link-enabled creative for this program —
+// wrapping any booking.com URL in ?url= routes the click through CJ so it gets a real
+// cjevent ID and is commissioned. Never link to booking.com directly, or the click won't track.
+const CJ_BOOKING_CLICK_URL = 'https://www.jdoqocy.com/click-101855193-17293139'
+function withBookingAffiliateTracking(bookingUrl) {
+  return `${CJ_BOOKING_CLICK_URL}?url=${encodeURIComponent(bookingUrl)}`
+}
+
 const tierColors = {
   bronze:   { color: '#92400e', bg: '#fef3c7', border: '#fcd34d', emoji: '🥉' },
   silver:   { color: '#334155', bg: '#f1f5f9', border: '#cbd5e1', emoji: '🥈' },
@@ -1831,7 +1840,7 @@ export default function ItineraryResult() {
                                   group_adults: guests,
                                   no_rooms: 1,
                                 })
-                                return `https://www.booking.com/searchresults.html?${params.toString()}`
+                                return withBookingAffiliateTracking(`https://www.booking.com/searchresults.html?${params.toString()}`)
                               })()}
                                 target="_blank" rel="noopener noreferrer"
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 12px', background: 'white', border: '1px solid #0d9488', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#0d9488', textDecoration: 'none' }}>
