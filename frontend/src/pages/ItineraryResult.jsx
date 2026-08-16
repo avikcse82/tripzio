@@ -46,6 +46,12 @@ function agodaCitySearchUrl(cityName) {
   return `https://www.agoda.com/city/${slug}-in.html?cid=${AGODA_CID}`
 }
 
+// Goibibo via INRDeals — tested live: the `url=` param is NOT respected as a deep-link
+// target (tried a city-specific goibibo.com/hotels/hotels-in-goa-ct/ URL, it silently
+// redirected to the generic /hotels/ homepage regardless), so unlike Booking.com/Agoda
+// this can only be a flat "Book on Goibibo" link, not city- or hotel-specific.
+const GOIBIBO_TRACKED_URL = 'https://inr.deals/track?id=avi679039442&src=merchant-detail-backend&campaign=hotel&url=' + encodeURIComponent('https://www.goibibo.com/hotels/')
+
 const tierColors = {
   bronze:   { color: '#92400e', bg: '#fef3c7', border: '#fcd34d', emoji: '🥉' },
   silver:   { color: '#334155', bg: '#f1f5f9', border: '#cbd5e1', emoji: '🥈' },
@@ -1828,6 +1834,8 @@ export default function ItineraryResult() {
                                 onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#374151' }}>
                                 <Navigation size={12} /> {hotel.tripadvisor_url ? 'Review' : 'Maps'}
                               </a>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                               <a href={(() => {
                                 // Smart booking URL with pre-filled dates and guests
                                 const hotelQuery = encodeURIComponent(hotel.name + ' ' + (activeHotelCity || data.destination || ''))
@@ -1862,13 +1870,18 @@ export default function ItineraryResult() {
                                 return withBookingAffiliateTracking(`https://www.booking.com/searchresults.html?${params.toString()}`)
                               })()}
                                 target="_blank" rel="noopener noreferrer"
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 10px', background: 'white', border: '1px solid #0d9488', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#0d9488', textDecoration: 'none' }}>
-                                <ExternalLink size={12} /> Booking.com
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #0d9488', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#0d9488', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                Booking.com
                               </a>
                               <a href={agodaCitySearchUrl(activeHotelCity || data.destination)}
                                 target="_blank" rel="noopener noreferrer"
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 10px', background: 'white', border: '1px solid #F97316', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#F97316', textDecoration: 'none' }}>
-                                <ExternalLink size={12} /> Agoda
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #F97316', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#F97316', textDecoration: 'none' }}>
+                                Agoda
+                              </a>
+                              <a href={GOIBIBO_TRACKED_URL}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #E11D48', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#E11D48', textDecoration: 'none' }}>
+                                Goibibo
                               </a>
                             </div>
                           </div>
