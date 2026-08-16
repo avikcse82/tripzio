@@ -52,6 +52,26 @@ function agodaCitySearchUrl(cityName) {
 // this can only be a flat "Book on Goibibo" link, not city- or hotel-specific.
 const GOIBIBO_TRACKED_URL = 'https://inr.deals/track?id=avi679039442&src=merchant-detail-backend&campaign=hotel&url=' + encodeURIComponent('https://www.goibibo.com/hotels/')
 
+// MakeMyTrip via INRDeals (same account/id, different underlying network — routes through
+// icubeswire, not Vcommission like Goibibo). Unlike Goibibo, this ONE does respect the `url=`
+// deep-link param — verified live, landed correctly on city-specific pages with tracking intact
+// (confirmed via MakeMyTrip's own `referrer` cookie recording the icubeswire attribution chain).
+// Real page is only "budget-hotels-in-{city}.html" — the plain "hotels-in-{city}.html" 404s/
+// redirects to the homepage, verified directly, not guessed.
+// Delhi's slug is "delhi" here — different from Agoda's "new-delhi-and-ncr" exception,
+// verified separately for this provider, not assumed to match Agoda's override.
+const INRDEALS_ID = 'avi679039442'
+const MMT_CITY_SLUG_OVERRIDES = {
+  'new delhi': 'delhi',
+}
+function makeMyTripCitySearchUrl(cityName) {
+  const normalized = (cityName || '').toLowerCase().trim()
+  const slug = MMT_CITY_SLUG_OVERRIDES[normalized]
+    || normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  const target = `https://www.makemytrip.com/hotels/budget-hotels-in-${slug}.html`
+  return `https://inr.deals/track?id=${INRDEALS_ID}&src=merchant-detail-backend&campaign=hotel&url=${encodeURIComponent(target)}`
+}
+
 const tierColors = {
   bronze:   { color: '#92400e', bg: '#fef3c7', border: '#fcd34d', emoji: '🥉' },
   silver:   { color: '#334155', bg: '#f1f5f9', border: '#cbd5e1', emoji: '🥈' },
@@ -1882,6 +1902,11 @@ export default function ItineraryResult() {
                                 target="_blank" rel="noopener noreferrer"
                                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #E11D48', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#E11D48', textDecoration: 'none' }}>
                                 Goibibo
+                              </a>
+                              <a href={makeMyTripCitySearchUrl(activeHotelCity || data.destination)}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #EA2027', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#EA2027', textDecoration: 'none' }}>
+                                MakeMyTrip
                               </a>
                             </div>
                           </div>
