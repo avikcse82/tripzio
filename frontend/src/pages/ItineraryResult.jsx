@@ -27,6 +27,25 @@ function withBookingAffiliateTracking(bookingUrl) {
   return `${CJ_BOOKING_CLICK_URL}?url=${encodeURIComponent(bookingUrl)}`
 }
 
+// Agoda Partners — Tripzio site ID (cid) 1970466, approved 2026-08-16.
+// Only a city-level deep link is confirmed working (agoda.com/city/{slug}-in.html?cid=...),
+// verified live with real Agoda session cookies set. No confirmed way to deep-link a specific
+// hotel by name, so this links to the destination city's listings, not one exact property.
+// Slug is usually just the lowercased city name, but Agoda doesn't always match the plain
+// name exactly (e.g. Delhi's real slug is "new-delhi-and-ncr", not "new-delhi") — verified
+// against Agoda's own homepage city links, not guessed, so only known exceptions go here.
+const AGODA_CID = '1970466'
+const AGODA_CITY_SLUG_OVERRIDES = {
+  'new delhi': 'new-delhi-and-ncr',
+  'delhi': 'new-delhi-and-ncr',
+}
+function agodaCitySearchUrl(cityName) {
+  const normalized = (cityName || '').toLowerCase().trim()
+  const slug = AGODA_CITY_SLUG_OVERRIDES[normalized]
+    || normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  return `https://www.agoda.com/city/${slug}-in.html?cid=${AGODA_CID}`
+}
+
 const tierColors = {
   bronze:   { color: '#92400e', bg: '#fef3c7', border: '#fcd34d', emoji: '🥉' },
   silver:   { color: '#334155', bg: '#f1f5f9', border: '#cbd5e1', emoji: '🥈' },
@@ -1843,8 +1862,13 @@ export default function ItineraryResult() {
                                 return withBookingAffiliateTracking(`https://www.booking.com/searchresults.html?${params.toString()}`)
                               })()}
                                 target="_blank" rel="noopener noreferrer"
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 12px', background: 'white', border: '1px solid #0d9488', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#0d9488', textDecoration: 'none' }}>
-                                <ExternalLink size={12} /> Book
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 10px', background: 'white', border: '1px solid #0d9488', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#0d9488', textDecoration: 'none' }}>
+                                <ExternalLink size={12} /> Booking.com
+                              </a>
+                              <a href={agodaCitySearchUrl(activeHotelCity || data.destination)}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '9px 10px', background: 'white', border: '1px solid #F97316', borderRadius: '10px', fontSize: '12px', fontWeight: '700', color: '#F97316', textDecoration: 'none' }}>
+                                <ExternalLink size={12} /> Agoda
                               </a>
                             </div>
                           </div>
