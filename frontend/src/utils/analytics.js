@@ -56,4 +56,11 @@ export const Analytics = {
   affiliateLinkClicked: (provider, destination) => {
     trackEvent('affiliate_link_clicked', { provider, destination })
   },
+
+  // User clicks a transport link (bus/cab/flight) — separate from affiliateLinkClicked
+  // since some of these (RedBus, Google Maps cab search) aren't monetized, unlike the
+  // flight ones (Air India/IndiGo), so lumping them under "affiliate" would be misleading.
+  transportLinkClicked: (mode, provider, destination) => {
+    trackEvent('transport_link_clicked', { mode, provider, destination })
+  },
 }
