@@ -5,6 +5,33 @@
  * Uses Unsplash for destination photos (no API key needed)
  */
 
+import {
+  withBookingAffiliateTracking, agodaCitySearchUrl, GOIBIBO_TRACKED_URL,
+  makeMyTripCitySearchUrl, AIRINDIA_TRACKED_URL, INDIGO_TRACKED_URL,
+  redBusRouteUrl, cabSearchUrl,
+} from './affiliateLinks'
+
+// ── Hotel provider booking buttons — same 4 providers as the live web result page,
+// reused by both the Accommodation Summary and Hotels sections below.
+function buildHotelBookingButtons(hotelName, city) {
+  const bookingUrl = withBookingAffiliateTracking(
+    `https://www.booking.com/searchresults.html?${new URLSearchParams({ ss: `${hotelName} ${city}`.trim() })}`
+  )
+  const providers = [
+    ['Booking.com', bookingUrl, '#0d9488'],
+    ['Agoda', agodaCitySearchUrl(city), '#F97316'],
+    ['Goibibo', GOIBIBO_TRACKED_URL, '#E11D48'],
+    ['MakeMyTrip', makeMyTripCitySearchUrl(city), '#EA2027'],
+  ]
+  return `
+    <div class="flex flex-wrap gap-2 mt-3">
+      ${providers.map(([label, url, color]) => `
+        <a href="${h(url)}" target="_blank" rel="noopener noreferrer"
+          class="booking-pill" style="border-color:${color};color:${color}">${label}</a>
+      `).join('')}
+    </div>`
+}
+
 // ── Sanitize for HTML ──────────────────────────────────────────
 function h(str) {
   if (!str) return ''
@@ -216,18 +243,29 @@ function buildAccommodationSummary(data) {
     const matchKey = Object.keys(dayRanges).find(k => k && (key.includes(k) || k.includes(key)))
     const dayRange = matchKey ? dayRanges[matchKey] : ''
     return `
-    <div class="flex items-center justify-between py-3 border-b border-slate-200 last:border-0">
-      <div class="font-medium text-sm text-slate-900">
-        ${h(cityLabel)}${dayRange ? ` <span class="text-slate-400 font-normal text-xs">(${h(dayRange)})</span>` : ''}
+    <div class="accom-row bg-white rounded-2xl border border-slate-200 p-5 mb-4 last:mb-0">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-teal-50 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i data-lucide="map-pin" class="w-4 h-4 text-teal-600"></i>
+          </div>
+          <div>
+            <div class="font-semibold text-sm text-slate-900">${h(cityLabel)}</div>
+            ${dayRange ? `<div class="text-slate-400 text-xs">${h(dayRange)}</div>` : ''}
+          </div>
+        </div>
+        <div class="text-right font-semibold text-sm text-slate-900">${h(a.name || '')}</div>
       </div>
-      <div class="font-semibold text-sm text-slate-900 text-right">${h(a.name || '')}</div>
+      ${buildHotelBookingButtons(a.name || '', cityLabel)}
     </div>`
   }).join('')
 }
 
 // ── Build hotel cards HTML ──────────────────────────────────────
-function buildHotels(accommodation) {
-  return (accommodation || []).slice(0, 4).map((hotel, i) => `
+function buildHotels(accommodation, fallbackDestination) {
+  return (accommodation || []).slice(0, 4).map((hotel, i) => {
+    const cityLabel = hotel.city || (hotel.area || '').split(',').pop().trim() || fallbackDestination || ''
+    return `
     <div class="hotel-card bg-white border border-slate-200 rounded-2xl overflow-hidden">
       <div class="relative h-48 bg-slate-200">
         <img src="${hotelPhotoUrl(hotel.area, i)}"
@@ -256,9 +294,10 @@ function buildHotels(accommodation) {
             Recommended
           </span>
         </div>
+        ${buildHotelBookingButtons(hotel.name || '', cityLabel)}
       </div>
-    </div>
-  `).join('')
+    </div>`
+  }).join('')
 }
 
 // ── Build tips HTML ─────────────────────────────────────────────
@@ -278,13 +317,48 @@ function buildTips(tips) {
   }).join('')
 }
 
+// ── Mode-specific icon/color + booking button(s) for a transport option.
+// Same provider set as the live web result page's Transport tab: RedBus (direct,
+// unmonetized — no working affiliate link yet) for buses, Google Maps search for
+// cabs (no real cab affiliate exists anywhere), Air India + IndiGo (real INRDeals
+// tracked links) for flights. Trains aren't handled here — IRCTC has no per-journey
+// affiliate program, so trains intentionally get no button, same as the web page.
+function transportModeMeta(mode) {
+  const m = (mode || '').toLowerCase()
+  if (m.includes('bus')) return { icon: 'bus', iconBg: 'bg-red-50', iconColor: 'text-red-600' }
+  if (m.includes('car') || m.includes('cab') || m.includes('taxi')) return { icon: 'car', iconBg: 'bg-slate-100', iconColor: 'text-slate-700' }
+  if (m.includes('flight') || m.includes('air') || m.includes('plane')) return { icon: 'plane', iconBg: 'bg-sky-50', iconColor: 'text-sky-600' }
+  if (m.includes('train')) return { icon: 'train-front', iconBg: 'bg-blue-50', iconColor: 'text-blue-600' }
+  return { icon: 'navigation', iconBg: 'bg-brand-50', iconColor: 'text-brand-600' }
+}
+
+function transportBookingButtons(mode, fromCity, toCity) {
+  const m = (mode || '').toLowerCase()
+  if (m.includes('bus')) {
+    return `<a href="${h(redBusRouteUrl(fromCity, toCity))}" target="_blank" rel="noopener noreferrer" class="booking-pill mt-3" style="border-color:#d1373f;color:#d1373f">🚌 Book on RedBus</a>`
+  }
+  if (m.includes('car') || m.includes('cab') || m.includes('taxi')) {
+    return `<a href="${h(cabSearchUrl(fromCity, toCity))}" target="_blank" rel="noopener noreferrer" class="booking-pill mt-3" style="border-color:#0f172a;color:#0f172a">🚕 Find a Cab</a>`
+  }
+  if (m.includes('flight') || m.includes('air') || m.includes('plane')) {
+    return `
+      <div class="flex flex-wrap gap-2 mt-3">
+        <a href="${h(AIRINDIA_TRACKED_URL)}" target="_blank" rel="noopener noreferrer" class="booking-pill" style="border-color:#c1272d;color:#c1272d">✈️ Air India</a>
+        <a href="${h(INDIGO_TRACKED_URL)}" target="_blank" rel="noopener noreferrer" class="booking-pill" style="border-color:#00285e;color:#00285e">✈️ IndiGo</a>
+      </div>`
+  }
+  return ''
+}
+
 // ── Build transport HTML ────────────────────────────────────────
-function buildTransport(options) {
-  return (options || []).slice(0, 3).map((opt, i) => `
-    <div class="bg-white border border-slate-200 rounded-2xl p-6">
+function buildTransport(options, fromCity, toCity) {
+  return (options || []).slice(0, 3).map((opt, i) => {
+    const meta = transportModeMeta(opt.mode)
+    return `
+    <div class="transport-mode-card bg-white border border-slate-200 rounded-2xl p-6">
       <div class="flex items-start gap-4">
-        <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center flex-shrink-0">
-          <i data-lucide="${i === 0 ? 'navigation' : 'route'}" class="w-5 h-5 text-brand-600"></i>
+        <div class="w-10 h-10 ${meta.iconBg} rounded-xl flex items-center justify-center flex-shrink-0">
+          <i data-lucide="${meta.icon}" class="w-5 h-5 ${meta.iconColor}"></i>
         </div>
         <div class="flex-1">
           <div class="flex items-center gap-2 mb-1">
@@ -293,10 +367,11 @@ function buildTransport(options) {
           </div>
           <p class="text-slate-500 text-sm">${h(opt.recommendation || opt.duration || '')}</p>
           ${opt.cost ? `<p class="text-brand-600 font-medium text-sm mt-1">${h(opt.cost)}</p>` : ''}
+          ${transportBookingButtons(opt.mode, fromCity, toCity)}
         </div>
       </div>
-    </div>
-  `).join('')
+    </div>`
+  }).join('')
 }
 
 // ── Build cost rows HTML ────────────────────────────────────────
@@ -422,9 +497,14 @@ export async function generateTripPDF({ data, user, isAgent = false, clientName 
   .hotel-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -12px rgba(0,0,0,0.15); }
   .tip-card { transition: all 0.3s ease; }
   .tip-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+  .accom-row { transition: all 0.3s ease; }
+  .accom-row:hover { box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08); }
+  .booking-pill { display: inline-flex; align-items: center; padding: 5px 12px; border: 1.5px solid; border-radius: 20px; font-size: 11px; font-weight: 700; text-decoration: none; background: white; }
+  .transport-mode-card { transition: all 0.3s ease; }
+  .transport-mode-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px -8px rgba(0,0,0,0.12); }
   @media print {
     .no-print { display: none !important; }
-    .day-card:hover, .hotel-card:hover, .tip-card:hover { transform: none !important; box-shadow: none !important; }
+    .day-card:hover, .hotel-card:hover, .tip-card:hover, .accom-row:hover, .transport-mode-card:hover { transform: none !important; box-shadow: none !important; }
     body { font-size: 11px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
     @page { margin: 0; size: A4; }
     .day-card { break-inside: avoid; page-break-inside: avoid; }
@@ -646,7 +726,7 @@ ${data.accommodation?.length ? `
       <span style="color:${brand}" class="text-xs font-semibold uppercase tracking-widest">Where You'll Stay</span>
       <h2 class="font-serif text-3xl md:text-4xl font-bold mt-3 tracking-tight">Recommended Hotels</h2>
     </div>
-    <div class="grid md:grid-cols-2 gap-6">${buildHotels(data.accommodation)}</div>
+    <div class="grid md:grid-cols-2 gap-6">${buildHotels(data.accommodation, dest)}</div>
   </div>
 </section>` : ''}
 
@@ -658,7 +738,7 @@ ${data.transport_options?.length ? `
       <span style="color:${brand}" class="text-xs font-semibold uppercase tracking-widest">Getting There</span>
       <h2 class="font-serif text-3xl md:text-4xl font-bold mt-3 tracking-tight">Transport Options</h2>
     </div>
-    <div class="max-w-2xl mx-auto space-y-4">${buildTransport(data.transport_options)}</div>
+    <div class="max-w-2xl mx-auto space-y-4">${buildTransport(data.transport_options, data.from_city, dest)}</div>
   </div>
 </section>` : ''}
 
