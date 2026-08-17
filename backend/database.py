@@ -169,6 +169,55 @@ def get_user_trips(user_id: str, locked_only: bool = False):
         return []
 
 
+def create_payment(payment_data: dict):
+    """Insert a new payment row (status='created') right after a Razorpay Order is created."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        response = client.table("payments").insert(payment_data).execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Error creating payment: {e}")
+        return None
+
+
+def get_payment_by_order_id(order_id: str):
+    """Look up a payment row by its Razorpay order_id — used by both /payments/verify
+    (idempotency check) and the webhook (to find which trip/user to unlock)."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        response = client.table("payments").select("*").eq(
+            "razorpay_order_id", order_id
+        ).single().execute()
+        return response.data
+    except Exception as e:
+        logger.warning(f"Payment lookup failed for order {order_id}: {e}")
+        return None
+
+
+def update_payment(order_id: str, update_data: dict):
+    """Update a payment row by order_id (not id) — that's the value both the frontend
+    checkout callback and the webhook actually have on hand."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        response = client.table("payments").update(update_data).eq(
+            "razorpay_order_id", order_id
+        ).execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Error updating payment: {e}")
+        return None
+
+
 def save_agent_client(client_data: dict):
     try:
         client = get_supabase_client()

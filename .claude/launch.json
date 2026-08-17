@@ -7,6 +7,13 @@
       "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
       "port": 5173,
       "url": "http://localhost:5173"
+    },
+    {
+      "name": "tripzio-backend-dev",
+      "runtimeExecutable": "C:\\Softwares\\tripzio\\backend\\run_dev.bat",
+      "runtimeArgs": [],
+      "port": 8000,
+      "url": "http://127.0.0.1:8000"
     }
   ]
 }

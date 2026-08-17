@@ -15,6 +15,7 @@ import {
 , Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateTripPDF } from '../utils/generateItineraryHTML'
+import { payToUnlockTrip } from '../utils/razorpay'
 import FeedbackWidget from '../components/FeedbackWidget'
 import FestivalAlert from '../components/FestivalAlert'
 
@@ -510,8 +511,23 @@ export default function ItineraryResult() {
       const result = await resp.json()
 
       if (resp.status === 403 && result?.detail?.code === 'FREE_LIMIT_REACHED') {
-        toast.error('Free plan limit reached — upgrade to save more trips.')
-        navigate('/pricing')
+        if (!data.trip_id) {
+          // Shouldn't happen — generation always auto-saves a draft first,
+          // which is what payToUnlockTrip needs a real trip_id for.
+          toast.error("Couldn't find this trip to unlock. Please regenerate and try again.")
+          return
+        }
+        toast('Free plan allows 3 saved trips. Unlock this one for a small one-time fee.', { icon: '💳' })
+        try {
+          await payToUnlockTrip(data.trip_id)
+          setIsSaved(true)
+          setHasDistributed(true)
+          toast.success('Trip unlocked and saved! ❤️')
+        } catch (payErr) {
+          if (payErr.message !== 'DISMISSED') {
+            toast.error(payErr.message || 'Payment failed. Please try again.')
+          }
+        }
         return
       }
 
