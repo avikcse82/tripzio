@@ -51,4 +51,9 @@ export const Analytics = {
   pdfDownloaded: (destination) => {
     trackEvent('pdf_downloaded', { destination })
   },
+
+  // User clicks an affiliate booking link (Booking.com, Agoda, Goibibo, MakeMyTrip, etc.)
+  affiliateLinkClicked: (provider, destination) => {
+    trackEvent('affiliate_link_clicked', { provider, destination })
+  },
 }

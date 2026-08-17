@@ -1890,21 +1890,25 @@ export default function ItineraryResult() {
                                 return withBookingAffiliateTracking(`https://www.booking.com/searchresults.html?${params.toString()}`)
                               })()}
                                 target="_blank" rel="noopener noreferrer"
+                                onClick={() => Analytics.affiliateLinkClicked('booking.com', activeHotelCity || data.destination)}
                                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #0d9488', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#0d9488', textDecoration: 'none', whiteSpace: 'nowrap' }}>
                                 Booking.com
                               </a>
                               <a href={agodaCitySearchUrl(activeHotelCity || data.destination)}
                                 target="_blank" rel="noopener noreferrer"
+                                onClick={() => Analytics.affiliateLinkClicked('agoda', activeHotelCity || data.destination)}
                                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #F97316', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#F97316', textDecoration: 'none' }}>
                                 Agoda
                               </a>
                               <a href={GOIBIBO_TRACKED_URL}
                                 target="_blank" rel="noopener noreferrer"
+                                onClick={() => Analytics.affiliateLinkClicked('goibibo', activeHotelCity || data.destination)}
                                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #E11D48', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#E11D48', textDecoration: 'none' }}>
                                 Goibibo
                               </a>
                               <a href={makeMyTripCitySearchUrl(activeHotelCity || data.destination)}
                                 target="_blank" rel="noopener noreferrer"
+                                onClick={() => Analytics.affiliateLinkClicked('makemytrip', activeHotelCity || data.destination)}
                                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 4px', background: 'white', border: '1px solid #EA2027', borderRadius: '10px', fontSize: '10.5px', fontWeight: '700', color: '#EA2027', textDecoration: 'none' }}>
                                 MakeMyTrip
                               </a>
