@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -394,6 +395,71 @@ async def fetch_city_serp(dname: str, skey: str) -> tuple:
             logger.warning(f"SerpAPI google fallback also failed: {_se2}")
 
     return dname, _h, _r, _a, _eng
+
+
+def _fmt_hotel_result(h: dict, city: str) -> dict:
+    """Format one raw SerpAPI result (TripAdvisor or Google engine) into the
+    hotel shape the frontend's Hotels tab expects. Shared by every endpoint
+    that populates city_hotels — extracted from the custom-plan endpoint so
+    guest/regular generation can build real hotel data too, not just an
+    empty city_hotels that falls back to the Google Maps search link."""
+    _ce = _serp_cache_get(f"{city.title()}_eng") or "tripadvisor"
+    if _ce == "tripadvisor":
+        name = h.get("title", h.get("name", ""))
+        photo = h.get("thumbnail", "")
+        link = h.get("link", "")
+        price = h.get("price", "")
+        area = h.get("location", city.title())
+        why = h.get("highlighted_review", {}).get("text", "") if isinstance(h.get("highlighted_review"), dict) else ""
+        htype = h.get("place_type", "Hotel")
+    else:  # google
+        name = h.get("title", h.get("name", ""))
+        photos = h.get("photos", [])
+        photo = photos[0].get("thumbnail", "") if photos else h.get("thumbnail", "")
+        link = h.get("link", "")
+        price = h.get("price", h.get("price_range", ""))
+        area = h.get("address", h.get("location", city.title()))
+        why = h.get("snippet", h.get("description", ""))
+        htype = h.get("type", "Hotel")
+    return {
+        "name": name,
+        "type": htype,
+        "area": area,
+        "city": city.title(),
+        "rating": str(h.get("rating", "")),
+        "reviews": h.get("reviews", h.get("reviews_original", 0)),
+        "price_range": price,
+        "photo_url": photo,
+        "tripadvisor_url": link,
+        "maps_url": f"https://www.google.com/maps/search/{name.replace(' ', '+')}+{city.title()}",
+        "why": why,
+        "highlight": htype,
+        "recommended": False,
+        "tier": "recommended",
+    }
+
+
+async def fetch_and_format_city_hotels(cities: list, skey: str) -> dict:
+    """Fetch + format hotels for a list of already-known city names (no
+    free-text extraction needed — that's only required by the custom-plan
+    endpoint, which parses cities out of a free-text prompt first). Returns
+    a dict keyed by Title-Case city name, matching ai_response["city_hotels"]."""
+    if not skey or not cities:
+        return {}
+    try:
+        results = await asyncio.gather(*[fetch_city_serp(c.title(), skey) for c in cities])
+    except Exception as e:
+        logger.warning(f"fetch_and_format_city_hotels failed: {e}")
+        return {}
+    city_hotels_formatted = {}
+    for city_key, hotels, _r, _a, _eng in results:
+        formatted = [_fmt_hotel_result(h, city_key) for h in hotels]
+        if formatted:
+            formatted[0]["recommended"] = True
+        city_hotels_formatted[city_key.title()] = formatted
+    return city_hotels_formatted
+
+
 security = HTTPBearer()
 
 # ── India-only destination validation ─────────────────────────
@@ -1388,6 +1454,18 @@ async def generate_itinerary_guest(
         if _sw:
             ai_response["season_warning"] = _sw
 
+        # ── Hotels for the Hotels tab — fail-open, missing city_hotels just
+        # falls back to a "search on Google Maps" link on the frontend ──────
+        try:
+            _guest_skey = os.getenv("SERPAPI_KEY", "")
+            _guest_cities = [c.strip() for c in re.split(r',|→|\+| and ', _dest_for_season) if c.strip()]
+            if _guest_cities:
+                _guest_city_hotels = await fetch_and_format_city_hotels(_guest_cities, _guest_skey)
+                if _guest_city_hotels:
+                    ai_response["city_hotels"] = _guest_city_hotels
+        except Exception as _ghe:
+            logger.warning(f"Guest city_hotels fetch failed: {_ghe}")
+
         # ── Record rate limit AFTER successful generation ─────
         record_guest_generation(client_ip)
 
@@ -1566,6 +1644,20 @@ async def generate_itinerary(
                 }
             except Exception as e:
                 logger.warning(f"Photo attach failed: {e}")
+
+        # ── Hotels for the Hotels tab — fail-open, missing city_hotels just
+        # falls back to a "search on Google Maps" link on the frontend ──────
+        try:
+            _gen_skey = os.getenv("SERPAPI_KEY", "")
+            _gen_dest = ai_response.get("destination") or req.destination or ""
+            _gen_cities = [c.strip() for c in re.split(r',|→|\+| and ', _gen_dest) if c.strip()]
+            if _gen_cities:
+                _gen_city_hotels = await fetch_and_format_city_hotels(_gen_cities, _gen_skey)
+                if _gen_city_hotels:
+                    ai_response["city_hotels"] = _gen_city_hotels
+        except Exception as _che:
+            logger.warning(f"city_hotels fetch failed: {_che}")
+
         logger.info(f"✓ Generated itinerary for {ai_response.get('destination')}")
         return ai_response
 
@@ -2113,49 +2205,17 @@ Do NOT show direct source→destination if via city is specified."""
             train_dest_city=_train_dest_for_post
         )
 
-        # Store per-city hotels in response — each city gets its own list
+        # Store per-city hotels in response — each city gets its own list.
+        # Uses the shared _fmt_hotel_result formatter (also used by the guest/
+        # regular generate endpoints) directly on the already-fetched
+        # _all_city_hotels — no re-fetch needed, this request already has the
+        # raw SerpAPI results from the destination-extraction step above.
         try:
             if _all_city_hotels:
-                def fmt_hotel(h, city):
-                    _ce = _serp_cache_get(f"{city.title()}_eng") or "tripadvisor"
-                    if _ce == "tripadvisor":
-                        name = h.get("title", h.get("name", ""))
-                        photo = h.get("thumbnail", "")
-                        link = h.get("link", "")
-                        price = h.get("price", "")
-                        area = h.get("location", city.title())
-                        why = h.get("highlighted_review", {}).get("text", "") if isinstance(h.get("highlighted_review"), dict) else ""
-                        htype = h.get("place_type", "Hotel")
-                    else:  # google
-                        name = h.get("title", h.get("name", ""))
-                        photos = h.get("photos", [])
-                        photo = photos[0].get("thumbnail", "") if photos else h.get("thumbnail", "")
-                        link = h.get("link", "")
-                        price = h.get("price", h.get("price_range", ""))
-                        area = h.get("address", h.get("location", city.title()))
-                        why = h.get("snippet", h.get("description", ""))
-                        htype = h.get("type", "Hotel")
-                    return {
-                        "name": name,
-                        "type": htype,
-                        "area": area,
-                        "city": city.title(),
-                        "rating": str(h.get("rating", "")),
-                        "reviews": h.get("reviews", h.get("reviews_original", 0)),
-                        "price_range": price,
-                        "photo_url": photo,
-                        "tripadvisor_url": link,
-                        "maps_url": f"https://www.google.com/maps/search/{name.replace(' ', '+')}+{city.title()}",
-                        "why": why,
-                        "highlight": htype,
-                        "recommended": False,
-                        "tier": "recommended",
-                    }
-
                 # Per-city hotels dict — key is city name
                 city_hotels_formatted = {}
                 for city_key, city_hotels in _all_city_hotels.items():
-                    formatted = [fmt_hotel(h, city_key) for h in city_hotels]
+                    formatted = [_fmt_hotel_result(h, city_key) for h in city_hotels]
                     if formatted:
                         formatted[0]["recommended"] = True  # First = recommended
                     city_hotels_formatted[city_key.title()] = formatted
