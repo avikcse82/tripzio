@@ -1724,7 +1724,7 @@ export default function UserDashboard() {
                         <div>
                           <div style={{ position: 'relative', marginBottom: '14px' }}>
                             <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-                            <input type="text" placeholder="Type any destination — Coorg, Spiti, Bali..."
+                            <input type="text" placeholder="Goa — or a circuit: Shimla, Manali"
                               value={selectedDestination}
                               onChange={e => {
                               const val = e.target.value
@@ -1763,6 +1763,11 @@ export default function UserDashboard() {
                               />
                             )}
                           </div>
+                          {selectedDestination && /,|\+| and /i.test(selectedDestination) && (
+                            <p style={{ fontSize: '11px', color: '#7c3aed', fontWeight: '600', marginTop: '-6px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              🗺️ Multi-city circuit detected — we'll sequence your days across all of them
+                            </p>
+                          )}
                           <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>— or pick from popular —</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: '10px', marginBottom: '12px' }}>
                             {(showAllDest ? destinations : destinations.slice(0, 4)).map(dest => (

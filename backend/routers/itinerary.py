@@ -284,24 +284,31 @@ def get_season_warning(destination: str, start_date: Optional[str]) -> Optional[
 
 
 async def extract_trip_info(free_text: str, api_key: str) -> dict:
-    """Use Claude Haiku to extract from_city, via_city, destinations.
-    Zero hardcoding — works for any language, any city worldwide.
-    Falls back to empty dict on failure.
-    """
+    """Use Claude Haiku to extract from_city, via_city, destinations, and the
+    trip's numeric shape (days/budget/tier). Zero hardcoding — works for any
+    language, any city worldwide. Falls back to empty dict on failure.
+    The days/budget/tier fields exist so the Custom Plan flow can build its
+    itinerary prompt from the SAME unified schema function the structured
+    flow uses (build_output_schema_block needs concrete values for its
+    tier-depth and day-count rules) — without this, custom plan would need
+    its own separate, drifting schema again."""
     prompt = f"""Extract travel information from this text. Return ONLY a JSON object, nothing else.
 
 Text: "{free_text}"
 
 Return exactly this JSON:
-{{"from_city": "departure city lowercase or empty", "via_city": "transit city lowercase or empty", "destinations": ["destination1", "destination2"]}}
+{{"from_city": "departure city lowercase or empty", "via_city": "transit city lowercase or empty", "destinations": ["destination1", "destination2"], "days": total_days_as_number_or_0, "budget": total_budget_in_rupees_as_number_or_0, "plan_tier": "bronze/silver/gold/diamond/platinum or empty if not inferrable"}}
 
 Rules:
 - from_city: departure city (after from/se/starting)
-- via_city: transit city (after via)  
+- via_city: transit city (after via)
 - destinations: ONLY actual places to visit — cities, towns, tourist spots
 - Exclude: trip type, budget, day counts, dates, common words
 - Include short names: goa, leh, puri, ooty
-- Handle Hindi/Hinglish naturally"""
+- Handle Hindi/Hinglish naturally
+- days: sum of all days mentioned across destinations (0 if truly not stated anywhere)
+- budget: total rupee amount if stated, else 0
+- plan_tier: infer ONLY if budget and days are both known (₹/day roughly: <800=bronze, 800-2500=silver, 2500-6000=gold, 6000-12000=diamond, >12000=platinum). Empty string if you can't infer it."""
 
     try:
         async with httpx.AsyncClient(timeout=10) as _ec:
@@ -546,58 +553,90 @@ TRANSPORT_DESCRIPTIONS = {
     "all": "all transport options compared"
 }
 
+# Depth of concierge-style content per tier — deliberately null below gold.
+# This is what makes a platinum trip actually READ as more valuable than a
+# bronze one, instead of just swapping in pricier hotel names for the same
+# generic content (the gap that made higher tiers feel like sticker-price
+# increases only, not genuinely deeper curation).
+CONCIERGE_TIER_DEPTH = {
+    "gold": "Include 2-3 concierge_notes: one specific restaurant worth reserving ahead (name + why), one time-saving insider tip, and one way to skip a common queue/crowd.",
+    "diamond": "Include 3-4 concierge_notes: a named restaurant with reservation guidance (how far ahead, best table/time), a private guide or driver arrangement suggestion with what to ask for, and one exclusive-access experience if genuinely available at this destination.",
+    "platinum": "Include 4-5 concierge_notes: specific fine-dining reservations with contact approach, a bespoke private guide/driver arrangement, an exclusive or after-hours access experience, and one genuinely white-glove touch (private transfers between every leg, a personal shopper for local crafts, or a premium alternative if realistic here). Should read like a real travel concierge wrote it — never generic.",
+}
 
-def build_itinerary_prompt(req: ItineraryRequest, weather_data: dict) -> str:
-    tier = TIER_CONFIG.get(req.plan_tier.value, TIER_CONFIG["silver"])
-    destination = req.destination or "the best destination for this budget and season"
-    trip_type_str = f"for a {req.trip_type} trip" if req.trip_type else ""
-    date_str = f"starting {req.start_date}" if req.start_date else "starting soon"
-    flexible_str = "Dates flexible ±3 days — suggest best window" if req.is_flexible else ""
-    weather_str = f"""
-Current weather at destination:
-- Temperature: {weather_data.get('temperature', 'Moderate')}
-- Condition: {weather_data.get('condition', 'Pleasant')}
-- Season: {weather_data.get('season', 'Good')}
-- Advisory: {weather_data.get('advisory', 'None')}
-""" if weather_data else ""
+BUDGET_UTILIZATION_RULES = {
+    "bronze":   "Target spending 70-80% of budget. Maximize value, use budget stays. Show savings.",
+    "silver":   "Target spending 85-90% of budget. Good quality without splurging. Small buffer for shopping.",
+    "gold":     "Target spending 90-95% of budget. Better hotels, premium experiences. Don't leave money unused.",
+    "diamond":  "Target spending 95-100% of budget. Luxury hotels, private transport, fine dining.",
+    "platinum": "Spend 100% of budget. Best of everything — 5-star, private charter, no compromises.",
+}
 
-    return f"""You are Tripzio's AI travel expert specializing ONLY in Indian travel.
-CRITICAL: If the destination is outside India (e.g. London, Dubai, Singapore, USA, Europe), you MUST return: {{"error": "INTERNATIONAL_DESTINATION", "message": "Only Indian destinations supported"}}
-Do NOT generate itineraries for international destinations under any circumstances.
 
-Generate a comprehensive, personalized travel itinerary for Indian destinations only.
+def build_output_schema_block(
+    days: int, budget: int, plan_tier: str, is_circuit: bool = False,
+    days_certain: bool = True, tier_certain: bool = True,
+    include_parse_fields: bool = False,
+) -> str:
+    """The single canonical output schema + rules, shared by every itinerary
+    prompt (main flow, guest flow, custom free-text flow). Previously each
+    endpoint hand-wrote its own JSON template, and they drifted apart —
+    day_plans and circuit_legs existed in one prompt but not the other. This
+    is now the one place that shape gets defined.
 
-TRIP DETAILS:
-- Traveler from: {req.from_city}
-- Destination: {destination}
-- Duration: {req.days} days {date_str}
-- Total budget: Rs {req.budget}
-- Trip type: {trip_type_str}
-- Experience tier: {req.plan_tier.value.upper()} — {tier['vibe']}
-- Transport preference: {TRANSPORT_DESCRIPTIONS.get(req.transport_mode.value, 'balanced')}
-{flexible_str}
+    days_certain/tier_certain: False when the caller (Custom Plan's free-text
+    flow) only has a Haiku pre-parse best-guess rather than a validated
+    request field — the day-count and tier-depth rules then ask the model to
+    determine + echo back the real value itself instead of enforcing the
+    (possibly wrong) guess as if it were certain."""
+    if tier_certain:
+        concierge_instruction = CONCIERGE_TIER_DEPTH.get(plan_tier)
+        concierge_field_rule = (
+            f"MANDATORY for {plan_tier.upper()} tier — {concierge_instruction}"
+            if concierge_instruction else
+            f"{plan_tier.upper()} tier — set concierge_notes to null (not an empty array). This feature is reserved for Gold and above."
+        )
+        budget_rule = f"For {plan_tier.upper()}: {BUDGET_UTILIZATION_RULES.get(plan_tier, BUDGET_UTILIZATION_RULES['silver'])}"
+    else:
+        concierge_field_rule = (
+            "First determine the actual plan_tier from budget÷days and the user's stated preferences (return it as the top-level \"plan_tier\" field), THEN apply: bronze/silver → concierge_notes = null. "
+            + " ".join(f"{t}: {instr}" for t, instr in CONCIERGE_TIER_DEPTH.items())
+        )
+        budget_rule = "Determine the tier from budget÷days, then follow its rule: " + " | ".join(
+            f"{t}: {r}" for t, r in BUDGET_UTILIZATION_RULES.items()
+        )
+    circuit_rule = (
+        "This IS a multi-city circuit. day_plans MUST sequence through every city in circuit_legs, in order, covering each leg's full day allocation. Each day_plan entry's \"city\" field must exactly match the circuit_legs city it belongs to."
+        if is_circuit else
+        "This is a SINGLE destination. Set is_circuit to false and circuit_legs to a single-entry array naming just this destination with all days."
+    )
+    day_count_rule = (
+        f"day_plans array length MUST exactly equal {days} (the total requested days) — not more, not fewer. For circuits, day_plans must cover every circuit_legs day allocation exactly."
+        if days_certain else
+        "First determine the total number of days the user actually wants (sum across every destination mentioned), return that as the top-level \"days\" field, then day_plans array length MUST exactly equal that number — not more, not fewer."
+    )
+    # Custom Plan's free-text flow has no validated request object to pull
+    # these from afterward — they only exist if Sonnet parses and returns
+    # them itself, so they need to be explicit output fields for that caller.
+    parse_fields_block = ("""  "from_city": "departure city you parsed, or 'Not specified'",
+  "days": total_days_as_number,
+  "budget": budget_as_number_or_0,
+  "plan_tier": "bronze/silver/gold/diamond/platinum",
+  "trip_type": "trip type you parsed, or null",
+  "start_date": null,
+  "parsed_from": "Brief summary of what you understood from the user's request",
+""" if include_parse_fields else "")
 
-TIER GUIDELINES for {req.plan_tier.value.upper()}:
-- Stay: {tier['stay']}
-- Food: {tier['food']}
-- Transport: {tier['transport']}
-- Activities: {tier['activities']}
-
-{weather_str}
-
-CRITICAL TRANSPORT INSTRUCTION:
-For transport from {req.from_city} to {destination}:
-1. Use REAL train names and numbers (e.g. "Darjeeling Mail 12343", "Rajdhani Express 12301")
-2. Include COMPLETE journey time including last mile from railhead/airport to destination
-   Example: "Train 10hrs + Taxi/Jeep 3hrs = Total 13hrs"
-3. For hill stations reachable via NJP/Siliguri, mention the shared jeep/taxi leg clearly
-4. Include specific departure stations from {req.from_city}
-
-Generate ONLY valid JSON, no markdown:
+    return f"""
+Return ONLY valid JSON, no markdown, in this EXACT structure:
 {{
-  "destination": "actual destination name",
-  "summary": "2-3 line engaging summary",
+  "destination": "actual destination name, or 'City1 → City2 → City3' for circuits",
+{parse_fields_block}  "summary": "2-3 line engaging summary",
   "highlights": ["highlight1", "highlight2", "highlight3", "highlight4"],
+  "is_circuit": true_or_false,
+  "circuit_legs": [
+    {{"city": "City1", "days": 2, "highlights": ["thing1", "thing2"]}}
+  ],
   "transport_options": [
     {{
       "mode": "Train Option 1 — Recommended",
@@ -620,17 +659,6 @@ Generate ONLY valid JSON, no markdown:
       "details": ["Board at [station] at [time]", "Arrive at [time]"],
       "booking_tip": "Book on IRCTC",
       "best_for": "Different departure time preference"
-    }},
-    {{
-      "mode": "Train Option 3 — Overnight",
-      "type": "Train",
-      "operator": "Overnight Train Name + Number if available on route",
-      "description": "Overnight — depart evening arrive morning",
-      "estimated_cost": "₹XXX Sleeper / ₹X,XXX 3AC per person",
-      "duration": "X hrs overnight",
-      "details": ["Depart evening", "Arrive morning fresh"],
-      "booking_tip": "3AC for comfortable sleep",
-      "best_for": "Save hotel night cost"
     }},
     {{
       "mode": "Government Bus",
@@ -666,6 +694,28 @@ Generate ONLY valid JSON, no markdown:
       "best_for": "Families, groups, luggage"
     }}
   ],
+  "local_transport": {{
+    "options": [
+      {{"name": "e.g. Auto-rickshaw", "type": "local", "route": "within destination", "cost": "₹XX per trip", "duration": "X mins", "tip": "practical tip", "best_for": "use case"}}
+    ],
+    "taxi_apps": ["Ola", "Uber", "or local equivalent"],
+    "note": "any local transport note (permits, availability, negotiation norms)"
+  }},
+  "day_plans": [
+    {{
+      "day": 1,
+      "city": "which city this day belongs to — MUST match a circuit_legs city",
+      "title": "City Name — Day title",
+      "intensity": "light | moderate | demanding — how physically/mentally tiring this specific day is",
+      "morning": "detailed plan",
+      "afternoon": "detailed plan",
+      "evening": "detailed plan",
+      "meals": "specific meal recommendations",
+      "stay": "specific hotel with area",
+      "tips": "local tip",
+      "estimated_cost": "₹X,XXX"
+    }}
+  ],
   "accommodation": [
     {{
       "name": "Real hotel name",
@@ -688,73 +738,123 @@ Generate ONLY valid JSON, no markdown:
       "must_see": true
     }}
   ],
-  IMPORTANT — places_to_visit RULES:
-  - Minimum 15 entries for any destination, 8-10 per city for circuit trips
-  - Include EVERY place mentioned in day_plans morning/afternoon/evening
-  - Add MORE places beyond day_plans — viewpoints, temples, markets, nature, heritage, adventure, day trips nearby
-  - Cover ALL categories — never repeat same type more than 3 times
-  - places_to_visit array MUST have MORE entries than total day_plans activities combined
   "things_to_do": [
-    {{
-      "category": "Adventure",
-      "activities": ["activity — ₹XXX"]
-    }},
-    {{
-      "category": "Food & Dining",
-      "activities": ["must-try dish", "restaurant name"]
-    }},
-    {{
-      "category": "Shopping",
-      "activities": ["what to buy — price range"]
-    }},
-    {{
-      "category": "Culture & Heritage",
-      "activities": ["experience"]
-    }}
+    {{"category": "Adventure", "activities": ["activity — ₹XXX"]}},
+    {{"category": "Food & Dining", "activities": ["must-try dish", "restaurant name"]}},
+    {{"category": "Shopping", "activities": ["what to buy — price range"]}},
+    {{"category": "Culture & Heritage", "activities": ["experience"]}}
   ],
+  "safety_info": {{
+    "emergency_note": "e.g. Dial 112 — India's unified emergency helpline (police/fire/ambulance)",
+    "health_advisories": ["ONLY include ones that genuinely apply — altitude sickness above ~2500m, water/food safety for rafting or remote areas, heat exhaustion for desert/summer travel, mosquito-borne precautions for monsoon/forest areas. Empty array if nothing specific applies — never invent a generic warning."],
+    "safety_tips": ["2-4 destination-specific safety tips — solo/night safety, area-specific caution"]
+  }},
+  "cultural_etiquette": {{
+    "dress_code": "specific guidance — e.g. temple/religious site dress requirements if relevant, else general regional norm",
+    "photography_notes": "any restricted/sensitive photography spots, else 'No specific restrictions'",
+    "tipping_norms": "typical tipping expectation for this region",
+    "local_customs": ["2-3 genuinely destination-specific customs — greetings, etiquette at religious sites, local dos/don'ts"]
+  }},
+  "concierge_notes": ["note1", "..."] or null — {concierge_field_rule}
   "packing_list": ["item1", "item2", "item3", "item4", "item5", "item6", "item7", "item8"],
   "local_tips": ["tip1", "tip2", "tip3", "tip4", "tip5"],
   "permit_info": ["permit if required, else null"],
   "cost_breakdown": {{
     "transport": "₹X,XXX",
-    "accommodation": "₹X,XXX ({req.days} nights)",
-    "food": "₹X,XXX ({req.days} days)",
+    "accommodation": "₹X,XXX ({days} nights)",
+    "food": "₹X,XXX ({days} days)",
     "activities": "₹X,XXX",
     "miscellaneous": "₹X,XXX",
     "total": "₹X,XXX"
   }},
   "alternatives": [
-    {{
-      "name": "Alternative destination name",
-      "reason": "why similar to {destination} for {req.days} days",
-      "estimated_budget": "₹{req.budget:,}",
-      "highlight": "unique experience"
-    }},
-    {{
-      "name": "Alternative destination name 2",
-      "reason": "why good for {req.days} days from {req.from_city}",
-      "estimated_budget": "₹{req.budget:,}",
-      "highlight": "unique experience"
-    }},
-    {{
-      "name": "Alternative destination name 3",
-      "reason": "budget-friendly version for same duration",
-      "estimated_budget": "₹{req.budget:,}",
-      "highlight": "unique experience"
-    }}
+    {{"name": "Alternative destination 1", "reason": "why similar for {days} days", "estimated_budget": "₹{budget:,}", "highlight": "unique experience"}},
+    {{"name": "Alternative destination 2", "reason": "why good for {days} days", "estimated_budget": "₹{budget:,}", "highlight": "unique experience"}},
+    {{"name": "Alternative destination 3", "reason": "budget-friendly version, same duration", "estimated_budget": "₹{budget:,}", "highlight": "unique experience"}}
   ]
 }}
-ALTERNATIVES RULE: estimated_budget MUST be within 20% of Rs {req.budget}. Never show budgets like 9,00,000 for a {req.budget} budget trip.
 
-BUDGET UTILIZATION RULES:
-- Bronze tier: Target spending 70-80% of budget. Maximize value, use budget stays. Show savings.
-- Silver tier: Target spending 85-90% of budget. Good quality without splurging. Small buffer for shopping.
-- Gold tier: Target spending 90-95% of budget. Better hotels, premium experiences. Don't leave money unused.
-- Diamond tier: Target spending 95-100% of budget. Luxury hotels, private transport, fine dining.
-- Platinum tier: Spend 100% of budget. Best of everything — 5-star, private charter, no compromises.
+CIRCUIT RULE: {circuit_rule}
 
-Current tier: {req.plan_tier.value} — follow the rule above for this tier.
-Total budget: Rs {req.budget}
+PLACES_TO_VISIT RULES:
+- Minimum 15 entries for any destination, 8-10 per city for circuit trips
+- Include EVERY place mentioned in day_plans morning/afternoon/evening
+- Add MORE places beyond day_plans — viewpoints, temples, markets, nature, heritage, adventure, day trips nearby
+- Cover ALL categories — never repeat same type more than 3 times
+- places_to_visit array MUST have MORE entries than total day_plans activities combined
+
+DAY COUNT RULE: {day_count_rule}
+
+BUDGET UTILIZATION RULE: {budget_rule}
+
+ALTERNATIVES RULE: estimated_budget MUST be within 20% of Rs {budget}. Never show a wildly mismatched budget like 9,00,000 for a {budget} trip."""
+
+
+def split_circuit_cities(destination: str) -> list:
+    """Split a destination string like 'Shimla, Manali' or 'Shimla + Manali'
+    or 'Shimla and Manali' into individual city names. Reuses the exact same
+    delimiter set the city_hotels fetch already relies on elsewhere in this
+    file, so "is this a circuit" is judged identically everywhere."""
+    import re as _re2
+    cities = [c.strip() for c in _re2.split(r',|→|\+| and ', destination or "") if c.strip()]
+    return cities
+
+
+def build_itinerary_prompt(req: ItineraryRequest, weather_data: dict) -> str:
+    tier = TIER_CONFIG.get(req.plan_tier.value, TIER_CONFIG["silver"])
+    destination = req.destination or "the best destination for this budget and season"
+    trip_type_str = f"for a {req.trip_type} trip" if req.trip_type else ""
+    date_str = f"starting {req.start_date}" if req.start_date else "starting soon"
+    flexible_str = "Dates flexible ±3 days — suggest best window" if req.is_flexible else ""
+    weather_str = f"""
+Current weather at destination:
+- Temperature: {weather_data.get('temperature', 'Moderate')}
+- Condition: {weather_data.get('condition', 'Pleasant')}
+- Season: {weather_data.get('season', 'Good')}
+- Advisory: {weather_data.get('advisory', 'None')}
+""" if weather_data else ""
+
+    circuit_cities = split_circuit_cities(destination) if req.destination else []
+    is_circuit = len(circuit_cities) > 1
+    circuit_str = (
+        f"\nCIRCUIT TRIP — cities in order: {' → '.join(circuit_cities)}. Split {req.days} days across them sensibly (weight by how much there is to see in each), and sequence day_plans through all of them in this order.\n"
+        if is_circuit else ""
+    )
+
+    schema_block = build_output_schema_block(req.days, req.budget, req.plan_tier.value, is_circuit=is_circuit)
+
+    return f"""You are Tripzio's AI travel expert specializing ONLY in Indian travel.
+CRITICAL: If the destination is outside India (e.g. London, Dubai, Singapore, USA, Europe), you MUST return: {{"error": "INTERNATIONAL_DESTINATION", "message": "Only Indian destinations supported"}}
+Do NOT generate itineraries for international destinations under any circumstances.
+
+Generate a comprehensive, personalized travel itinerary for Indian destinations only.
+
+TRIP DETAILS:
+- Traveler from: {req.from_city}
+- Destination: {destination}
+- Duration: {req.days} days {date_str}
+- Total budget: Rs {req.budget}
+- Trip type: {trip_type_str}
+- Experience tier: {req.plan_tier.value.upper()} — {tier['vibe']}
+- Transport preference: {TRANSPORT_DESCRIPTIONS.get(req.transport_mode.value, 'balanced')}
+{flexible_str}
+
+TIER GUIDELINES for {req.plan_tier.value.upper()}:
+- Stay: {tier['stay']}
+- Food: {tier['food']}
+- Transport: {tier['transport']}
+- Activities: {tier['activities']}
+
+{weather_str}
+{circuit_str}
+CRITICAL TRANSPORT INSTRUCTION:
+For transport from {req.from_city} to {destination}:
+1. Use REAL train names and numbers (e.g. "Darjeeling Mail 12343", "Rajdhani Express 12301")
+2. Include COMPLETE journey time including last mile from railhead/airport to destination
+   Example: "Train 10hrs + Taxi/Jeep 3hrs = Total 13hrs"
+3. For hill stations reachable via NJP/Siliguri, mention the shared jeep/taxi leg clearly
+4. Include specific departure stations from {req.from_city}
+{schema_block}
 
 GENERAL RULES:
 1. REAL train names and numbers always
@@ -770,7 +870,7 @@ MUST INCLUDE — MANDATORY: The traveller has specifically requested these place
 You MUST include ALL of the following in the itinerary, allocated appropriate time:
 {req.must_include}
 
-IMPORTANT: If any of the above are NOT geographically possible for this destination 
+IMPORTANT: If any of the above are NOT geographically possible for this destination
 (e.g. Taj Mahal for a Goa trip), skip that item silently and do NOT mention it.
 Only include places that are actually near {req.destination or req.from_city}.''' if getattr(req, 'must_include', None) else ''}"""
 
@@ -791,7 +891,11 @@ async def call_openai(prompt: str) -> dict:
         if _day_match: _prompt_days = int(_day_match.group(1))
     except Exception:
         pass
-    _max_tokens = min(16000, max(8000, _prompt_days * 1200))
+    # +3000 flat overhead for the fixed-size sections added on top of the old
+    # schema (safety_info, cultural_etiquette, concierge_notes, circuit_legs,
+    # local_transport) — without this, responses started getting truncated
+    # and silently eating an extra retry round-trip on every generation.
+    _max_tokens = min(24000, max(10000, _prompt_days * 1200 + 3000))
 
     async with httpx.AsyncClient(timeout=float(os.getenv("AI_TIMEOUT", "300"))) as client:
         async with client.stream(
@@ -868,7 +972,7 @@ async def call_openai(prompt: str) -> dict:
                     headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "anthropic-beta": "prompt-caching-2024-07-31", "Content-Type": "application/json"},
                     json={
                         "model": "claude-sonnet-4-5",
-                        "max_tokens": 16000,
+                        "max_tokens": 24000,
                         "stream": True,
                         "system": [{"type": "text", "text": "You are Tripzio's expert Indian travel AI. Respond with valid JSON only.", "cache_control": {"type": "ephemeral"}}],
                         "messages": [{"role": "user", "content": prompt}]
@@ -897,6 +1001,89 @@ async def call_openai(prompt: str) -> dict:
         except Exception as _re:
             logger.error(f"Retry also failed: {_re}")
             raise HTTPException(status_code=500, detail="We're having trouble generating your plan right now. Please try again.")
+
+
+async def verify_itinerary_consistency(ai_response: dict, expected_days: int, api_key: str) -> dict:
+    """Cheap Haiku pass checking STRUCTURAL consistency of what Sonnet just
+    generated — day_plans count matches the requested days, circuit_legs
+    days sum correctly and every day maps to a real leg, cost_breakdown adds
+    up. Deliberately narrow scope (not grading creative quality — that would
+    need a much more expensive pass) so this stays fast/cheap like every
+    other Haiku call in this file. Fail-open: any error here must never
+    block a generation the user is waiting on.
+    """
+    try:
+        day_plans = ai_response.get("day_plans", []) or []
+        summary = {
+            "expected_days": expected_days,
+            "actual_day_plans_count": len(day_plans),
+            "day_cities": [d.get("city", "") for d in day_plans],
+            "is_circuit": ai_response.get("is_circuit"),
+            "circuit_legs": ai_response.get("circuit_legs", []),
+            "cost_breakdown": ai_response.get("cost_breakdown", {}),
+        }
+        prompt = f"""Check this generated travel itinerary's metadata for structural consistency ONLY (not creative quality). Return ONLY JSON.
+
+DATA:
+{json.dumps(summary, ensure_ascii=False)}
+
+Checks:
+1. Does actual_day_plans_count exactly equal expected_days?
+2. If is_circuit is true: do circuit_legs' "days" values sum to expected_days, and does every entry in day_cities match one of circuit_legs' city names?
+3. Does cost_breakdown.total roughly equal transport+accommodation+food+activities+miscellaneous added together (within ~10%)?
+
+Return exactly: {{"ok": true_or_false, "issues": ["short specific description of each problem found — empty array if none"]}}"""
+
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 250,
+                    "temperature": 0.0,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
+        if r.status_code != 200:
+            logger.warning(f"consistency check Haiku non-200: {r.status_code}")
+            return {"ok": True, "issues": []}
+
+        text = r.json()["content"][0]["text"].strip()
+        s = text.find("{"); e = text.rfind("}") + 1
+        if s < 0 or e <= s:
+            return {"ok": True, "issues": []}
+        result = json.loads(text[s:e])
+        return {"ok": bool(result.get("ok", True)), "issues": result.get("issues", []) or []}
+    except Exception as ex:
+        logger.warning(f"Consistency check failed (fail-open): {ex}")
+        return {"ok": True, "issues": []}
+
+
+async def recheck_and_correct(ai_response: dict, prompt: str, expected_days: int = None) -> dict:
+    """Runs verify_itinerary_consistency and, if it finds real issues, makes
+    ONE bounded corrective Sonnet call with those issues appended to the
+    original prompt. Never loops more than once — a plan that's still wrong
+    after one correction ships as-is rather than burning further calls on
+    the user's behalf. Fail-open at every step: any error here returns the
+    original ai_response untouched."""
+    if not ai_response or ai_response.get("error"):
+        return ai_response
+    try:
+        days_to_check = expected_days if expected_days is not None else int(ai_response.get("days") or 0)
+        if not days_to_check:
+            return ai_response
+        api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        consistency = await verify_itinerary_consistency(ai_response, expected_days=days_to_check, api_key=api_key)
+        if not consistency["ok"] and consistency["issues"]:
+            logger.warning(f"Itinerary consistency issues found, retrying once: {consistency['issues']}")
+            correction_note = "\n\nCORRECTION NEEDED — your previous attempt had these specific issues, fix them exactly: " + "; ".join(consistency["issues"])
+            corrected = await call_openai(prompt + correction_note)
+            if corrected and not corrected.get("error"):
+                return corrected
+    except Exception as ex:
+        logger.warning(f"Consistency recheck skipped (fail-open): {ex}")
+    return ai_response
 
 
 def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None, train_dest_city: str = None) -> dict:
@@ -1195,6 +1382,44 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
         })
 
     data["transport_options"] = opts
+
+    # ── Fix 5: Defaults for the new schema fields ────────────
+    # LLM compliance with a prompt is never guaranteed 100% of the time —
+    # these are deterministic fallbacks so the frontend never has to guard
+    # against a missing key, matching this function's existing job (enforce
+    # structure after the fact rather than trust the prompt alone).
+    day_plans = data.get("day_plans", [])
+    if day_plans:
+        for d in day_plans:
+            if not d.get("city"):
+                d["city"] = dest
+            if d.get("intensity") not in ("light", "moderate", "demanding"):
+                d["intensity"] = "moderate"
+        data["day_plans"] = day_plans
+
+    if not data.get("circuit_legs"):
+        data["circuit_legs"] = [{"city": dest, "days": len(day_plans) or 1, "highlights": []}]
+    if "is_circuit" not in data:
+        data["is_circuit"] = len(data.get("circuit_legs", [])) > 1
+
+    safety_info = data.get("safety_info") or {}
+    data["safety_info"] = {
+        "emergency_note": safety_info.get("emergency_note") or "Dial 112 — India's unified emergency helpline (police/fire/ambulance).",
+        "health_advisories": safety_info.get("health_advisories") or [],
+        "safety_tips": safety_info.get("safety_tips") or [],
+    }
+
+    etiquette = data.get("cultural_etiquette") or {}
+    data["cultural_etiquette"] = {
+        "dress_code": etiquette.get("dress_code") or "Modest dress recommended at religious sites — cover shoulders and knees.",
+        "photography_notes": etiquette.get("photography_notes") or "No specific restrictions.",
+        "tipping_norms": etiquette.get("tipping_norms") or "10% at restaurants where a service charge isn't already included; ₹20-50 for guides/porters per service.",
+        "local_customs": etiquette.get("local_customs") or [],
+    }
+
+    if plan_tier not in ("gold", "diamond", "platinum"):
+        data["concierge_notes"] = None  # never show partial/generic concierge content below Gold
+
     return data
 
 
@@ -1435,6 +1660,7 @@ async def generate_itinerary_guest(
 
         # Call Sonnet — same pipeline as authenticated users
         ai_response = await call_openai(prompt)
+        ai_response = await recheck_and_correct(ai_response, prompt, expected_days=req.days)
 
         # ── Inject weather + season warning ──────────────────
         if weather_data:
@@ -1570,6 +1796,7 @@ async def generate_itinerary(
         if _child_instructions:
             prompt = prompt + _child_instructions
         ai_response = await call_openai(prompt)
+        ai_response = await recheck_and_correct(ai_response, prompt, expected_days=req.days)
 
         if weather_data:
             ai_response["weather"] = {
@@ -1856,145 +2083,48 @@ async def generate_custom_itinerary(
 
         logger.info(f"Custom plan request from {current_user['email']}: {req.free_text[:80]}...")
 
+        # Cheap Haiku pre-parse — gives us a best-guess days/budget/tier/city
+        # list BEFORE building the itinerary prompt, so this endpoint can use
+        # the SAME unified schema function (build_output_schema_block) the
+        # structured flow uses, instead of hand-rolling its own JSON template
+        # that had already drifted out of sync (missing safety_info, cultural
+        # etiquette, concierge_notes, intensity — all the fields added in
+        # this pass). Reused later for SerpAPI city fetching too — one Haiku
+        # call, not two.
+        _api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        _extracted = await extract_trip_info(req.free_text, _api_key)
+        _pre_days = int(_extracted.get("days") or 0)
+        _pre_budget = int(_extracted.get("budget") or 0)
+        _pre_tier = (_extracted.get("plan_tier") or "").strip().lower()
+        _pre_dest_list = [d for d in _extracted.get("destinations", []) if d]
+        _is_circuit_guess = len(_pre_dest_list) > 1
+        _days_certain = _pre_days > 0
+        _tier_certain = _pre_tier in TIER_CONFIG
+
+        schema_block = build_output_schema_block(
+            _pre_days or 1, _pre_budget, _pre_tier or "silver",
+            is_circuit=_is_circuit_guess,
+            days_certain=_days_certain, tier_certain=_tier_certain,
+            include_parse_fields=True,
+        )
+
         prompt = f"""You are Tripzio's AI travel expert for India. A user has described their dream trip in natural language. It may be in Hindi, English, or a mix.
 
 USER'S REQUEST:
 "{req.free_text}"
 
 Your tasks:
-1. Parse the user's request to extract:
-   - Departure city (if mentioned)
-   - Destinations and days per destination
-   - Total budget (if mentioned)
-   - Trip type (if mentioned)
-   - Travel dates (if mentioned)
-   - Plan tier based on budget
-   - Any special requirements
-
+1. Parse the user's request to extract departure city, destinations + days per destination, total budget, trip type, travel dates, plan tier, and any special requirements
 2. Build a complete, detailed itinerary for this trip
-
 3. For multi-destination trips (circuits), generate day plans for ALL destinations in sequence
-
-4. Use REAL train names and numbers for transport between cities
-   Include complete journey time (train + last mile)
-
+4. Use REAL train names and numbers for transport between cities — include complete journey time (train + last mile)
 5. Suggest real named hotels matching the implied budget
+{schema_block}
 
-Return ONLY valid JSON in this format:
-{{
-  "destination": "Main destination or 'Circuit: City1 → City2 → City3'",
-  "from_city": "departure city or 'Not specified'",
-  "days": total_days_as_number,
-  "budget": budget_as_number_or_0,
-  "plan_tier": "bronze/silver/gold/diamond/platinum",
-  "trip_type": "trip type or null",
-  "start_date": null,
-  "summary": "2-3 line engaging summary of this specific trip",
-  "highlights": ["highlight1", "highlight2", "highlight3", "highlight4"],
-  "is_circuit": true_or_false,
-  "circuit_legs": [
-    {{"city": "City1", "days": 2, "highlights": ["thing1", "thing2"]}},
-    {{"city": "City2", "days": 3, "highlights": ["thing1", "thing2"]}}
-  ],
-  "transport_options": [
-    {{
-      "mode": "Recommended Route",
-      "description": "specific route with real train names",
-      "estimated_cost": "₹X,XXX per person",
-      "duration": "Total Xhrs (breakdown per leg)",
-      "details": ["step1 with train name/number", "step2", "step3"],
-      "booking_tip": "practical tip"
-    }},
-    {{
-      "mode": "Alternative Route",
-      "description": "alternative option",
-      "estimated_cost": "₹X,XXX per person",
-      "duration": "Total Xhrs",
-      "details": ["step1", "step2"],
-      "booking_tip": "tip"
-    }}
-  ],
-  "local_transport": {{
-    "options": [
-      {{
-        "name": "transport name",
-        "type": "type",
-        "route": "from → to",
-        "cost": "₹XX per person",
-        "duration": "X hours",
-        "tip": "practical tip",
-        "best_for": "use case"
-      }}
-    ],
-    "taxi_apps": ["app names"],
-    "note": "important note"
-  }},
-  "day_plans": [
-    {{
-      "day": 1,
-      "title": "City Name — Day title",
-      "morning": "detailed plan",
-      "afternoon": "detailed plan",
-      "evening": "detailed plan",
-      "meals": "specific meal recommendations",
-      "stay": "specific hotel with area",
-      "tips": "local tip",
-      "estimated_cost": "₹X,XXX"
-    }}
-  ],
-  "accommodation": [
-    {{
-      "name": "hotel name",
-      "type": "type",
-      "area": "area",
-      "why": "why it suits",
-      "price_range": "₹X,XXX - ₹X,XXX",
-      "rating": "4.2",
-      "highlight": "standout feature"
-    }}
-  ],
-  "places_to_visit": [
-    {{
-      "name": "specific place name",
-      "type": "Viewpoint/Temple/Beach/Market/Nature/Heritage/Museum/Adventure/Waterfall",
-      "description": "2 engaging lines — what makes it special",
-      "entry_fee": "₹XX or Free",
-      "best_time": "Early Morning/Morning/Afternoon/Evening/Anytime",
-      "duration": "X hours",
-      "must_see": true/false
-    }}
-  ],
-  PLACES RULE: Minimum 15 entries. Include EVERY place from day_plans PLUS more. All categories covered.
-  "things_to_do": [
-    {{"category": "Adventure", "activities": ["activity — ₹XXX"]}},
-    {{"category": "Food & Dining", "activities": ["dish", "restaurant"]}},
-    {{"category": "Shopping", "activities": ["what to buy"]}}
-  ],
-  "packing_list": ["item1", "item2", "item3", "item4", "item5", "item6"],
-  "local_tips": ["tip1", "tip2", "tip3", "tip4", "tip5"],
-  "permit_info": ["permit if needed, else null"],
-  "cost_breakdown": {{
-    "transport": "₹X,XXX",
-    "accommodation": "₹X,XXX",
-    "food": "₹X,XXX",
-    "activities": "₹X,XXX",
-    "miscellaneous": "₹X,XXX",
-    "total": "₹X,XXX"
-  }},
-  "alternatives": [
-    {{"name": "alt1", "reason": "why", "estimated_budget": "₹X,XXX", "highlight": "unique thing"}},
-    {{"name": "alt2", "reason": "why", "estimated_budget": "₹X,XXX", "highlight": "unique thing"}}
-  ],
-  "parsed_from": "Brief summary of what you understood from the user's request"
-}}
-
-RULES:
-- For multi-destination/circuit trips, day_plans must cover ALL cities in sequence
+ADDITIONAL RULES:
 - Day titles must mention the city e.g. "Shimla Day 1 — Arrival & Mall Road"
-- Use real hotel names, real train names
 - If budget not mentioned, estimate reasonable amount for the trip type
-- If departure city not mentioned, use most logical city
-- Return ONLY valid JSON"""
+- If departure city not mentioned, use most logical city"""
 
         # SerpAPI — fetch real TripAdvisor data
         cust_serp_context = ""
@@ -2002,11 +2132,8 @@ RULES:
         _skey = os.getenv("SERPAPI_KEY", "")
         if _skey:
             try:
-                # Dynamic extraction — no hardcoded city list
-                # Use Claude Haiku to extract destinations — no hardcoding, any language
-                _api_key = os.getenv("ANTHROPIC_API_KEY", "")
-                _extracted = await extract_trip_info(req.free_text, _api_key)
-
+                # Reuse the pre-parse from earlier (_extracted) — no need to
+                # call Haiku a second time for the same free_text.
                 _from_city = _extracted.get("from_city", "").lower().strip()
                 _via_city = _extracted.get("via_city", "").lower().strip()
                 _dest_list = [d.lower().strip() for d in _extracted.get("destinations", []) if d.strip()]
@@ -2137,6 +2264,13 @@ Do NOT show direct source→destination if via city is specified."""
             prompt = prompt + via_instruction
 
         ai_response = await call_openai(prompt)
+        # No validated request.days here (free-text flow) — check against
+        # whatever Sonnet itself determined and returned, falling back to
+        # the earlier Haiku pre-parse guess if that field came back empty.
+        ai_response = await recheck_and_correct(
+            ai_response, prompt,
+            expected_days=int(ai_response.get("days") or _pre_days or 0) or None,
+        )
 
         # Safety override: if Sonnet still didn't fill from_city correctly,
         # use our independently-confirmed extraction (guaranteed accurate)

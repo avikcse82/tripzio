@@ -1479,6 +1479,26 @@ export default function ItineraryResult() {
           </div>
         )}
 
+        {/* ── CONCIERGE NOTES — Gold+ only, this is what should make a premium tier feel genuinely worth it ── */}
+        {data.concierge_notes?.length > 0 && (
+          <div style={{ background: 'linear-gradient(135deg,#1e1b4b,#312e81)', borderRadius: '20px', padding: '24px 28px', marginBottom: '28px', boxShadow: '0 10px 30px rgba(49,46,129,0.25)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+              <span style={{ fontSize: '18px' }}>✨</span>
+              <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'white', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>
+                Concierge Notes — {tierCfg?.label || 'Premium'} exclusive
+              </h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {data.concierge_notes.map((note, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  <span style={{ color: '#c7d2fe', fontSize: '13px', flexShrink: 0, marginTop: '2px' }}>◆</span>
+                  <span style={{ fontSize: '13.5px', color: '#e0e7ff', lineHeight: 1.65 }}>{note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── TABS ── */}
         <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.04)', marginBottom: '28px' }}>
           <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #f1f5f9', padding: '0 8px' }}>
@@ -1536,6 +1556,16 @@ export default function ItineraryResult() {
                       <span style={{ background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '700', whiteSpace: 'nowrap' }}>
                         Est. {day.estimated_cost}
                       </span>
+                      {day.intensity && (
+                        <span title="How physically/mentally tiring this day is" style={{
+                          background: day.intensity === 'demanding' ? '#fef2f2' : day.intensity === 'light' ? '#f0fdf4' : '#fffbeb',
+                          color: day.intensity === 'demanding' ? '#dc2626' : day.intensity === 'light' ? '#16a34a' : '#b45309',
+                          border: `1px solid ${day.intensity === 'demanding' ? '#fca5a5' : day.intensity === 'light' ? '#86efac' : '#fcd34d'}`,
+                          padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '700', whiteSpace: 'nowrap',
+                        }}>
+                          {day.intensity === 'demanding' ? '⚡ Demanding day' : day.intensity === 'light' ? '🌿 Light day' : '🚶 Moderate day'}
+                        </span>
+                      )}
                     </div>
 
                     {/* Connecting timeline */}
@@ -2612,6 +2642,52 @@ export default function ItineraryResult() {
                     ))}
                   </div>
                 </div>
+
+                {data.safety_info && (
+                  <div>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>🛡️ Safety & Emergency</h3>
+                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '14px 16px', marginBottom: '10px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <AlertTriangle size={14} color="#dc2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{data.safety_info.emergency_note}</span>
+                    </div>
+                    {data.safety_info.health_advisories?.map((tip, i) => (
+                      <div key={i} style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <span style={{ fontSize: '14px', flexShrink: 0 }}>🏔️</span>
+                        <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{tip}</span>
+                      </div>
+                    ))}
+                    {data.safety_info.safety_tips?.map((tip, i) => (
+                      <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <span style={{ fontSize: '14px', flexShrink: 0 }}>🔒</span>
+                        <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {data.cultural_etiquette && (
+                  <div>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>🙏 Cultural Etiquette</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                      {[
+                        { icon: '👕', label: 'Dress code', value: data.cultural_etiquette.dress_code },
+                        { icon: '📸', label: 'Photography', value: data.cultural_etiquette.photography_notes },
+                        { icon: '💰', label: 'Tipping', value: data.cultural_etiquette.tipping_norms },
+                      ].filter(row => row.value).map((row, i) => (
+                        <div key={i} style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                          <span style={{ fontSize: '14px', flexShrink: 0 }}>{row.icon}</span>
+                          <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}><strong>{row.label}:</strong> {row.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {data.cultural_etiquette.local_customs?.map((custom, i) => (
+                      <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <span style={{ fontSize: '14px', flexShrink: 0 }}>✨</span>
+                        <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{custom}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -124,7 +124,10 @@ function buildDayCards(dayPlans) {
       <div class="grid lg:grid-cols-4">
         <div class="lg:col-span-1 bg-gradient-to-br ${grad} p-6 lg:p-8 text-white flex flex-col justify-between">
           <div>
-            <div class="${tc} text-xs font-semibold uppercase tracking-widest mb-2">Day ${day.day || i + 1}</div>
+            <div class="flex items-center gap-2 mb-2">
+              <div class="${tc} text-xs font-semibold uppercase tracking-widest">Day ${day.day || i + 1}</div>
+              ${day.intensity ? `<span class="text-[10px] font-semibold uppercase tracking-wide bg-white/20 rounded-full px-2 py-0.5">${day.intensity === 'demanding' ? '⚡ Demanding' : day.intensity === 'light' ? '🌿 Light' : '🚶 Moderate'}</span>` : ''}
+            </div>
             <h3 class="font-serif text-2xl font-bold mb-1">${loc}</h3>
             <p class="text-white/80 text-sm">${subtitle}</p>
           </div>
@@ -315,6 +318,67 @@ function buildTips(tips) {
       <p class="text-slate-500 text-sm leading-relaxed">${h(desc)}</p>
     </div>`
   }).join('')
+}
+
+// ── Safety notes + cultural etiquette — same fields the web result page
+// renders in its Tips & Pack tab, mirrored here so the PDF matches.
+function buildSafetyEtiquette(safetyInfo, etiquette) {
+  const safetyRows = [
+    ...(safetyInfo?.emergency_note ? [{ icon: 'phone', text: safetyInfo.emergency_note }] : []),
+    ...(safetyInfo?.health_advisories || []).map(t => ({ icon: 'mountain', text: t })),
+    ...(safetyInfo?.safety_tips || []).map(t => ({ icon: 'shield', text: t })),
+  ]
+  const etiquetteRows = [
+    ...(etiquette?.dress_code ? [{ label: 'Dress code', text: etiquette.dress_code }] : []),
+    ...(etiquette?.photography_notes ? [{ label: 'Photography', text: etiquette.photography_notes }] : []),
+    ...(etiquette?.tipping_norms ? [{ label: 'Tipping', text: etiquette.tipping_norms }] : []),
+    ...(etiquette?.local_customs || []).map(t => ({ label: null, text: t })),
+  ]
+  if (!safetyRows.length && !etiquetteRows.length) return ''
+
+  return `
+  <div class="grid md:grid-cols-2 gap-8">
+    ${safetyRows.length ? `
+    <div>
+      <h3 class="font-semibold text-lg mb-4 flex items-center gap-2"><i data-lucide="shield-alert" class="w-5 h-5 text-red-500"></i> Safety &amp; Emergency</h3>
+      <div class="space-y-3">
+        ${safetyRows.map(r => `
+        <div class="flex gap-3 bg-red-50 border border-red-100 rounded-xl p-4">
+          <i data-lucide="${r.icon}" class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5"></i>
+          <p class="text-sm text-slate-600 leading-relaxed">${h(r.text)}</p>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+    ${etiquetteRows.length ? `
+    <div>
+      <h3 class="font-semibold text-lg mb-4 flex items-center gap-2"><i data-lucide="hand-heart" class="w-5 h-5 text-indigo-500"></i> Cultural Etiquette</h3>
+      <div class="space-y-3">
+        ${etiquetteRows.map(r => `
+        <div class="flex gap-3 bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+          <i data-lucide="sparkle" class="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5"></i>
+          <p class="text-sm text-slate-600 leading-relaxed">${r.label ? `<span class="font-medium text-slate-700">${h(r.label)}:</span> ` : ''}${h(r.text)}</p>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+  </div>`
+}
+
+// ── Concierge notes — Gold+ exclusive content, same gating as the web page
+// (post_process_itinerary nulls this out below Gold, so it's absent by the
+// time it reaches here for bronze/silver — no tier check needed here).
+function buildConciergeNotes(notes, tierLabel) {
+  if (!notes?.length) return ''
+  return `
+  <div class="rounded-2xl p-8" style="background:linear-gradient(135deg,#1e1b4b,#312e81); -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+    <h3 class="font-semibold text-lg mb-4 text-white flex items-center gap-2">✨ Concierge Notes — ${h(tierLabel)} exclusive</h3>
+    <div class="space-y-3">
+      ${notes.map(n => `
+      <div class="flex gap-3">
+        <span class="text-indigo-300 flex-shrink-0">◆</span>
+        <p class="text-sm text-indigo-100 leading-relaxed">${h(n)}</p>
+      </div>`).join('')}
+    </div>
+  </div>`
 }
 
 // ── Mode-specific icon/color + booking button(s) for a transport option.
@@ -704,6 +768,14 @@ ${data.day_plans?.length ? `
   </div>
 </section>` : ''}
 
+<!-- Concierge Notes — Gold+ exclusive -->
+${data.concierge_notes?.length ? `
+<section class="py-16 bg-white">
+  <div class="max-w-3xl mx-auto px-6">
+    ${buildConciergeNotes(data.concierge_notes, tierLabel)}
+  </div>
+</section>` : ''}
+
 <!-- Accommodation Summary -->
 ${data.accommodation?.length ? `
 <section class="py-16 bg-white">
@@ -751,6 +823,18 @@ ${data.local_tips?.length ? `
       <h2 class="font-serif text-3xl md:text-4xl font-bold mt-3 tracking-tight">Local Tips &amp; Advice</h2>
     </div>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">${buildTips(data.local_tips)}</div>
+  </div>
+</section>` : ''}
+
+<!-- Safety & Cultural Etiquette -->
+${(data.safety_info || data.cultural_etiquette) ? `
+<section class="py-20 bg-white">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span style="color:${brand}" class="text-xs font-semibold uppercase tracking-widest">Travel Smart</span>
+      <h2 class="font-serif text-3xl md:text-4xl font-bold mt-3 tracking-tight">Safety &amp; Local Etiquette</h2>
+    </div>
+    ${buildSafetyEtiquette(data.safety_info, data.cultural_etiquette)}
   </div>
 </section>` : ''}
 
