@@ -218,10 +218,15 @@ export default function ItineraryResult() {
   const [hasDistributed, setHasDistributed]     = useState(() => location.state?.hasDistributed || false)
 
   // ── Hotel selection state ─────────────────────────────────────
+  // Stored/keyed by trip identity (trip_id, or generated_at for a trip that
+  // hasn't been saved yet) — without this a selection finalised on one trip
+  // would leak into the initial state of every OTHER trip's result page,
+  // since localStorage has no natural per-trip scoping on its own.
+  const tripKey = data?.trip_id || data?.generated_at || null
   const [selectedHotels, setSelectedHotels]     = useState(() => {
     try {
-      const saved = localStorage.getItem('tripzio_selected_hotels')
-      return saved ? JSON.parse(saved) : {}
+      const saved = JSON.parse(localStorage.getItem('tripzio_selected_hotels') || 'null')
+      return saved && tripKey && saved.tripKey === tripKey ? saved.hotels : {}
     } catch { return {} }
   })
   // Snapshot of selectedHotels as of the last successful Finalise — carried
@@ -879,7 +884,7 @@ export default function ItineraryResult() {
         }
       }
 
-      localStorage.setItem('tripzio_selected_hotels', JSON.stringify(selectedHotels))
+      localStorage.setItem('tripzio_selected_hotels', JSON.stringify({ tripKey, hotels: selectedHotels }))
       latestItineraryRef.current = updated
       setAppliedHotels(selectedHotels)
       toast.success('Plan updated with your hotel selections! 🏨', { duration: 4000 })
