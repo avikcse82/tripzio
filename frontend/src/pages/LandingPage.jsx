@@ -276,7 +276,7 @@ export default function LandingPage() {
 
             <div style={{ textAlign: 'center' }}>
               <Link to="/login" onClick={() => setShowDemo(false)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 32px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 20px rgba(249,115,22,0.4)' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 32px', background: 'linear-gradient(135deg,#F97316,#F590B)E', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 20px rgba(249,115,22,0.4)' }}>
                 Plan My Trip Free <ArrowRight size={16} />
               </Link>
             </div>
@@ -291,17 +291,17 @@ export default function LandingPage() {
         <div style={{ position: 'absolute', top: '10%', right: '5%', width: '500px', height: '500px', background: 'radial-gradient(circle,rgba(13,148,136,0.12) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: '10%', left: '0%', width: '400px', height: '400px', background: 'radial-gradient(circle,rgba(249,115,22,0.10) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
 
-        <div style={{ maxWidth: '1150px', margin: '0 auto', padding: '96px 24px 64px', position: 'relative', width: '100%' }}>
+        <div style={{ maxWidth: '1150px', margin: '0 auto', padding: '26px 24px 64px', position: 'relative', width: '100%' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 0.65fr', gap: '40px', alignItems: 'start' }}>
 
             {/* Left — Text */}
             <div style={{ animation: isVisible ? 'fadeUp 0.8s ease forwards' : 'none' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '24px', padding: '6px 16px', marginBottom: '28px' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '24px', padding: '6px 16px', marginBottom: '10px' }}>
                 <Sparkles size={12} color="#B45309" />
                 <span style={{ fontSize: '12px', color: '#B45309', fontWeight: '700', letterSpacing: '1px' }}>INDIA'S AI TRAVEL PLANNER</span>
               </div>
 
-              <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(42px,5.5vw,76px)', fontWeight: '700', color: '#0F172A', lineHeight: 1.08, marginBottom: '24px', letterSpacing: '-1px' }}>
+              <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(42px,5.5vw,76px)', fontWeight: '700', color: '#0F172A', lineHeight: 1.08, marginBottom: '14px', letterSpacing: '-1px' }}>
                 Plan your
                 <span style={{ display: 'block', fontStyle: 'italic', background: 'linear-gradient(135deg,#0D9488,#F97316)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                   perfect India trip
@@ -309,18 +309,19 @@ export default function LandingPage() {
                 in under 2 minutes.
               </h1>
 
-              <p style={{ fontSize: '18px', color: '#64748B', lineHeight: 1.7, marginBottom: '16px', maxWidth: '520px', fontWeight: '400' }}>
-                Type your trip in Hindi, English, or mixed. Get a complete day-by-day itinerary with real budgets, festival alerts, and hotel suggestions.
+              <p style={{ fontSize: '12px', color: ' rgb(249, 115,22)', lineHeight: 1.7, marginBottom: '10px', maxWidth: '520px', fontWeight: '800' }}>
+                Just type your full trip in one line — our AI understands everything instantly.
               </p>
 
-              {/* ── No chatbot differentiator ──────────────────────── */}
+              {/* ── No chatbot differentiator ──────────────────────── 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', maxWidth: '520px', padding: '12px 16px', background: 'rgba(255,255,255,0.75)', border: '1px solid #E7E3D8', borderRadius: '12px', boxShadow: '0 8px 30px rgba(15,23,42,0.06)' }}>
                 <span style={{ fontSize: '20px', flexShrink: 0 }}>⚡</span>
                 <div>
                   <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>No chatbot. No back-and-forth. </span>
                   <span style={{ fontSize: '13px', color: '#64748B' }}>Just type your full trip in one line — our AI understands everything instantly.</span>
                 </div>
-              </div>
+              </div>*/}
+
               <div style={{ marginBottom: '36px', maxWidth: '520px' }}>
                 {/* Language badge */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
@@ -469,7 +470,7 @@ export default function LandingPage() {
 
             {/* Right — Polaroid collage + trust card, driven by existing activePhoto/tripCount state */}
             <div>
-            <div style={{ position: 'relative', height: '400px', marginTop: '24px' }}>
+            <div style={{ position: 'relative', height: '400px', marginTop: '14px' }}>
               {[
                 { top: '0', left: '30px', rot: '-7deg', z: 3, w: '195px', h: '230px', offset: 0 },
                 { top: '30px', right: '0', rot: '8deg', z: 2, w: '160px', h: '195px', offset: 2, tape: true },
