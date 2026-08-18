@@ -276,7 +276,7 @@ export default function LandingPage() {
 
             <div style={{ textAlign: 'center' }}>
               <Link to="/login" onClick={() => setShowDemo(false)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 32px', background: 'linear-gradient(135deg,#F97316,#F590B)E', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 20px rgba(249,115,22,0.4)' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 32px', background: 'linear-gradient(135deg,#F97316,#F59E0B)', color: 'white', textDecoration: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 20px rgba(249,115,22,0.4)' }}>
                 Plan My Trip Free <ArrowRight size={16} />
               </Link>
             </div>
