@@ -287,7 +287,7 @@ def check_guest_rate_limit(ip_address: str) -> bool:
         from datetime import datetime, timedelta, timezone
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         response = client.table("guest_rate_limits") \
-            .select("id,last_generated_at") \
+            .select("last_generated_at") \
             .eq("ip_address", ip_address) \
             .execute()
         if not response.data:
