@@ -387,16 +387,12 @@ export default function AgentDashboard() {
     setFrom(client.city || '')
 
     if (mode === 'modify' && client.trip && client.trip !== 'Not planned yet') {
-      // Pre-fill with existing plan for modification
-      const parts = client.trip.split('·').map(p => p.trim())
-      if (parts[0]) setDestination(parts[0])
-      if (parts[1]) setDays(parts[1].replace(/\D/g, ''))
-      if (parts[2]) setBudget(parts[2].replace(/[₹,]/g, ''))
+      // Empty — the box now wants one specific change ("add a spa evening
+      // on day 2"), not a full re-description of the trip. handleClientModify
+      // fetches the client's actual current itinerary and applies just
+      // this request to it, leaving everything else untouched.
       setPlanMode('custom')
-      setCustomText(
-        `Modify this plan: ${client.trip} from ${client.city}. ` +
-        `Make changes as needed — add or remove destinations.`
-      )
+      setCustomText('')
       toast(`Modifying ${client.name}'s plan`, { icon: '✏️' })
     } else {
       // Fresh plan
@@ -410,8 +406,85 @@ export default function AgentDashboard() {
     setActiveTab('generate')
   }
 
+  // ── Modify an existing client plan — targeted edit, not a full rebuild.
+  // Previously this button was literally labeled "Regenerate Plan" and
+  // called /generate-custom with a synthetic "Modify this plan: ..."
+  // description — rebuilding the entire itinerary for any small request,
+  // risking silently changing the hotel/cost/wording the client already
+  // approved. Now fetches the client's actual current itinerary and sends
+  // it through the same scoped-edit endpoint the result page uses.
+  const handleClientModify = async () => {
+    if (customText.trim().length < 3) {
+      toast.error('Describe what you\'d like to change')
+      return
+    }
+    if (!selectedClient) return
+    setGenerating(true)
+    setGenStep(0)
+    genStepIntervalRef.current = setInterval(() => {
+      setGenStep(p => p < 6 ? p + 1 : p)
+    }, 4000)
+    try {
+      let trips = clientTrips[selectedClient.id]
+      if (!trips) {
+        const r = await fetch(`${API_URL}/itinerary/history/client/${selectedClient.id}`, {
+          headers: { Authorization: `Bearer ${token()}` }
+        })
+        const d = await r.json()
+        trips = d.trips || []
+        setClientTrips(p => ({ ...p, [selectedClient.id]: trips }))
+      }
+      const latestTripId = trips[0]?.id
+      if (!latestTripId) {
+        toast.error(`${selectedClient.name} has no existing plan to modify — use "New Plan" instead`)
+        return
+      }
+
+      const tripRes = await fetch(`${API_URL}/trips/${latestTripId}`, {
+        headers: { Authorization: `Bearer ${token()}` }
+      })
+      const trip = await tripRes.json()
+      if (!tripRes.ok || !trip.itinerary) throw new Error('Could not load the current plan')
+
+      const editRes = await fetch(`${API_URL}/itinerary/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ itinerary: trip.itinerary, edit_request: customText.trim(), trip_id: latestTripId })
+      })
+      const data = await editRes.json()
+      if (!editRes.ok) throw new Error(data?.detail || 'Could not apply that change')
+
+      try {
+        const dest = data.destination || ''
+        const tripSummary = `${dest} · ${data.days} days · ₹${data.budget?.toLocaleString('en-IN')}`
+        await fetch(`${API_URL}/agents/clients/${selectedClient.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify({ trip_requirement: tripSummary })
+        })
+        setClients(p => p.map(c => c.id === selectedClient.id ? { ...c, trip: tripSummary } : c))
+      } catch (e) {
+        console.log('Trip summary update skipped:', e)
+      }
+
+      toast.success(data.edit_note ? `Note: ${data.edit_note}` : 'Plan updated! ✏️')
+      setTimeout(() => {
+        navigate('/itinerary/result', {
+          state: { itinerary: data, clientName: selectedClient?.name || null }
+        })
+      }, 500)
+    } catch (e) {
+      toast.error(e.message || 'Could not apply that change')
+    } finally {
+      clearInterval(genStepIntervalRef.current)
+      setGenerating(false)
+      setGenStep(0)
+    }
+  }
+
   // ── Generate itinerary ───────────────────────
   const handleGenerate = async () => {
+    if (generateMode === 'modify') return handleClientModify()
     setGenerating(true)
     setGenStep(0)
     genStepIntervalRef.current = setInterval(() => {
@@ -1993,7 +2066,7 @@ return (
                   style={{ padding: '13px 28px', background: generating ? '#e2e8f0' : 'linear-gradient(135deg,#F97316,#F59E0B)', color: generating ? '#94a3b8' : 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: generating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: !generating ? '0 8px 22px rgba(249,115,22,0.32)' : 'none', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease' }}>
                   {generating
                     ? <><div style={{ width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />{GEN_STEPS[genStep]}</>
-                    : <><Zap size={15} fill="white" />{generateMode === 'modify' ? 'Regenerate Plan' : planMode === 'custom' ? 'Build Circuit Plan' : 'Generate Itinerary'}</>}
+                    : <><Zap size={15} fill="white" />{generateMode === 'modify' ? 'Apply Changes' : planMode === 'custom' ? 'Build Circuit Plan' : 'Generate Itinerary'}</>}
                 </button>
 
                 {/* Progress bar during generation */}
@@ -2012,7 +2085,7 @@ return (
 
                 {selectedClient && !generating && (
                   <span style={{ fontSize: '12px', color: '#64748b' }}>
-                    {generateMode === 'modify' ? 'Replaces current plan' : 'New plan'} for <strong style={{ color: '#0d9488' }}>{selectedClient.name}</strong>
+                    {generateMode === 'modify' ? 'Updates current plan — everything else stays the same' : 'New plan'} for <strong style={{ color: '#0d9488' }}>{selectedClient.name}</strong>
                   </span>
                 )}
               </div>

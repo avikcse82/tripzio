@@ -91,6 +91,9 @@ class ItineraryRequest(BaseModel):
     # single coach's capacity this stops being itinerary planning and
     # becomes event logistics, out of scope for what this endpoint does.
     travelers: Optional[int] = Field(None, ge=1, le=50)
+    # Set by AgentDashboard when generating on behalf of a saved client, so the
+    # resulting trip can later be found via /itinerary/history/client/{id}.
+    client_id: Optional[str] = None
 
 
 class AgentItineraryRequest(BaseModel):

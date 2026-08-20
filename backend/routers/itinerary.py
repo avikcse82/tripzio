@@ -2076,6 +2076,7 @@ async def generate_itinerary(
                 "status": "generated",
                 "itinerary": ai_response,
                 "climate_data": weather_data,
+                "client_id": req.client_id,
             })
             if _saved_trip:
                 ai_response["trip_id"] = _saved_trip.get("id")
@@ -2237,10 +2238,9 @@ async def get_client_trip_history(
     try:
         from database import get_supabase_client
         supabase = get_supabase_client()
-        agent_id = current_user.get("email", str(current_user["id"]))
         result = supabase.table("trips") \
             .select("id,title,destination,days,budget,plan_tier,created_at,status,itinerary") \
-            .eq("agent_id", agent_id) \
+            .eq("user_id", str(current_user["id"])) \
             .eq("client_id", client_id) \
             .order("created_at", desc=True) \
             .execute()
@@ -2305,9 +2305,15 @@ async def edit_itinerary(
     )
 
     # Carry forward identity + passthrough fields the edit prompt was never
-    # asked to touch (and, for the passthrough fields, never even saw).
+    # asked to touch (and, for the passthrough fields, never even saw). This
+    # also includes trip metadata like days/budget/plan_tier — these are
+    # bolted onto ai_response from the request in /generate too, since the
+    # AI's own schema never echoes them back, and a scoped edit doesn't
+    # change trip length, budget, or tier.
     edited["trip_id"] = req.itinerary.get("trip_id") or req.trip_id
     edited["generated_at"] = req.itinerary.get("generated_at")
+    for field in ("days", "budget", "plan_tier", "trip_type", "from_city", "start_date"):
+        edited[field] = req.itinerary.get(field)
     for field in PASSTHROUGH_FIELDS:
         if field in req.itinerary:
             edited[field] = req.itinerary[field]
@@ -2378,6 +2384,7 @@ async def submit_feedback(
 class CustomPlanRequest(BaseModel):
     free_text: str
     start_date: Optional[str] = None
+    client_id: Optional[str] = None
 
 @router.post("/generate-custom")
 async def generate_custom_itinerary(
@@ -2646,6 +2653,7 @@ Do NOT show direct source→destination if via city is specified."""
                 "status": "generated",
                 "itinerary": ai_response,
                 "climate_data": {},
+                "client_id": req.client_id,
             })
             if _saved_trip:
                 ai_response["trip_id"] = _saved_trip.get("id")
