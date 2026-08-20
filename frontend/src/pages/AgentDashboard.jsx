@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, Trash2, MessageCircle,
   Phone, MapPin, Clock, Edit3, Check, Save,
   User, Briefcase, ArrowRight, RefreshCw,
-  History, PlusCircle, Eye, AlertCircle, Download
+  History, PlusCircle, Eye, AlertCircle, Download, Sparkles
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import GenerationOverlay from '../components/GenerationOverlay'
@@ -166,6 +166,7 @@ export default function AgentDashboard() {
   const [days, setDays]                     = useState('')
   const [budget, setBudget]                 = useState('')
   const [tripType, setTripType]             = useState('')
+  const [travelers, setTravelers]           = useState('')
   const [destination, setDestination]       = useState('')
   const [startDate, setStartDate]           = useState('')
   const [customExtractedDate, setCustomExtractedDate] = useState(null)
@@ -446,6 +447,7 @@ export default function AgentDashboard() {
           start_date: startDate || null, is_flexible: false,
           client_id: selectedClient?.id || null,
           must_include: mustIncludeString || null,
+          travelers: travelers ? parseInt(travelers) : null,
         }
       }
 
@@ -1526,26 +1528,39 @@ return (
           ════════════════════════════════════ */}
           {activeTab === 'generate' && (
             <div style={{ padding: '24px' }}>
-              {/* Client + mode banner */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', marginBottom: '20px', background: generateMode === 'modify' ? '#fffbeb' : '#f0fdfa', border: `1px solid ${generateMode === 'modify' ? '#fcd34d' : '#99f6e4'}`, borderRadius: '12px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: selectedClient.avatar_color || getColor(selectedClient.name), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '14px', fontWeight: '800', flexShrink: 0 }}>
-                  {selectedClient.name.charAt(0)}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
-                    {generateMode === 'modify' ? `✏️ Modifying plan for: ${selectedClient.name}` : `✨ New plan for: ${selectedClient.name}`}
+              {/* Client + mode banner — only when a client is actually
+                  selected. Without this guard, landing on this tab with
+                  zero clients (fresh account) or no client picked yet
+                  crashed the whole page reading selectedClient.avatar_color
+                  off null. */}
+              {selectedClient ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', marginBottom: '20px', background: generateMode === 'modify' ? '#fffbeb' : '#f0fdfa', border: `1px solid ${generateMode === 'modify' ? '#fcd34d' : '#99f6e4'}`, borderRadius: '12px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: selectedClient.avatar_color || getColor(selectedClient.name), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '14px', fontWeight: '800', flexShrink: 0 }}>
+                    {selectedClient.name.charAt(0)}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
-                    {generateMode === 'modify'
-                      ? 'Current: ' + selectedClient.trip + ' — describe changes below'
-                      : selectedClient.city + ' — choose plan type below'}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
+                      {generateMode === 'modify' ? `✏️ Modifying plan for: ${selectedClient.name}` : `✨ New plan for: ${selectedClient.name}`}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                      {generateMode === 'modify'
+                        ? 'Current: ' + selectedClient.trip + ' — describe changes below'
+                        : selectedClient.city + ' — choose plan type below'}
+                    </div>
+                  </div>
+                  <button onClick={() => { setSelectedClient(null); setActiveTab('clients') }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
+                    <X size={15} />
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', marginBottom: '20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                  <Sparkles size={16} color="#64748b" />
+                  <div style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>
+                    General trip — not linked to a client. Pick one from <button onClick={() => setActiveTab('clients')} style={{ background: 'none', border: 'none', color: '#0d9488', fontWeight: '700', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}>Clients</button> first if this is for someone specific.
                   </div>
                 </div>
-                <button onClick={() => { setSelectedClient(null); setActiveTab('clients') }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
-                  <X size={15} />
-                </button>
-              </div>
+              )}
 
               {/* Mode selector */}
               <div style={{ display: 'flex', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '4px', gap: '3px', marginBottom: '20px' }}>
@@ -1607,6 +1622,23 @@ return (
                           </button>
                         ))}
                       </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        Travelers <span style={{ textTransform: 'none', fontWeight: '400', color: '#94a3b8' }}>— matters for weddings/corporate groups</span>
+                      </label>
+                      <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                        {[1, 2, 4, 6, 10, 15].map(n => (
+                          <button key={n} className="chip" onClick={() => setTravelers(travelers === String(n) ? '' : String(n))}
+                            style={{ padding: '5px 9px', borderRadius: '20px', border: `1.5px solid ${travelers === String(n) ? '#0d9488' : '#e2e8f0'}`, background: travelers === String(n) ? '#f0fdfa' : 'white', color: travelers === String(n) ? '#0d9488' : '#64748b', fontSize: '11px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif', transition: 'all 0.15s' }}>
+                            {n}{n === 15 ? '+' : ''}
+                          </button>
+                        ))}
+                      </div>
+                      <input type="number" min="1" max="50" placeholder="Or type exact headcount"
+                        value={travelers}
+                        onChange={e => setTravelers(e.target.value)}
+                        style={inp(false)} />
                     </div>
                   </div>
 

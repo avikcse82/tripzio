@@ -285,19 +285,20 @@ def get_season_warning(destination: str, start_date: Optional[str]) -> Optional[
 
 async def extract_trip_info(free_text: str, api_key: str) -> dict:
     """Use Claude Haiku to extract from_city, via_city, destinations, and the
-    trip's numeric shape (days/budget/tier). Zero hardcoding — works for any
-    language, any city worldwide. Falls back to empty dict on failure.
-    The days/budget/tier fields exist so the Custom Plan flow can build its
-    itinerary prompt from the SAME unified schema function the structured
-    flow uses (build_output_schema_block needs concrete values for its
-    tier-depth and day-count rules) — without this, custom plan would need
-    its own separate, drifting schema again."""
+    trip's numeric shape (days/budget/tier/travelers). Zero hardcoding —
+    works for any language, any city worldwide. Falls back to empty dict on
+    failure. The days/budget/tier/travelers fields exist so the Custom Plan
+    flow can build its itinerary prompt from the SAME unified schema
+    function the structured flow uses (build_output_schema_block needs
+    concrete values for its tier-depth, day-count and group-size rules) —
+    without this, custom plan would need its own separate, drifting schema
+    again."""
     prompt = f"""Extract travel information from this text. Return ONLY a JSON object, nothing else.
 
 Text: "{free_text}"
 
 Return exactly this JSON:
-{{"from_city": "departure city lowercase or empty", "via_city": "transit city lowercase or empty", "destinations": ["destination1", "destination2"], "days": total_days_as_number_or_0, "budget": total_budget_in_rupees_as_number_or_0, "plan_tier": "bronze/silver/gold/diamond/platinum or empty if not inferrable"}}
+{{"from_city": "departure city lowercase or empty", "via_city": "transit city lowercase or empty", "destinations": ["destination1", "destination2"], "days": total_days_as_number_or_0, "budget": total_budget_in_rupees_as_number_or_0, "plan_tier": "bronze/silver/gold/diamond/platinum or empty if not inferrable", "travelers": total_number_of_people_or_0}}
 
 Rules:
 - from_city: departure city (after from/se/starting)
@@ -308,7 +309,8 @@ Rules:
 - Handle Hindi/Hinglish naturally
 - days: sum of all days mentioned across destinations (0 if truly not stated anywhere)
 - budget: total rupee amount if stated, else 0
-- plan_tier: infer ONLY if budget and days are both known (₹/day roughly: <800=bronze, 800-2500=silver, 2500-6000=gold, 6000-12000=diamond, >12000=platinum). Empty string if you can't infer it."""
+- travelers: total headcount if stated ("solo"=1, "couple"=2, "family of 5"=5, "8 people"=8, "group of 10"=10). 0 if truly not stated anywhere — do NOT guess from trip type alone, only from an actual number or explicit solo/couple wording.
+- plan_tier: infer ONLY if budget, days AND travelers are all known — divide budget by days by travelers to get ₹/person/day, then: <1500=bronze, 1500-3000=silver, 3000-6000=gold, 6000-12000=diamond, >12000=platinum. Empty string if you can't infer it (your division doesn't need to be exact — the caller re-checks it deterministically anyway)."""
 
     try:
         async with httpx.AsyncClient(timeout=10) as _ec:
@@ -508,6 +510,40 @@ def is_international_destination(destination: str, from_city: str = ""):
     return False, ""
 
 
+# Headcount at/above which "large group" content kicks in: charter vehicle
+# options, room-count-aware accommodation cost, and the group_logistics
+# field. Matches the "Group (6+)" chip already used elsewhere in the UI
+# (AgentDashboard's Custom Plan quick-fill), so this isn't a new arbitrary
+# number — it's the threshold the app already implied but never enforced.
+LARGE_GROUP_THRESHOLD = 6
+
+# Fallback headcount when travelers isn't explicitly given — trip_type is
+# already collected in every flow (Quick/Detailed/Agent), so it's a much
+# better default signal than assuming 1 for everyone. Explicit `travelers`
+# always wins when provided; this only fills the gap when it's None.
+TRIP_TYPE_DEFAULT_TRAVELERS = {
+    "solo": 1,
+    "couple": 2,
+    "honeymoon": 2,
+    "family": 4,
+    "friends": 4,
+    "group": 6,
+    "adventure": 2,
+}
+
+
+def estimate_travelers(explicit: int = None, trip_type: str = None) -> int:
+    """Single source of truth for 'how many people is this trip for'.
+    Explicit travelers count always wins when given (clamped to a sane
+    1-50 range as defensive backstop even though Pydantic already
+    validates this at the request boundary — this function is also called
+    from the Custom Plan flow with a Haiku-parsed, unvalidated int)."""
+    if explicit:
+        return max(1, min(50, int(explicit)))
+    key = str(trip_type or "").strip().lower()
+    return TRIP_TYPE_DEFAULT_TRAVELERS.get(key, 2)
+
+
 TIER_CONFIG = {
     "bronze": {
         "stay": "budget guesthouses, hostels, or dharamshalas (₹500-1,500/night)",
@@ -546,6 +582,25 @@ TIER_CONFIG = {
     }
 }
 
+def tier_from_per_person_budget(budget: int, days: int, travelers: int) -> str:
+    """Deterministic ₹/person/day → tier bracket lookup. Same thresholds as
+    the frontend's getSuggestedTier (UserDashboard.jsx) — kept in sync
+    manually since one's Python and one's JS. Used instead of trusting
+    Haiku's own division for Custom Plan's tier inference — caught it
+    getting this arithmetic wrong on a real test (12 people, 3 days,
+    ₹3,00,000 → ₹8,333/person/day should be diamond, Haiku said silver,
+    a 2-bracket error with a large group where the 3-way division is more
+    error-prone for a small/cheap model than the 2-way version)."""
+    if not budget or not days or not travelers:
+        return ""
+    pd = budget / days / travelers
+    if pd < 1500: return "bronze"
+    if pd < 3000: return "silver"
+    if pd < 6000: return "gold"
+    if pd < 12000: return "diamond"
+    return "platinum"
+
+
 TRANSPORT_DESCRIPTIONS = {
     "cheapest": "most economical routes using state transport and budget options",
     "balanced": "best combination of cost and comfort",
@@ -577,6 +632,7 @@ def build_output_schema_block(
     days: int, budget: int, plan_tier: str, is_circuit: bool = False,
     days_certain: bool = True, tier_certain: bool = True,
     include_parse_fields: bool = False,
+    travelers: int = 2, travelers_certain: bool = True,
 ) -> str:
     """The single canonical output schema + rules, shared by every itinerary
     prompt (main flow, guest flow, custom free-text flow). Previously each
@@ -599,10 +655,10 @@ def build_output_schema_block(
         budget_rule = f"For {plan_tier.upper()}: {BUDGET_UTILIZATION_RULES.get(plan_tier, BUDGET_UTILIZATION_RULES['silver'])}"
     else:
         concierge_field_rule = (
-            "First determine the actual plan_tier from budget÷days and the user's stated preferences (return it as the top-level \"plan_tier\" field), THEN apply: bronze/silver → concierge_notes = null. "
+            "First determine the actual plan_tier from budget÷days÷travelers (₹ per person per day) and the user's stated preferences (return it as the top-level \"plan_tier\" field), THEN apply: bronze/silver → concierge_notes = null. "
             + " ".join(f"{t}: {instr}" for t, instr in CONCIERGE_TIER_DEPTH.items())
         )
-        budget_rule = "Determine the tier from budget÷days, then follow its rule: " + " | ".join(
+        budget_rule = "Determine the tier from budget÷days÷travelers (₹ per person per day, NOT just per day — a family splitting a budget is a lower tier than a solo traveller with the same total), then follow its rule: " + " | ".join(
             f"{t}: {r}" for t, r in BUDGET_UTILIZATION_RULES.items()
         )
     circuit_rule = (
@@ -623,9 +679,42 @@ def build_output_schema_block(
   "budget": budget_as_number_or_0,
   "plan_tier": "bronze/silver/gold/diamond/platinum",
   "trip_type": "trip type you parsed, or null",
+  "travelers": total_number_of_people_as_number,
   "start_date": null,
   "parsed_from": "Brief summary of what you understood from the user's request",
 """ if include_parse_fields else "")
+
+    # Group size affects three real things: which vehicle class makes sense
+    # (a taxi seats 4, not 12), whether accommodation cost needs multiple
+    # rooms, and whether group-booking logistics are worth surfacing at all.
+    # Below LARGE_GROUP_THRESHOLD none of this changes anything — a couple
+    # or small family doesn't need charter-vehicle or room-count content.
+    is_large_group = travelers_certain and travelers >= LARGE_GROUP_THRESHOLD
+    travelers_rule = (
+        f"This trip is for {travelers} people."
+        if travelers_certain else
+        "First determine the total number of people this trip is for from context (default to 2 if truly unstated), return that as the top-level \"travelers\" field."
+    )
+    rooms_estimate = max(1, -(-travelers // 2))  # ceil(travelers/2), double occupancy — the standard Indian hotel default
+    group_transport_block = (f"""    {{
+      "mode": "Charter Vehicle — Group",
+      "type": "Tempo Traveller / Mini Bus",
+      "operator": "Local tour operator or {{state}} Tourism-approved charter service",
+      "description": "Dedicated vehicle for the whole group, door to door",
+      "estimated_cost": "₹X,XXX-₹XX,XXX total for the vehicle (not per person)",
+      "duration": "X hrs by road",
+      "details": ["17-seater Tempo Traveller for 6-14 people, Mini Bus for 15+", "Book through a local operator or the hotel's travel desk"],
+      "booking_tip": "Book 5-7 days ahead for weekends/festival season — group vehicles get scarce",
+      "best_for": "Groups of {LARGE_GROUP_THRESHOLD}+ — far more practical than splitting into multiple cabs"
+    }},
+""" if is_large_group else "")
+    group_logistics_field = (f"""  "group_logistics": {{
+    "rooms_needed": {rooms_estimate},
+    "occupancy_note": "Based on double occupancy ({travelers} people ÷ 2 per room, rounded up). Adjust if the group prefers triple-sharing or wants singles.",
+    "vehicle_recommendation": "Tempo Traveller (up to 14) or Mini Bus (15+) recommended over multiple taxis for a group this size",
+    "booking_lead_time": "For {rooms_estimate}+ rooms and a charter vehicle, book 2-3 weeks ahead in peak season — group availability is the first thing that runs out, not price"
+  }},
+""" if is_large_group else "  \"group_logistics\": null,\n")
 
     return f"""
 Return ONLY valid JSON, no markdown, in this EXACT structure:
@@ -692,8 +781,8 @@ Return ONLY valid JSON, no markdown, in this EXACT structure:
       "details": ["Book Ola/Uber app → Outstation", "Pick up from home"],
       "booking_tip": "Split among 4+ people",
       "best_for": "Families, groups, luggage"
-    }}
-  ],
+    }},
+{group_transport_block}  ],
   "local_transport": {{
     "options": [
       {{"name": "e.g. Auto-rickshaw", "type": "local", "route": "within destination", "cost": "₹XX per trip", "duration": "X mins", "tip": "practical tip", "best_for": "use case"}}
@@ -701,7 +790,7 @@ Return ONLY valid JSON, no markdown, in this EXACT structure:
     "taxi_apps": ["Ola", "Uber", "or local equivalent"],
     "note": "any local transport note (permits, availability, negotiation norms)"
   }},
-  "day_plans": [
+{group_logistics_field}  "day_plans": [
     {{
       "day": 1,
       "city": "which city this day belongs to — MUST match a circuit_legs city",
@@ -722,7 +811,7 @@ Return ONLY valid JSON, no markdown, in this EXACT structure:
       "type": "Hotel / Resort / Homestay",
       "area": "specific area in destination",
       "why": "why suits this tier and trip type",
-      "price_range": "₹X,XXX - ₹X,XXX per night",
+      "price_range": "₹X,XXX - ₹X,XXX per night (per ROOM, not per person — {rooms_estimate} room{'s' if rooms_estimate != 1 else ''} needed for {travelers} people)",
       "rating": "4.2",
       "highlight": "one standout feature"
     }}
@@ -760,12 +849,12 @@ Return ONLY valid JSON, no markdown, in this EXACT structure:
   "local_tips": ["tip1", "tip2", "tip3", "tip4", "tip5"],
   "permit_info": ["permit if required, else null"],
   "cost_breakdown": {{
-    "transport": "₹X,XXX",
-    "accommodation": "₹X,XXX ({days} nights)",
-    "food": "₹X,XXX ({days} days)",
-    "activities": "₹X,XXX",
+    "transport": "₹X,XXX (total for all {travelers} people, or total for the vehicle if chartered)",
+    "accommodation": "₹X,XXX ({days} nights × {rooms_estimate} room{'s' if rooms_estimate != 1 else ''}, NOT × {travelers} people — rooms are shared)",
+    "food": "₹X,XXX ({days} days × {travelers} people)",
+    "activities": "₹X,XXX (total for all {travelers} people)",
     "miscellaneous": "₹X,XXX",
-    "total": "₹X,XXX"
+    "total": "₹X,XXX — every component above already totalled for the full group, so this is just their sum, not multiplied again"
   }},
   "alternatives": [
     {{"name": "Alternative destination 1", "reason": "why similar for {days} days", "estimated_budget": "₹{budget:,}", "highlight": "unique experience"}},
@@ -784,6 +873,8 @@ PLACES_TO_VISIT RULES:
 - places_to_visit array MUST have MORE entries than total day_plans activities combined
 
 DAY COUNT RULE: {day_count_rule}
+
+GROUP SIZE RULE: {travelers_rule} {"This is a LARGE GROUP (" + str(LARGE_GROUP_THRESHOLD) + "+ people) — use the Charter Vehicle transport option, populate group_logistics, and make sure accommodation/food/activities costs in cost_breakdown are genuinely computed for the full group, not for one or two people." if is_large_group else "Keep accommodation to standard per-room pricing and cost_breakdown food/activities scaled to " + str(travelers) + " people — no charter vehicle or group_logistics needed at this size."}
 
 BUDGET UTILIZATION RULE: {budget_rule}
 
@@ -821,7 +912,8 @@ Current weather at destination:
         if is_circuit else ""
     )
 
-    schema_block = build_output_schema_block(req.days, req.budget, req.plan_tier.value, is_circuit=is_circuit)
+    travelers = estimate_travelers(getattr(req, "travelers", None), req.trip_type)
+    schema_block = build_output_schema_block(req.days, req.budget, req.plan_tier.value, is_circuit=is_circuit, travelers=travelers)
 
     return f"""You are Tripzio's AI travel expert specializing ONLY in Indian travel.
 CRITICAL: If the destination is outside India (e.g. London, Dubai, Singapore, USA, Europe), you MUST return: {{"error": "INTERNATIONAL_DESTINATION", "message": "Only Indian destinations supported"}}
@@ -833,7 +925,8 @@ TRIP DETAILS:
 - Traveler from: {req.from_city}
 - Destination: {destination}
 - Duration: {req.days} days {date_str}
-- Total budget: Rs {req.budget}
+- Total budget: Rs {req.budget} (TOTAL for the whole group, not per person)
+- Travelers: {travelers} people
 - Trip type: {trip_type_str}
 - Experience tier: {req.plan_tier.value.upper()} — {tier['vibe']}
 - Transport preference: {TRANSPORT_DESCRIPTIONS.get(req.transport_mode.value, 'balanced')}
@@ -891,11 +984,14 @@ async def call_openai(prompt: str) -> dict:
         if _day_match: _prompt_days = int(_day_match.group(1))
     except Exception:
         pass
-    # +3000 flat overhead for the fixed-size sections added on top of the old
+    # +6000 flat overhead for the fixed-size sections added on top of the old
     # schema (safety_info, cultural_etiquette, concierge_notes, circuit_legs,
-    # local_transport) — without this, responses started getting truncated
-    # and silently eating an extra retry round-trip on every generation.
-    _max_tokens = min(24000, max(10000, _prompt_days * 1200 + 3000))
+    # local_transport, group_logistics). The +3000 first tried here wasn't
+    # enough once large-group (group_logistics) and higher-tier (bigger
+    # concierge_notes) content combine — a real 2-day/12-traveler/diamond
+    # request truncated even on the retry-at-24000 fallback below. Floor
+    # raised too since short trips have the same fixed overhead as long ones.
+    _max_tokens = min(28000, max(14000, _prompt_days * 1200 + 6000))
 
     async with httpx.AsyncClient(timeout=float(os.getenv("AI_TIMEOUT", "300"))) as client:
         async with client.stream(
@@ -962,7 +1058,7 @@ async def call_openai(prompt: str) -> dict:
         return json.loads(content)
     except json.JSONDecodeError:
         # JSON truncated — retry with more tokens automatically
-        logger.warning(f"JSON truncated at {len(content)} chars — retrying with 16000 tokens")
+        logger.warning(f"JSON truncated at {len(content)} chars — retrying with 32000 tokens")
         try:
             retry_chunks = []
             async with httpx.AsyncClient(timeout=float(os.getenv("AI_TIMEOUT", "300"))) as _rc:
@@ -972,7 +1068,7 @@ async def call_openai(prompt: str) -> dict:
                     headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "anthropic-beta": "prompt-caching-2024-07-31", "Content-Type": "application/json"},
                     json={
                         "model": "claude-sonnet-4-5",
-                        "max_tokens": 24000,
+                        "max_tokens": 32000,
                         "stream": True,
                         "system": [{"type": "text", "text": "You are Tripzio's expert Indian travel AI. Respond with valid JSON only.", "cache_control": {"type": "ephemeral"}}],
                         "messages": [{"role": "user", "content": prompt}]
@@ -1086,7 +1182,7 @@ async def recheck_and_correct(ai_response: dict, prompt: str, expected_days: int
     return ai_response
 
 
-def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None, train_dest_city: str = None) -> dict:
+def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None, train_dest_city: str = None, travelers: int = None) -> dict:
     """Enforce rules deterministically after AI response — runs every time."""
     if not data or not isinstance(data, dict):
         return data
@@ -1213,6 +1309,13 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
         amounts = {p: parse_amt(cb.get(p,0)) for p in parts}
         total = sum(amounts.values())
         util = (total/budget*100) if budget > 0 else 100
+        # Was data.get("people", 1) — that key is never actually set
+        # anywhere, so per_person silently used group total as if it
+        # were a single traveler's cost on every generation. Now uses
+        # the real travelers count, with data["travelers"] (whatever
+        # Sonnet itself determined/echoed back) as a fallback for
+        # callers that don't pass the param explicitly.
+        people = max(1, travelers or data.get("travelers") or 1)
 
         if util < 85:
             gap = int(budget * 0.92) - total
@@ -1221,15 +1324,36 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
             amounts["food"]          += int(gap * 0.15)
             amounts["miscellaneous"] += int(gap * 0.10)
             new_total = sum(amounts.values())
-            people = max(1, data.get("people", 1) or 1)
             for p in parts:
                 cb[p] = f"₹{amounts[p]:,}"
             cb["total"]              = f"₹{new_total:,}"
-            cb["per_person"]         = f"₹{new_total//people:,}"
             cb["budget_utilisation"] = f"{int(new_total/budget*100)}%"
             cb["savings_tip"]        = f"₹{budget-new_total:,} kept as buffer"
-            data["cost_breakdown"]   = cb
             logger.info(f"Budget corrected: {int(util)}% → {int(new_total/budget*100)}%")
+        elif util > 110:
+            # Was under-spending-only — a real 12-traveler diamond-tier test
+            # came back at 141% of budget with nothing pulling it back down.
+            # Scale every category down proportionally to ~98% of budget
+            # rather than trusting the AI to self-correct its own totals.
+            shrink = (budget * 0.98) / total if total > 0 else 1
+            for p in parts:
+                amounts[p] = max(0, int(amounts[p] * shrink))
+            new_total = sum(amounts.values())
+            for p in parts:
+                cb[p] = f"₹{amounts[p]:,}"
+            cb["total"]              = f"₹{new_total:,}"
+            cb["budget_utilisation"] = f"{int(new_total/budget*100)}%"
+            cb["over_budget_note"]   = f"Scaled down from the AI's initial ₹{total:,} estimate to fit your ₹{budget:,} budget — consider a higher tier or fewer travelers if you want the original scope."
+            logger.info(f"Over-budget corrected: {int(util)}% → {int(new_total/budget*100)}%")
+        else:
+            cb["budget_utilisation"] = f"{int(util)}%"
+
+        # per_person is worth having regardless of whether a budget
+        # correction fired above — this is the number an agent actually
+        # quotes a client, not just a nice-to-have on the low-utilisation path.
+        final_total = parse_amt(cb.get("total", 0)) or total
+        cb["per_person"] = f"₹{final_total // people:,}"
+        data["cost_breakdown"] = cb
 
     # ── Fix 4: Ensure all transport modes present ─────────────
     opts = data.get("transport_options", [])
@@ -1419,6 +1543,29 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
 
     if plan_tier not in ("gold", "diamond", "platinum"):
         data["concierge_notes"] = None  # never show partial/generic concierge content below Gold
+
+    # Always land on a concrete travelers count — prefer the caller's
+    # validated value (or Custom Plan's Sonnet-determined one), never leave
+    # it missing since cost_breakdown.per_person above already depends on it.
+    final_travelers = max(1, travelers or data.get("travelers") or 1)
+    data["travelers"] = final_travelers
+    is_large_group = final_travelers >= LARGE_GROUP_THRESHOLD
+    if is_large_group:
+        gl = data.get("group_logistics") or {}
+        # rooms_needed is deterministic arithmetic from final_travelers —
+        # NEVER trust the AI's version here even if it provided one; a test
+        # caught exactly this (AI said "1 room" for a 10-person group).
+        # Textual fields below are more judgment-based, so the AI's version
+        # is kept when present.
+        rooms = max(1, -(-final_travelers // 2))
+        data["group_logistics"] = {
+            "rooms_needed": rooms,
+            "occupancy_note": gl.get("occupancy_note") or f"Based on double occupancy ({final_travelers} people ÷ 2 per room, rounded up).",
+            "vehicle_recommendation": gl.get("vehicle_recommendation") or ("Tempo Traveller (up to 14)" if final_travelers <= 14 else "Mini Bus (15+)"),
+            "booking_lead_time": gl.get("booking_lead_time") or "Book 2-3 weeks ahead in peak season — group availability runs out before price does.",
+        }
+    else:
+        data["group_logistics"] = None  # not a large group — no charter/room-count content needed
 
     return data
 
@@ -1662,6 +1809,15 @@ async def generate_itinerary_guest(
         ai_response = await call_openai(prompt)
         ai_response = await recheck_and_correct(ai_response, prompt, expected_days=req.days)
 
+        # Pre-existing gap, unrelated to this pass but found while testing
+        # it: unlike /generate, this endpoint never wrote the request's own
+        # days/budget/plan_tier/trip_type back onto the response — every
+        # guest trip's header/tier badge has been rendering blank.
+        ai_response["days"] = req.days
+        ai_response["budget"] = req.budget
+        ai_response["plan_tier"] = req.plan_tier.value if req.plan_tier else "silver"
+        ai_response["trip_type"] = req.trip_type
+
         # ── Inject weather + season warning ──────────────────
         if weather_data:
             ai_response["weather"] = {
@@ -1679,6 +1835,22 @@ async def generate_itinerary_guest(
         _sw = await get_season_warning_ai(_dest_for_season, req.start_date, _api_key_s)
         if _sw:
             ai_response["season_warning"] = _sw
+
+        # This endpoint previously skipped post_process_itinerary entirely —
+        # guests got the Haiku consistency check but none of the
+        # deterministic field-backfill safety net (day intensity/city
+        # defaults, safety_info/cultural_etiquette defaults, and now
+        # travelers/group_logistics). A guest is often someone's first
+        # impression of the product; it shouldn't be more fragile than the
+        # authenticated flow.
+        _guest_travelers = estimate_travelers(getattr(req, "travelers", None), req.trip_type)
+        ai_response = post_process_itinerary(
+            ai_response,
+            budget=req.budget or 0,
+            from_city=req.from_city or "",
+            plan_tier=req.plan_tier.value if req.plan_tier else "silver",
+            travelers=_guest_travelers,
+        )
 
         # ── Hotels for the Hotels tab — fail-open, missing city_hotels just
         # falls back to a "search on Google Maps" link on the frontend ──────
@@ -1852,7 +2024,8 @@ async def generate_itinerary(
             budget=req.budget or 0,
             from_city=req.from_city or "",
             plan_tier=req.plan_tier.value if req.plan_tier else "silver",
-            cached_trains=_cached_trains_main
+            cached_trains=_cached_trains_main,
+            travelers=estimate_travelers(getattr(req, "travelers", None), req.trip_type),
         )
         # Attach real TripAdvisor photos to accommodation
         if places_context:
@@ -2095,17 +2268,25 @@ async def generate_custom_itinerary(
         _extracted = await extract_trip_info(req.free_text, _api_key)
         _pre_days = int(_extracted.get("days") or 0)
         _pre_budget = int(_extracted.get("budget") or 0)
-        _pre_tier = (_extracted.get("plan_tier") or "").strip().lower()
+        _pre_travelers = int(_extracted.get("travelers") or 0)
+        # Deterministic Python division instead of trusting Haiku's own
+        # arithmetic — caught it getting this wrong on a real test (see
+        # tier_from_per_person_budget's docstring). Falls back to Haiku's
+        # guess only when we don't have all 3 numbers to compute it ourselves.
+        _pre_tier = tier_from_per_person_budget(_pre_budget, _pre_days, _pre_travelers) \
+            or (_extracted.get("plan_tier") or "").strip().lower()
         _pre_dest_list = [d for d in _extracted.get("destinations", []) if d]
         _is_circuit_guess = len(_pre_dest_list) > 1
         _days_certain = _pre_days > 0
         _tier_certain = _pre_tier in TIER_CONFIG
+        _travelers_certain = _pre_travelers > 0
 
         schema_block = build_output_schema_block(
             _pre_days or 1, _pre_budget, _pre_tier or "silver",
             is_circuit=_is_circuit_guess,
             days_certain=_days_certain, tier_certain=_tier_certain,
             include_parse_fields=True,
+            travelers=_pre_travelers or 2, travelers_certain=_travelers_certain,
         )
 
         prompt = f"""You are Tripzio's AI travel expert for India. A user has described their dream trip in natural language. It may be in Hindi, English, or a mix.
@@ -2336,7 +2517,11 @@ Do NOT show direct source→destination if via city is specified."""
             from_city=ai_response.get("from_city", ""),
             plan_tier=ai_response.get("plan_tier", "silver"),
             cached_trains=_cached_trains_for_post,
-            train_dest_city=_train_dest_for_post
+            train_dest_city=_train_dest_for_post,
+            # Sonnet's own returned "travelers" (it was asked to determine
+            # and echo it back) takes priority over the earlier Haiku
+            # pre-parse guess — Sonnet had the full request in context.
+            travelers=estimate_travelers(ai_response.get("travelers") or _pre_travelers, ai_response.get("trip_type")),
         )
 
         # Store per-city hotels in response — each city gets its own list.

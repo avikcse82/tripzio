@@ -38,6 +38,7 @@ export default function GuestDashboard() {
   const [days,       setDays]       = useState('')
   const [budget,     setBudget]     = useState('')
   const [tripType,   setTripType]   = useState('')
+  const [travelers,  setTravelers]  = useState('')
   const [generating, setGenerating] = useState(false)
   const [genStep,    setGenStep]    = useState(0)
   const [errors,     setErrors]     = useState({})
@@ -77,6 +78,7 @@ export default function GuestDashboard() {
           transport_mode: 'balanced',
           start_date:     null,
           is_flexible:    false,
+          travelers:      travelers ? parseInt(travelers) : null,
         }),
       })
 
@@ -302,6 +304,18 @@ export default function GuestDashboard() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Travelers */}
+          <div style={{ marginBottom: '28px' }}>
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Travelers <span style={{ color: '#94a3b8', fontWeight: '400', textTransform: 'none' }}>(optional)</span>
+            </label>
+            <input type="number" min="1" max="50" placeholder="e.g. 2"
+              value={travelers}
+              disabled={generating}
+              onChange={e => setTravelers(e.target.value)}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontFamily: 'inherit' }} />
           </div>
 
           {/* Generate button */}

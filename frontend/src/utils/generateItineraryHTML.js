@@ -381,6 +381,29 @@ function buildConciergeNotes(notes, tierLabel) {
   </div>`
 }
 
+// ── Group logistics — rooms/vehicle/lead-time, only present when
+// post_process_itinerary determined this is a large-group trip (6+
+// travelers). Mirrors the web result page's Cost Breakdown tab card.
+function buildGroupLogistics(logistics, travelers) {
+  if (!logistics) return ''
+  return `
+  <div class="rounded-2xl p-6" style="background:#fff7ed;border:1.5px solid #fdba74;">
+    <h3 class="font-semibold text-base mb-4">🚌 Group Logistics — ${travelers} travelers</h3>
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide mb-1" style="color:#c2410c;">Rooms needed</div>
+        <div class="text-lg font-bold text-slate-900">${h(logistics.rooms_needed)}</div>
+      </div>
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide mb-1" style="color:#c2410c;">Recommended vehicle</div>
+        <div class="text-sm font-bold text-slate-900">${h(logistics.vehicle_recommendation)}</div>
+      </div>
+    </div>
+    <p class="text-sm leading-relaxed mb-1" style="color:#7c2d12;">${h(logistics.occupancy_note)}</p>
+    <p class="text-sm font-semibold leading-relaxed" style="color:#7c2d12;">⏱ ${h(logistics.booking_lead_time)}</p>
+  </div>`
+}
+
 // ── Mode-specific icon/color + booking button(s) for a transport option.
 // Same provider set as the live web result page's Transport tab: RedBus (direct,
 // unmonetized — no working affiliate link yet) for buses, Google Maps search for
@@ -732,6 +755,7 @@ ${Object.keys(cb).length ? `
           <p class="text-white/50 text-sm mb-8">Estimated for ${data.days || ''} days</p>
           <div class="space-y-4 mb-8">
             ${perDay ? `<div class="flex justify-between text-sm"><span class="text-white/60">Per Day Average</span><span class="font-medium">${h(perDay)}</span></div><div class="border-t border-white/10"></div>` : ''}
+            ${cb.per_person ? `<div class="flex justify-between text-sm"><span class="text-white/60">Per Person${data.travelers ? ` (of ${data.travelers})` : ''}</span><span class="font-medium">${h(cb.per_person)}</span></div><div class="border-t border-white/10"></div>` : ''}
             ${budget ? `<div class="flex justify-between text-sm"><span class="text-white/60">Budget Allocated</span><span class="font-medium">${h(budget)}</span></div><div class="border-t border-white/10"></div>` : ''}
             ${savings ? `<div class="flex justify-between text-sm"><span class="text-white/60">Savings</span><span class="font-medium text-green-400">${h(savings)}</span></div>` : ''}
           </div>
@@ -773,6 +797,14 @@ ${data.concierge_notes?.length ? `
 <section class="py-16 bg-white">
   <div class="max-w-3xl mx-auto px-6">
     ${buildConciergeNotes(data.concierge_notes, tierLabel)}
+  </div>
+</section>` : ''}
+
+<!-- Group Logistics — 6+ travelers -->
+${data.group_logistics ? `
+<section class="py-16 bg-white">
+  <div class="max-w-3xl mx-auto px-6">
+    ${buildGroupLogistics(data.group_logistics, data.travelers)}
   </div>
 </section>` : ''}
 

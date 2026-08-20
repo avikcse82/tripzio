@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
@@ -86,6 +86,11 @@ class ItineraryRequest(BaseModel):
     start_date: Optional[str] = None
     is_flexible: bool = False
     must_include: Optional[str] = None  # comma-separated places user must visit
+    # None = not specified, falls back to a trip_type-based estimate (see
+    # estimate_travelers() in routers/itinerary.py). Capped at 50 — beyond a
+    # single coach's capacity this stops being itinerary planning and
+    # becomes event logistics, out of scope for what this endpoint does.
+    travelers: Optional[int] = Field(None, ge=1, le=50)
 
 
 class AgentItineraryRequest(BaseModel):
@@ -102,6 +107,7 @@ class AgentItineraryRequest(BaseModel):
     start_date: Optional[str] = None
     special_requirements: Optional[str] = None
     must_include: Optional[str] = None  # comma-separated places user must visit
+    travelers: Optional[int] = Field(None, ge=1, le=50)
 
 
 # ── Itinerary Response schemas ────────────────

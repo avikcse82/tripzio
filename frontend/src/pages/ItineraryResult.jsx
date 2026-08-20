@@ -12,7 +12,7 @@ import {
   Utensils, ShoppingBag, Camera, Compass, Tag,
   CheckCircle, Info, TrendingUp, Star, Navigation,
   ExternalLink, Zap, Heart, Share2, Route, Building2
-, Mail } from 'lucide-react'
+, Mail, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateTripPDF } from '../utils/generateItineraryHTML'
 import { payToUnlockTrip } from '../utils/razorpay'
@@ -1323,6 +1323,7 @@ export default function ItineraryResult() {
               { icon: <Clock size={14} />, label: 'Duration', value: `${data.days} days` },
               { icon: <TrendingUp size={14} />, label: 'Budget', value: `₹${data.budget?.toLocaleString('en-IN')}` },
               { icon: <Tag size={14} />, label: 'Trip Type', value: data.trip_type || 'Any' },
+              data.travelers ? { icon: <Users size={14} />, label: 'Travelers', value: `${data.travelers} ${data.travelers === 1 ? 'person' : 'people'}` } : null,
               circuit ? { icon: <Route size={14} />, label: 'Cities', value: `${cities.length} destinations` } : null,
             ].filter(Boolean).map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2562,6 +2563,12 @@ export default function ItineraryResult() {
                             <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px' }}>Budget used</div>
                             <div style={{ fontSize: '22px', fontWeight: '800', color: isOver ? '#DC2626' : '#0D9488', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{utilizationPct}%</div>
                           </div>
+                          {effectiveCostBreakdown?.per_person && (
+                            <div style={{ background: 'white', border: '1px solid #E7E3D8', borderRadius: '14px', padding: '14px 20px', textAlign: 'center' }}>
+                              <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px' }}>Per person{data.travelers ? ` (of ${data.travelers})` : ''}</div>
+                              <div style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{effectiveCostBreakdown.per_person}</div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -2603,6 +2610,26 @@ export default function ItineraryResult() {
                     </div>
                   )
                 })()}
+
+                {data.group_logistics && (
+                  <div style={{ marginTop: '20px', background: '#fff7ed', border: '1.5px solid #fdba74', borderRadius: '16px', padding: '20px 24px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🚌 Group Logistics — {data.travelers} travelers
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '14px', marginBottom: '14px' }}>
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#c2410c', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Rooms needed</div>
+                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{data.group_logistics.rooms_needed}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#c2410c', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Recommended vehicle</div>
+                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{data.group_logistics.vehicle_recommendation}</div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '12.5px', color: '#7c2d12', lineHeight: 1.6, margin: '0 0 6px' }}>{data.group_logistics.occupancy_note}</p>
+                    <p style={{ fontSize: '12.5px', color: '#7c2d12', lineHeight: 1.6, margin: 0, fontWeight: '600' }}>⏱ {data.group_logistics.booking_lead_time}</p>
+                  </div>
+                )}
               </div>
             )}
 

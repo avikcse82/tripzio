@@ -118,9 +118,26 @@ const addDays = (dateStr, days) => {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-const getSuggestedTier = (budget, days) => {
+// Mirrors backend's TRIP_TYPE_DEFAULT_TRAVELERS (routers/itinerary.py) —
+// same fallback logic on both sides so the tier suggested here matches
+// what the backend will actually price the trip at.
+const TRIP_TYPE_DEFAULT_TRAVELERS = {
+  solo: 1, couple: 2, honeymoon: 2, family: 4, friends: 4, group: 6, adventure: 2,
+}
+const estimateTravelers = (explicit, tripType) => {
+  const n = parseInt(explicit)
+  if (n > 0) return Math.max(1, Math.min(50, n))
+  return TRIP_TYPE_DEFAULT_TRAVELERS[String(tripType || '').toLowerCase()] || 2
+}
+
+// Per-person-per-day is the only version of this number that means
+// anything — a family of 4 sharing ₹6,000/day is a different tier than a
+// solo traveller spending ₹6,000/day alone, but both used to be classified
+// identically since travelers wasn't part of the formula at all.
+const getSuggestedTier = (budget, days, travelers, tripType) => {
   if (!budget || !days) return null
-  const pd = parseInt(budget) / parseInt(days)
+  const people = estimateTravelers(travelers, tripType)
+  const pd = parseInt(budget) / parseInt(days) / people
   if (pd < 1500) return 'bronze'
   if (pd < 3000) return 'silver'
   if (pd < 6000) return 'gold'
@@ -225,6 +242,7 @@ export default function UserDashboard() {
   const [budget, setBudget] = useState('')
   const [startDate, setStartDate] = useState('')
   const [tripType, setTripType] = useState('')
+  const [travelers, setTravelers] = useState('')
   const [destinationMode, setDestinationMode] = useState('suggest')
   const [selectedDestination, setSelectedDestination] = useState('')
   const [intlWarning, setIntlWarning] = useState(false)
@@ -283,7 +301,7 @@ export default function UserDashboard() {
   ]
   const [selectedDest, setSelectedDest] = useState(null)
 
-  const suggestedTier = getSuggestedTier(budget, days)
+  const suggestedTier = getSuggestedTier(budget, days, travelers, tripType)
   useEffect(() => {
     if (suggestedTier && !selectedTier) setSelectedTier(suggestedTier)
   }, [suggestedTier])
@@ -400,6 +418,7 @@ export default function UserDashboard() {
         start_date: startDate || null,
         is_flexible: isFlexible,
         must_include: mustIncludeString || null,
+        travelers: travelers ? parseInt(travelers) : null,
       }
 
       if (destinationMode === 'specific' && selectedDestination) {
@@ -1540,6 +1559,19 @@ export default function UserDashboard() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '7px' }}>
+                      Travelers <span style={{ fontWeight: '400', color: '#94a3b8' }}>(optional)</span>
+                    </label>
+                    <input type="number" min="1" max="50"
+                      placeholder={`${estimateTravelers(null, tripType)} (default for ${tripType || 'this trip'})`}
+                      value={travelers}
+                      onChange={e => setTravelers(e.target.value)}
+                      style={inputBase(false)} />
+                    <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                      Planning for {travelers ? Math.min(50, Math.max(1, parseInt(travelers) || 1)) : estimateTravelers(null, tripType)}+ people? We'll suggest group transport & room counts.
+                    </p>
                   </div>
                 </div>
 
