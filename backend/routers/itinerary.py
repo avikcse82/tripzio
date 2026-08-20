@@ -968,6 +968,58 @@ IMPORTANT: If any of the above are NOT geographically possible for this destinat
 Only include places that are actually near {req.destination or req.from_city}.''' if getattr(req, 'must_include', None) else ''}"""
 
 
+def build_edit_prompt(current_itinerary: dict, edit_request: str, plan_tier: str, travelers: int, is_circuit: bool = False) -> str:
+    """Scoped-edit prompt — 'change one thing' rather than 'generate a new
+    trip'. Deliberately full-JSON-in/full-JSON-out (not a sparse patch):
+    getting an LLM to reliably return ONLY the changed keys at arbitrary
+    nesting depth is meaningfully less reliable than asking it to return
+    the whole document with one instructed change, and this way the
+    response reuses every existing consumer (result page, PDF, post_process)
+    with zero new parsing code. The actual scoping is enforced entirely by
+    instruction, backed up by compute_itinerary_drift() logging afterward
+    so drift is visible rather than silent — see that function's docstring."""
+    days = current_itinerary.get("days") or len(current_itinerary.get("day_plans", [])) or 1
+    budget = current_itinerary.get("budget") or 0
+    schema_block = build_output_schema_block(days, budget, plan_tier, is_circuit=is_circuit, travelers=travelers)
+
+    return f"""You are Tripzio's AI travel expert. A traveller already has the itinerary below and wants exactly ONE change made to it — not a new trip, not a general refresh.
+
+CURRENT ITINERARY (verbatim — this is the source of truth for everything you don't touch):
+{json.dumps(current_itinerary, ensure_ascii=False)}
+
+THE TRAVELLER'S REQUESTED CHANGE:
+"{edit_request}"
+
+YOUR TASK:
+Apply ONLY this specific change. Return the COMPLETE itinerary JSON in the schema below. Every field NOT related to this change must come back EXACTLY as given above — same wording, same numbers, same day count, same order. Do not rephrase, polish, reorganize, or "improve" anything you were not asked to change. Do not add extra suggestions beyond what was requested.
+{schema_block}
+
+EDIT-SPECIFIC RULES:
+- If the change affects cost (swapping a hotel, adding a paid activity), update cost_breakdown's affected line items and recompute total/per_person — but leave unrelated cost lines untouched.
+- If the change affects one specific day, only that day's fields should differ from the input — every other day_plans entry must be identical to the input.
+- If the change is genuinely impossible for this destination (e.g. asking for skiing in Goa), leave the itinerary unchanged and explain why in a new top-level "edit_note" field instead of forcing it in."""
+
+
+def compute_itinerary_drift(original: dict, edited: dict) -> list:
+    """Coarse 'what actually changed' log, not a validation gate — we can't
+    know ahead of time which fields SHOULD change for an arbitrary free-text
+    edit request, so this can't reject bad edits on its own. What it gives
+    us is observability: if scoped edits are drifting far more than
+    requested in practice, this is how we'd find out before deciding
+    whether the deferred diff-preview UI is actually needed."""
+    changed = []
+    orig_days = {d.get("day"): d for d in (original.get("day_plans") or [])}
+    edit_days = {d.get("day"): d for d in (edited.get("day_plans") or [])}
+    for day_num, orig_day in orig_days.items():
+        if edit_days.get(day_num) != orig_day:
+            changed.append(f"day {day_num}")
+    for key in ["accommodation", "transport_options", "places_to_visit", "things_to_do",
+                "safety_info", "cultural_etiquette", "cost_breakdown", "circuit_legs"]:
+        if original.get(key) != edited.get(key):
+            changed.append(key)
+    return changed
+
+
 async def call_openai(prompt: str) -> dict:
     """Call Claude Sonnet with streaming — fast, no timeout"""
     import os
@@ -1110,23 +1162,35 @@ async def verify_itinerary_consistency(ai_response: dict, expected_days: int, ap
     """
     try:
         day_plans = ai_response.get("day_plans", []) or []
+        cb = ai_response.get("cost_breakdown", {}) or {}
         summary = {
             "expected_days": expected_days,
             "actual_day_plans_count": len(day_plans),
             "day_cities": [d.get("city", "") for d in day_plans],
             "is_circuit": ai_response.get("is_circuit"),
             "circuit_legs": ai_response.get("circuit_legs", []),
-            "cost_breakdown": ai_response.get("cost_breakdown", {}),
+            # Only the 5 raw components + total — deliberately NOT sending
+            # budget_utilisation/per_person/savings_tip. A previous version
+            # sent the whole cost_breakdown and the model started grading
+            # the utilisation percentage itself (flagging 103% as "wrong"
+            # when over-100% is a normal, expected state that a later
+            # deterministic step corrects) — giving it less to look at
+            # removed the temptation to comment on things outside scope.
+            "cost_components": {k: cb.get(k) for k in ["transport", "accommodation", "food", "activities", "miscellaneous", "total"]},
         }
-        prompt = f"""Check this generated travel itinerary's metadata for structural consistency ONLY (not creative quality). Return ONLY JSON.
+        prompt = f"""Check this generated travel itinerary's metadata for structural consistency ONLY (not creative quality, not business logic, not whether numbers are "good"). Return ONLY JSON.
 
 DATA:
 {json.dumps(summary, ensure_ascii=False)}
 
-Checks:
+You may ONLY flag these three specific things — nothing else, no matter what else you notice:
 1. Does actual_day_plans_count exactly equal expected_days?
 2. If is_circuit is true: do circuit_legs' "days" values sum to expected_days, and does every entry in day_cities match one of circuit_legs' city names?
-3. Does cost_breakdown.total roughly equal transport+accommodation+food+activities+miscellaneous added together (within ~10%)?
+3. Does cost_components.total roughly equal transport+accommodation+food+activities+miscellaneous added together (within ~10%)?
+
+Explicitly NOT your job, do not comment on these even if they look unusual:
+- circuit_legs having exactly one entry when is_circuit is false — that is the correct, intentional shape for a single-destination trip, not an inconsistency.
+- Whether the total is high, low, over, or under any budget — you have no budget figure here and were not asked to judge spending, only whether the 5 components sum to the stated total.
 
 Return exactly: {{"ok": true_or_false, "issues": ["short specific description of each problem found — empty array if none"]}}"""
 
@@ -2193,6 +2257,89 @@ async def get_client_trip_history(
     except Exception as e:
         logger.error(f"Client trip history error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── SCOPED EDIT — "change one thing" without regenerating the whole trip ──
+class ItineraryEditRequest(BaseModel):
+    itinerary: dict
+    edit_request: str
+    trip_id: Optional[str] = None  # if given and the trip's a draft, persist the edit
+
+
+class ItineraryRevertRequest(BaseModel):
+    itinerary: dict
+    trip_id: str
+
+
+@router.post("/edit")
+async def edit_itinerary(
+    req: ItineraryEditRequest,
+    current_user: dict = Depends(get_current_user_from_token)
+):
+    if len(req.edit_request.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Please describe what you'd like to change")
+
+    plan_tier = (req.itinerary.get("plan_tier") or "silver").lower()
+    travelers = estimate_travelers(req.itinerary.get("travelers"), req.itinerary.get("trip_type"))
+    is_circuit = bool(req.itinerary.get("is_circuit"))
+
+    # These are attached to the itinerary AFTER generation by separate calls
+    # (SerpAPI, weather service) — never part of build_output_schema_block's
+    # schema, so the AI has no real instructions for them. Sending them
+    # through the edit round-trip only bloats the prompt (city_hotels alone
+    # ran ~15-20KB in testing) and risks the AI subtly altering real hotel
+    # data it was never meant to touch. Strip before the prompt, reattach
+    # the ORIGINAL values untouched afterward.
+    PASSTHROUGH_FIELDS = ["city_hotels", "tripadvisor_places", "weather", "season_warning"]
+    itinerary_for_prompt = {k: v for k, v in req.itinerary.items() if k not in PASSTHROUGH_FIELDS}
+
+    prompt = build_edit_prompt(itinerary_for_prompt, req.edit_request, plan_tier, travelers, is_circuit=is_circuit)
+    edited = await call_openai(prompt)
+    edited = await recheck_and_correct(edited, prompt, expected_days=req.itinerary.get("days"))
+    edited = post_process_itinerary(
+        edited,
+        budget=req.itinerary.get("budget", 0),
+        from_city=req.itinerary.get("from_city", ""),
+        plan_tier=plan_tier,
+        travelers=travelers,
+    )
+
+    # Carry forward identity + passthrough fields the edit prompt was never
+    # asked to touch (and, for the passthrough fields, never even saw).
+    edited["trip_id"] = req.itinerary.get("trip_id") or req.trip_id
+    edited["generated_at"] = req.itinerary.get("generated_at")
+    for field in PASSTHROUGH_FIELDS:
+        if field in req.itinerary:
+            edited[field] = req.itinerary[field]
+
+    drift = compute_itinerary_drift(req.itinerary, edited)
+    logger.info(f"Edit applied ('{req.edit_request[:60]}'): changed fields = {drift}")
+
+    if req.trip_id:
+        try:
+            from database import update_trip
+            update_trip(req.trip_id, str(current_user["id"]), {"itinerary": edited})
+        except Exception as e:
+            logger.warning(f"Failed to persist edit to trip {req.trip_id}: {e}")
+
+    return edited
+
+
+@router.post("/revert")
+async def revert_itinerary(
+    req: ItineraryRevertRequest,
+    current_user: dict = Depends(get_current_user_from_token)
+):
+    """Single-level undo — the frontend hands back the pre-edit itinerary
+    it already had in memory (carried through navigate() state, same
+    pattern as appliedHotels/hasDistributed elsewhere in the result page).
+    No AI call, no version history — just persists the reverted JSON."""
+    try:
+        from database import update_trip
+        update_trip(req.trip_id, str(current_user["id"]), {"itinerary": req.itinerary})
+    except Exception as e:
+        logger.warning(f"Failed to persist revert for trip {req.trip_id}: {e}")
+    return req.itinerary
 
 
 @router.post("/feedback")

@@ -284,6 +284,16 @@ export default function ItineraryResult() {
   const [finalising, setFinalising]             = useState(false)
   const [shareLoading, setShareLoading]         = useState(false)
 
+  // ── Scoped edit ("change one thing") ────────────────────────────
+  const [showEditBox, setShowEditBox]           = useState(false)
+  const [editRequest, setEditRequest]           = useState('')
+  const [editing, setEditing]                   = useState(false)
+  // Pre-edit snapshot, carried through navigate() state the same way
+  // appliedHotels/hasDistributed already are — lets "Undo last edit"
+  // restore it without needing any backend version history.
+  const [previousItinerary, setPreviousItinerary] = useState(() => location.state?.previousItinerary || null)
+  const [reverting, setReverting]               = useState(false)
+
   // ── Tracks the freshest itinerary object so PDF/export reads it even
   // if location.state hasn't finished propagating the post-navigate() data yet
   const latestItineraryRef = useRef(data)
@@ -833,6 +843,62 @@ export default function ItineraryResult() {
     })
   }
 
+  // ── Scoped edit — "change one thing" without regenerating the trip ──
+  const handleEditSubmit = async () => {
+    if (editRequest.trim().length < 3) {
+      toast.error('Describe what you\'d like to change')
+      return
+    }
+    setEditing(true)
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      const res = await fetch(`${API_URL}/itinerary/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ itinerary: data, edit_request: editRequest.trim(), trip_id: data.trip_id || null }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result?.detail || 'Could not apply that change')
+
+      const beforeEdit = data
+      setEditRequest('')
+      setShowEditBox(false)
+      toast.success(result.edit_note ? `Note: ${result.edit_note}` : 'Plan updated! ✏️', { duration: 5000 })
+      navigate('/itinerary/result', {
+        state: { itinerary: result, isGuest: location.state?.isGuest, appliedHotels, hasDistributed, previousItinerary: beforeEdit },
+        replace: true,
+      })
+    } catch (e) {
+      toast.error(e.message || 'Could not apply that change. Please try again.')
+    } finally {
+      setEditing(false)
+    }
+  }
+
+  const handleUndo = async () => {
+    if (!previousItinerary) return
+    setReverting(true)
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      if (data.trip_id) {
+        await fetch(`${API_URL}/itinerary/revert`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ itinerary: previousItinerary, trip_id: data.trip_id }),
+        })
+      }
+      toast.success('Reverted to the previous version')
+      navigate('/itinerary/result', {
+        state: { itinerary: previousItinerary, isGuest: location.state?.isGuest, appliedHotels, hasDistributed, previousItinerary: null },
+        replace: true,
+      })
+    } catch (e) {
+      toast.error('Could not undo — please try again')
+    } finally {
+      setReverting(false)
+    }
+  }
+
   const handleFinalise = () => {
     if (Object.keys(selectedHotels).length === 0) return
     setFinalising(true)
@@ -1339,9 +1405,41 @@ export default function ItineraryResult() {
                     style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#0F172A', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                     <Download size={15} /> Download
                   </button>
+                  {!readOnly && (
+                    <button className="action-btn" onClick={() => setShowEditBox(v => !v)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: showEditBox ? '#f5f3ff' : 'white', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+                      ✏️ Edit this Plan
+                    </button>
+                  )}
+                  {!readOnly && previousItinerary && (
+                    <button className="action-btn" onClick={handleUndo} disabled={reverting}
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px', background: 'white', color: '#64748b', border: '1px solid #E7E3D8', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: reverting ? 'not-allowed' : 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+                      ↩ {reverting ? 'Undoing...' : 'Undo last edit'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
+
+            {/* Scoped edit box — "change one thing" without regenerating the trip */}
+            {showEditBox && !readOnly && (
+              <div style={{ width: '100%', marginTop: '4px', padding: '16px 18px', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: '#5b21b6' }}>
+                  What would you like to change? Everything else stays as-is.
+                </label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <input type="text" value={editRequest} disabled={editing}
+                    onChange={(e) => setEditRequest(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !editing) handleEditSubmit() }}
+                    placeholder="e.g. add a spa evening on day 2, or swap the day 3 hotel for something cheaper"
+                    style={{ flex: 1, minWidth: '260px', padding: '10px 14px', borderRadius: '10px', border: '1px solid #ddd6fe', fontSize: '13px', fontFamily: 'Inter, sans-serif' }} />
+                  <button onClick={handleEditSubmit} disabled={editing}
+                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#7c3aed', color: 'white', fontSize: '13px', fontWeight: '700', cursor: editing ? 'not-allowed' : 'pointer', opacity: editing ? 0.7 : 1 }}>
+                    {editing ? 'Applying...' : 'Apply Change'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Destination polaroid photos — fill the empty space, looked up by trip's actual cities/destination */}
             <div style={{ display: 'flex', gap: '10px' }}>
