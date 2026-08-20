@@ -90,7 +90,7 @@ const hotelsSignature = (hotels) =>
 // ── Shared train card — used in BOTH circuit and single-destination
 // views. Single source of truth so the availability button (or any
 // future train-card change) only ever needs to be added ONE place.
-function TrainCard({ opt, isExpanded, onToggle, colorIndex = 0, colors, bgs, borders, icons }) {
+function TrainCard({ opt, isExpanded, onToggle, colorIndex = 0, colors, bgs, borders, icons, fromCity, toCity }) {
   return (
     <div className="transport-card"
       style={{ background: 'white', border: `1.5px solid ${isExpanded ? colors[colorIndex % 3] : '#e2e8f0'}`, borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.2s ease' }}
@@ -135,6 +135,53 @@ function TrainCard({ opt, isExpanded, onToggle, colorIndex = 0, colors, bgs, bor
                 🚂 Check Live Seat Availability →
               </a>
             )}
+            {(() => {
+              // This is the card that actually renders for single-destination
+              // trips (the common case) — the flight/bus/cab affiliate
+              // buttons below only ever got wired into a separate
+              // circuit-only rendering path, so they've never shown up here.
+              // Independent checks (not if/else-if): a combined mode like
+              // "Flight to Chandigarh + Taxi" contains both "flight" and
+              // "taxi" and genuinely needs both buttons.
+              const modeL = ((opt.mode || '') + ' ' + (opt.type || '')).toLowerCase()
+              const hasFlight = modeL.includes('flight') || modeL.includes('air') || modeL.includes('plane')
+              const hasBus = modeL.includes('bus')
+              const hasCab = modeL.includes('car') || modeL.includes('cab') || modeL.includes('taxi')
+              if (!hasFlight && !hasBus && !hasCab) return null
+              const btnStyle = (color) => ({ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '8px', marginRight: '6px', padding: '6px 11px', background: color, color: 'white', borderRadius: '8px', fontSize: '11px', fontWeight: '700', textDecoration: 'none' })
+              return (
+                <div>
+                  {hasFlight && (
+                    <>
+                      <a href={AIRINDIA_TRACKED_URL} target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => { e.stopPropagation(); Analytics.affiliateLinkClicked('air-india', toCity) }}
+                        style={btnStyle('#c1272d')}>
+                        ✈️ Air India →
+                      </a>
+                      <a href={INDIGO_TRACKED_URL} target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => { e.stopPropagation(); Analytics.affiliateLinkClicked('indigo', toCity) }}
+                        style={btnStyle('#00285e')}>
+                        ✈️ IndiGo →
+                      </a>
+                    </>
+                  )}
+                  {hasBus && (
+                    <a href={redBusRouteUrl(fromCity, toCity)} target="_blank" rel="noopener noreferrer"
+                      onClick={(e) => { e.stopPropagation(); Analytics.transportLinkClicked('bus', 'redbus', toCity) }}
+                      style={btnStyle('#d1373f')}>
+                      🚌 Book on RedBus →
+                    </a>
+                  )}
+                  {hasCab && (
+                    <a href={cabSearchUrl(fromCity, toCity)} target="_blank" rel="noopener noreferrer"
+                      onClick={(e) => { e.stopPropagation(); Analytics.transportLinkClicked('cab', 'google-maps', toCity) }}
+                      style={btnStyle('#0f172a')}>
+                      🚕 Find a Cab →
+                    </a>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
@@ -2106,41 +2153,47 @@ export default function ItineraryResult() {
                                         const fromCity = data.from_city || ''
                                         const toCity = cities[0] || data.destination || ''
                                         const btnStyle = (color) => ({ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '2px', marginRight: '6px', padding: '6px 11px', background: color, color: 'white', borderRadius: '8px', fontSize: '11px', fontWeight: '700', textDecoration: 'none' })
-                                        if (modeL.includes('bus')) {
-                                          return (
-                                            <a href={redBusRouteUrl(fromCity, toCity)} target="_blank" rel="noopener noreferrer"
-                                              onClick={(e) => { e.stopPropagation(); Analytics.transportLinkClicked('bus', 'redbus', toCity) }}
-                                              style={{ ...btnStyle('#d1373f'), marginTop: '4px' }}>
-                                              🚌 Book on RedBus →
-                                            </a>
-                                          )
-                                        }
-                                        if (modeL.includes('car') || modeL.includes('cab') || modeL.includes('taxi')) {
-                                          return (
-                                            <a href={cabSearchUrl(fromCity, toCity)} target="_blank" rel="noopener noreferrer"
-                                              onClick={(e) => { e.stopPropagation(); Analytics.transportLinkClicked('cab', 'google-maps', toCity) }}
-                                              style={{ ...btnStyle('#0f172a'), marginTop: '4px' }}>
-                                              🚕 Find a Cab →
-                                            </a>
-                                          )
-                                        }
-                                        if (modeL.includes('flight') || modeL.includes('air') || modeL.includes('plane')) {
-                                          return (
-                                            <div style={{ marginTop: '4px' }}>
-                                              <a href={AIRINDIA_TRACKED_URL} target="_blank" rel="noopener noreferrer"
-                                                onClick={(e) => { e.stopPropagation(); Analytics.affiliateLinkClicked('air-india', toCity) }}
-                                                style={btnStyle('#c1272d')}>
-                                                ✈️ Air India →
+                                        // Independent checks, not if/else-if — a combined mode like
+                                        // "Flight to Chandigarh + Taxi" contains BOTH "flight" and
+                                        // "taxi", and genuinely needs both booking buttons (book the
+                                        // flight, separately arrange the taxi leg), not whichever
+                                        // keyword happened to be checked first.
+                                        const hasFlight = modeL.includes('flight') || modeL.includes('air') || modeL.includes('plane')
+                                        const hasBus = modeL.includes('bus')
+                                        const hasCab = modeL.includes('car') || modeL.includes('cab') || modeL.includes('taxi')
+                                        if (!hasFlight && !hasBus && !hasCab) return null
+                                        return (
+                                          <div style={{ marginTop: '4px' }}>
+                                            {hasFlight && (
+                                              <>
+                                                <a href={AIRINDIA_TRACKED_URL} target="_blank" rel="noopener noreferrer"
+                                                  onClick={(e) => { e.stopPropagation(); Analytics.affiliateLinkClicked('air-india', toCity) }}
+                                                  style={btnStyle('#c1272d')}>
+                                                  ✈️ Air India →
+                                                </a>
+                                                <a href={INDIGO_TRACKED_URL} target="_blank" rel="noopener noreferrer"
+                                                  onClick={(e) => { e.stopPropagation(); Analytics.affiliateLinkClicked('indigo', toCity) }}
+                                                  style={btnStyle('#00285e')}>
+                                                  ✈️ IndiGo →
+                                                </a>
+                                              </>
+                                            )}
+                                            {hasBus && (
+                                              <a href={redBusRouteUrl(fromCity, toCity)} target="_blank" rel="noopener noreferrer"
+                                                onClick={(e) => { e.stopPropagation(); Analytics.transportLinkClicked('bus', 'redbus', toCity) }}
+                                                style={btnStyle('#d1373f')}>
+                                                🚌 Book on RedBus →
                                               </a>
-                                              <a href={INDIGO_TRACKED_URL} target="_blank" rel="noopener noreferrer"
-                                                onClick={(e) => { e.stopPropagation(); Analytics.affiliateLinkClicked('indigo', toCity) }}
-                                                style={btnStyle('#00285e')}>
-                                                ✈️ IndiGo →
+                                            )}
+                                            {hasCab && (
+                                              <a href={cabSearchUrl(fromCity, toCity)} target="_blank" rel="noopener noreferrer"
+                                                onClick={(e) => { e.stopPropagation(); Analytics.transportLinkClicked('cab', 'google-maps', toCity) }}
+                                                style={btnStyle('#0f172a')}>
+                                                🚕 Find a Cab →
                                               </a>
-                                            </div>
-                                          )
-                                        }
-                                        return null
+                                            )}
+                                          </div>
+                                        )
                                       })()}
                                     </div>
                                   </div>
@@ -2262,7 +2315,8 @@ export default function ItineraryResult() {
                         <TrainCard key={i} opt={opt} isExpanded={expandedTransport === i}
                           onToggle={() => setExpandedTransport(expandedTransport === i ? -1 : i)}
                           colorIndex={i} colors={transportColors} bgs={transportBgs}
-                          borders={transportBorders} icons={transportIcons} />
+                          borders={transportBorders} icons={transportIcons}
+                          fromCity={data.from_city} toCity={data.destination} />
                       ))}
                     </div>
                     {data.local_transport && (

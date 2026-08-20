@@ -421,20 +421,21 @@ function transportModeMeta(mode) {
 
 function transportBookingButtons(mode, fromCity, toCity) {
   const m = (mode || '').toLowerCase()
-  if (m.includes('bus')) {
-    return `<a href="${h(redBusRouteUrl(fromCity, toCity))}" target="_blank" rel="noopener noreferrer" class="booking-pill mt-3" style="border-color:#d1373f;color:#d1373f">🚌 Book on RedBus</a>`
-  }
-  if (m.includes('car') || m.includes('cab') || m.includes('taxi')) {
-    return `<a href="${h(cabSearchUrl(fromCity, toCity))}" target="_blank" rel="noopener noreferrer" class="booking-pill mt-3" style="border-color:#0f172a;color:#0f172a">🚕 Find a Cab</a>`
-  }
-  if (m.includes('flight') || m.includes('air') || m.includes('plane')) {
-    return `
-      <div class="flex flex-wrap gap-2 mt-3">
-        <a href="${h(AIRINDIA_TRACKED_URL)}" target="_blank" rel="noopener noreferrer" class="booking-pill" style="border-color:#c1272d;color:#c1272d">✈️ Air India</a>
-        <a href="${h(INDIGO_TRACKED_URL)}" target="_blank" rel="noopener noreferrer" class="booking-pill" style="border-color:#00285e;color:#00285e">✈️ IndiGo</a>
-      </div>`
-  }
-  return ''
+  // Independent checks, not if/else-if — a combined mode like "Flight to
+  // Chandigarh + Taxi" contains both "flight" and "taxi" and genuinely
+  // needs both buttons (book the flight, separately arrange the taxi leg),
+  // not whichever keyword happened to be checked first.
+  const hasFlight = m.includes('flight') || m.includes('air') || m.includes('plane')
+  const hasBus = m.includes('bus')
+  const hasCab = m.includes('car') || m.includes('cab') || m.includes('taxi')
+  if (!hasFlight && !hasBus && !hasCab) return ''
+  const pills = [
+    hasFlight ? `<a href="${h(AIRINDIA_TRACKED_URL)}" target="_blank" rel="noopener noreferrer" class="booking-pill" style="border-color:#c1272d;color:#c1272d">✈️ Air India</a>` : '',
+    hasFlight ? `<a href="${h(INDIGO_TRACKED_URL)}" target="_blank" rel="noopener noreferrer" class="booking-pill" style="border-color:#00285e;color:#00285e">✈️ IndiGo</a>` : '',
+    hasBus ? `<a href="${h(redBusRouteUrl(fromCity, toCity))}" target="_blank" rel="noopener noreferrer" class="booking-pill" style="border-color:#d1373f;color:#d1373f">🚌 Book on RedBus</a>` : '',
+    hasCab ? `<a href="${h(cabSearchUrl(fromCity, toCity))}" target="_blank" rel="noopener noreferrer" class="booking-pill" style="border-color:#0f172a;color:#0f172a">🚕 Find a Cab</a>` : '',
+  ].filter(Boolean).join('')
+  return `<div class="flex flex-wrap gap-2 mt-3">${pills}</div>`
 }
 
 // ── Build transport HTML ────────────────────────────────────────
