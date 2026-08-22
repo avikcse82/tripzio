@@ -24,6 +24,8 @@ const FEATURES = [
   { icon: '💼', color: '#8b5cf6', bg: '#f5f3ff', title: 'Built for Travel Agents', desc: 'Generate 3 itinerary options in 2 minutes. White-label PDF with your agency branding. WhatsApp share in one click.' },
   { icon: '🇮🇳', color: '#ef4444', bg: '#fef2f2', title: 'India-First Intelligence', desc: 'Real Indian pricing. Budget from ₹5,000 to ₹5 lakh. Understands trains, permits, seasons, circuits, and regional festivals.' },
   { icon: '💰', color: '#22c55e', bg: '#f0fdf4', title: 'Transparent Budget', desc: 'Every plan includes a clear cost breakdown — transport, hotels, food, activities. No surprises. Plan confidently.' },
+  { icon: '🏥', color: '#6366f1', bg: '#eef2ff', title: 'Health & Safety Built In', desc: 'Every plan includes the nearest hospital, India\'s emergency helpline, and destination-specific advisories — monsoon risks, altitude warnings, and more.' },
+  { icon: '🙏', color: '#ec4899', bg: '#fdf2f8', title: 'Local Culture, Explained', desc: 'Cultural etiquette, dress codes, tipping norms, and local tips for every destination — so you never accidentally offend, overpay, or miss the unwritten rules.' },
 ]
 
 const SAMPLE_PLAN = {
@@ -664,6 +666,8 @@ export default function LandingPage() {
                 { gridColumn: 'span 2', gridRow: 'span 1' },
                 { gridColumn: 'span 2', gridRow: 'span 1' },
                 { gridColumn: 'span 2', gridRow: 'span 1' },
+                { gridColumn: 'span 3', gridRow: 'span 1' },
+                { gridColumn: 'span 3', gridRow: 'span 1' },
               ][i] || { gridColumn: 'span 2', gridRow: 'span 1' }
               const isAccent = i === 5
               return (
