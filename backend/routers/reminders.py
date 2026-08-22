@@ -11,6 +11,7 @@ import httpx
 from datetime import date, timedelta
 from fastapi import APIRouter, Header, HTTPException
 from database import get_supabase_client
+from routers.weather import get_weather
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -52,10 +53,15 @@ async def send_email(to: str, subject: str, html: str) -> bool:
 
 
 # ── Email templates ───────────────────────────────────────────────────────
-def build_reminder_email(trip: dict, user: dict, days_until: int) -> tuple[str, str]:
+def build_reminder_email(trip: dict, user: dict, days_until: int, weather_advisory: str = None) -> tuple[str, str]:
     """
     Returns (subject, html) for the reminder email.
     days_until: 7, 3, or 1
+    weather_advisory: only set on the 1-day reminder, and only when the
+    destination's current conditions look genuinely disruptive (extreme
+    heat, freezing, rain/storm, snow) — see get_weather()'s advisory field
+    in routers/weather.py. None for normal weather, so most 1-day emails
+    are completely unchanged by this.
     """
     dest = trip.get("destination", "your destination")
     trip_days = trip.get("days", "")
@@ -139,6 +145,8 @@ def build_reminder_email(trip: dict, user: dict, days_until: int) -> tuple[str, 
         </tr>
       </table>
     </div>
+
+    {'<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:16px 20px;margin-bottom:24px;"><p style="font-size:14px;color:#991b1b;margin:0;font-weight:700;">⚠️ Weather heads-up for '+dest+'</p><p style="font-size:14px;color:#7f1d1d;margin:6px 0 0;line-height:1.5;">'+(weather_advisory or '')+'. Check conditions again before you leave.</p></div>' if weather_advisory else ''}
 
     <!-- Checklist based on days -->
     <h3 style="font-size:15px;font-weight:700;color:#0f172a;margin:0 0 12px;">
@@ -241,10 +249,25 @@ async def run_reminders() -> dict:
                         results["skipped"] += 1
                         continue
 
+                    # Weather heads-up — 1-day reminder only, and only when
+                    # conditions actually look disruptive. get_weather()
+                    # returns CURRENT conditions, not a forecast, but at a
+                    # 1-day lead time that's a reasonable proxy: the kind of
+                    # weather this flags (monsoon rain, heatwaves, snow) is
+                    # a multi-day pattern, not a same-day flip. Fails open —
+                    # get_weather() never raises, just returns no advisory.
+                    weather_advisory = None
+                    if days_until == 1 and trip.get("destination"):
+                        try:
+                            weather = await get_weather(trip["destination"], trip.get("start_date"))
+                            weather_advisory = weather.get("advisory")
+                        except Exception as e:
+                            logger.warning(f"Weather check failed for trip {trip.get('id')}: {e}")
+
                     # Send to each recipient
                     trip_sent = False
                     for user in emails_to_send:
-                        subject, html = build_reminder_email(trip, user, days_until)
+                        subject, html = build_reminder_email(trip, user, days_until, weather_advisory)
                         sent = await send_email(user["email"], subject, html)
                         if sent:
                             results["sent"] += 1
