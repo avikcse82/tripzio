@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Eye, EyeOff, ArrowRight, Briefcase, CheckCircle } from 'lucide-react'
+import { useSEO } from '../hooks/useSEO'
 import toast from 'react-hot-toast'
 
 const BG_PHOTOS = [
@@ -20,6 +21,12 @@ const BG_PHOTOS = [
 const DEST_NAMES = ['Ladakh', 'Kerala', 'Rajasthan', 'Goa', 'Varanasi', 'Manali', 'Shimla', 'Darjeeling', 'Andaman', 'Rishikesh']
 
 const AgentLogin = () => {
+  useSEO({
+    title: 'Travel Agent Login — Tripzio for Agents',
+    description: 'Tripzio for travel agents — generate branded AI itineraries for clients in seconds, with white-label PDFs and WhatsApp-ready plans.',
+    path: '/agent/login',
+  })
+
   const [isLogin,      setIsLogin]      = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [loading,      setLoading]      = useState(false)

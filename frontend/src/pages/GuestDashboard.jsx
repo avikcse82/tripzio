@@ -9,6 +9,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { MapPin, Sparkles, ArrowRight } from 'lucide-react'
 import { API_URL } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useSEO } from '../hooks/useSEO'
 import toast from 'react-hot-toast'
 
 const TRIP_TYPES = ['Family', 'Solo', 'Couple', 'Friends', 'Adventure']
@@ -23,6 +24,12 @@ const GEN_STEPS = [
 ]
 
 export default function GuestDashboard() {
+  useSEO({
+    title: 'Try Tripzio Free — AI Trip Planner, No Signup Required',
+    description: 'Generate a free AI travel itinerary for India right now — no account needed. Real trains, hotels, and a full day-by-day plan in seconds.',
+    path: '/guest',
+  })
+
   const navigate = useNavigate()
   const { isAuthenticated, isAgent, loading } = useAuth()
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import { useSEO } from '../hooks/useSEO'
 import { MapPin, Zap, ArrowRight, Globe, Shield, Clock, TrendingUp, Calendar, Star, ChevronRight, Sparkles } from 'lucide-react'
 
 // ── Real destination photos from Unsplash (free, no key needed) ─────────
@@ -100,6 +101,12 @@ const SAMPLE_PLANS = {
 }
 
 export default function LandingPage() {
+  useSEO({
+    title: 'Tripzio — AI Travel Planner for India',
+    description: 'AI-powered travel planning for India. Get personalized itineraries with real trains, hotels, and budgets in seconds.',
+    path: '/',
+  })
+
   const [showDemo, setShowDemo]       = useState(false)
   const [activePhoto, setActivePhoto] = useState(0)
   const [isVisible, setIsVisible]     = useState(false)

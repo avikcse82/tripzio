@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Eye, EyeOff, MapPin, ArrowRight } from 'lucide-react'
+import { useSEO } from '../hooks/useSEO'
 import toast from 'react-hot-toast'
 
 const BG_PHOTOS = [
@@ -25,6 +26,17 @@ export default function UserLogin() {
   const location  = useLocation()
 
   const [isLogin,      setIsLogin]      = useState(location.pathname !== '/register')
+
+  useSEO(isLogin ? {
+    title: 'Login — Tripzio',
+    description: 'Log in to Tripzio to view your saved trips, plan a new one, or pick up where you left off.',
+    path: '/login',
+  } : {
+    title: 'Sign Up Free — Tripzio',
+    description: 'Create a free Tripzio account to save unlimited trip plans, get real train and hotel options, and plan trips in seconds.',
+    path: '/register',
+  })
+
   const [email,        setEmail]        = useState('')
   const [password,     setPassword]     = useState('')
   const [fullName,     setFullName]     = useState('')

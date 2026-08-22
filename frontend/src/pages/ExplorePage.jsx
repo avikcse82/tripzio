@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
+import { useSEO } from '../hooks/useSEO'
 import {
   Search, Mountain, Waves, Sun, Compass, MapPin,
   Clock, Star, Filter, TrendingUp,
@@ -1077,6 +1078,12 @@ const DURATION_FILTERS = [
 ]
 
 export default function ExplorePage() {
+  useSEO({
+    title: 'Explore 100+ Indian Destinations — Tripzio',
+    description: 'Browse 100+ destinations across India, filterable by budget, trip duration, and travel style — then generate a full AI itinerary for any of them.',
+    path: '/explore',
+  })
+
   const navigate  = useNavigate()
   const [category, setCategory] = useState('all')
   const [budget,   setBudget]   = useState('all')
