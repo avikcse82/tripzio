@@ -248,14 +248,17 @@ def get_agent_clients(agent_id: str):
         return []
 
 
-def update_agent_client(client_id: str, update_data: dict):
+def update_agent_client(client_id: str, agent_id: str, update_data: dict):
+    """Scoped to the owning agent — without this filter any authenticated
+    agent could update any other agent's client row just by knowing/guessing
+    its id. See routers/users.py's update_client_status."""
     try:
         client = get_supabase_client()
         if not client:
             return None
         response = client.table("agent_clients").update(
             update_data
-        ).eq("id", client_id).execute()
+        ).eq("id", client_id).eq("agent_id", agent_id).execute()
         if response.data and len(response.data) > 0:
             return response.data[0]
         return None
@@ -320,3 +323,57 @@ def record_guest_generation(ip_address: str) -> None:
         }, on_conflict="ip_address").execute()
     except Exception as e:
         logger.warning(f"guest rate limit record failed (silent): {e}")
+
+
+# ── Authenticated generation cap ──────────────────────────────────────────
+# The 3-free-trips cap (check_save_limit in routers/trips.py) only gates
+# SAVING — /generate, /generate-custom, and /itinerary/edit trigger a real
+# paid Claude API call regardless of save status, with no limit tied to that
+# cost at all. This closes that gap: a per-account rolling-24h cap, separate
+# from and in addition to the save cap, so a single account can't be looped
+# to run up an unbounded AI bill.
+GENERATION_DAILY_LIMIT = 12
+
+
+def check_generation_limit(user_id: str) -> bool:
+    """
+    Returns True if this user is under today's generation cap.
+    Rolling 24h window, counted from generation_log rows.
+    Fail-open: if the DB check fails for any reason, allow the request —
+    a metering outage should never block a legitimate generation, only
+    catch real abuse when the DB is healthy.
+
+    Run this SQL in Supabase before deploying:
+    CREATE TABLE IF NOT EXISTS generation_log (
+        id BIGSERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_generation_log_user_created
+        ON generation_log (user_id, created_at DESC);
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return True  # fail-open
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        response = client.table("generation_log").select("id", count="exact").eq(
+            "user_id", user_id
+        ).gte("created_at", cutoff).execute()
+        return (response.count or 0) < GENERATION_DAILY_LIMIT
+    except Exception as e:
+        logger.warning(f"generation limit check failed (fail-open): {e}")
+        return True  # fail-open — never block on our error
+
+
+def record_generation(user_id: str) -> None:
+    """Records one generation event for this user. Fail-silent: never raises,
+    a logging failure should never surface as a user-facing error."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return
+        client.table("generation_log").insert({"user_id": user_id}).execute()
+    except Exception as e:
+        logger.warning(f"generation log record failed (silent): {e}")

@@ -606,21 +606,53 @@ export default function ItineraryResult() {
     }
   }
 
-  // Fire-and-forget: marks this trip's auto-saved draft as "kept" once the
-  // user shares/emails/downloads it, so the next generated plan won't
-  // silently overwrite it. Never blocks or surfaces errors for the action
-  // that triggered it — a failed lock just leaves the draft as-is.
-  const lockTripIfNeeded = () => {
-    if (!data?.trip_id) return
+  // Share/WhatsApp/Download/Email all require the trip actually be saved —
+  // same free-3-trip gate as an explicit Save, so exporting content off the
+  // platform isn't a way around paying. Resolves true once the trip is
+  // locked (already was, or just got saved/paid-for here); false if the
+  // user should NOT proceed (payment declined/dismissed, or not logged in).
+  const ensureTripLocked = async () => {
+    if (readOnly || isSaved) return true
+    if (isGuest) {
+      toast('Sign up free to save and share your plan!', { icon: '🔒' })
+      return false
+    }
+    if (!data?.trip_id) {
+      toast.error("Couldn't find this trip to save. Please regenerate and try again.")
+      return false
+    }
     const token = localStorage.getItem('tripzio_token')
-    if (!token) return
-    fetch(`${API_URL}/trips/${data.trip_id}/lock`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    }).catch(() => {})
+    try {
+      const resp = await fetch(`${API_URL}/trips/${data.trip_id}/lock`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const result = await resp.json()
+      if (resp.status === 403 && result?.detail?.code === 'FREE_LIMIT_REACHED') {
+        toast('Free plan allows 3 saved trips. Unlock this one for a small one-time fee.', { icon: '💳' })
+        try {
+          await payToUnlockTrip(data.trip_id)
+        } catch (payErr) {
+          if (payErr.message !== 'DISMISSED') {
+            toast.error(payErr.message || 'Payment failed. Please try again.')
+          }
+          return false
+        }
+      } else if (!resp.ok) {
+        toast.error(result?.detail || 'Could not save this trip.')
+        return false
+      }
+      setIsSaved(true)
+      setHasDistributed(true)
+      return true
+    } catch (e) {
+      toast.error('Could not save this trip. Please try again.')
+      return false
+    }
   }
 
   const handleShare = async () => {
+    if (!(await ensureTripLocked())) return
     setShareLoading(true)
     try {
       const token = localStorage.getItem('tripzio_token')
@@ -628,15 +660,11 @@ export default function ItineraryResult() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          trip_data: data,
+          trip_id: data.trip_id,
           title: `${data.destination} · ${data.days} Days`,
-          destination: data.destination,
-          days: data.days,
-          plan_tier: data.plan_tier,
-          is_agent: isAgent,
           agent_name: isAgent ? (user?.business_name || user?.full_name) : null,
         }),
       })
@@ -651,7 +679,6 @@ export default function ItineraryResult() {
         toast.success('Share link copied! 🔗')
       }
       setHasDistributed(true)
-      lockTripIfNeeded()
     } catch (e) {
       toast.error('Could not create share link. Try again.')
     } finally {
@@ -660,12 +687,13 @@ export default function ItineraryResult() {
   }
 
   const handleWhatsApp = async () => {
+    if (!(await ensureTripLocked())) return
     try {
       const token = localStorage.getItem('tripzio_token')
       const res = await fetch(`${API_URL}/share/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ trip_data: data, title: `${data.destination} · ${data.days} Days`, destination: data.destination, days: data.days, plan_tier: data.plan_tier })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ trip_id: data.trip_id, title: `${data.destination} · ${data.days} Days` })
       })
       const result = await res.json()
       const tripUrl = res.ok ? `${window.location.origin}/trip/${result.slug}` : 'https://tripzio.io'
@@ -689,18 +717,17 @@ export default function ItineraryResult() {
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
       toast.success('Opening WhatsApp!')
       setHasDistributed(true)
-      lockTripIfNeeded()
     } catch (e) {
       const text = `🌍 *My Tripzio Trip Plan*\n\n📍 *${data.destination}*\n📅 ${data.days} days | 💰 ₹${data.budget?.toLocaleString('en-IN')}\n\n${data.summary}\n\n✨ *Highlights:*\n${data.highlights?.map(h => `• ${h}`).join('\n')}\n\n_Plan yours free at tripzio.io_`
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
       toast.success('Opening WhatsApp!')
       setHasDistributed(true)
-      lockTripIfNeeded()
     }
   }
 
   // ── Agent: rich WhatsApp to client ──────────
   const handleAgentWhatsApp = async () => {
+    if (!(await ensureTripLocked())) return
     const agentName = user?.business_name || user?.full_name || 'Your Travel Agent'
     const to = clientName ? `Hi ${clientName}! 👋` : 'Hi! 👋'
 
@@ -710,8 +737,8 @@ export default function ItineraryResult() {
       const token = localStorage.getItem('tripzio_token')
       const res = await fetch(`${API_URL}/share/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ trip_data: data, title: `${data.destination} · ${data.days} Days`, destination: data.destination, days: data.days, plan_tier: data.plan_tier, is_agent: true })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ trip_id: data.trip_id, title: `${data.destination} · ${data.days} Days`, agent_name: agentName })
       })
       const result = await res.json()
       if (res.ok) shareUrl = `${window.location.origin}/trip/${result.slug}`
@@ -778,11 +805,11 @@ export default function ItineraryResult() {
     Analytics.whatsappShared(data?.destination, true)
     toast.success('Opening WhatsApp with full plan!')
     setHasDistributed(true)
-    lockTripIfNeeded()
   }
 
   const handleSendEmail = async () => {
     if (!emailTo) return
+    if (!(await ensureTripLocked())) return
     setEmailSending(true)
     try {
       const token = localStorage.getItem('tripzio_token')
@@ -794,7 +821,6 @@ export default function ItineraryResult() {
       if (resp.ok) {
         setEmailSent(true)
         setHasDistributed(true)
-        lockTripIfNeeded()
         setShowEmailModal(false)
         toast.success('Itinerary emailed to ' + emailTo + ' 📧')
         setEmailTo('')
@@ -810,7 +836,8 @@ export default function ItineraryResult() {
     }
   }
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    if (!(await ensureTripLocked())) return
     try {
       // Use the latest finalised itinerary (may be ahead of location.state
       // right after handleFinalise's navigate() call) instead of stale `data`.
@@ -821,7 +848,6 @@ export default function ItineraryResult() {
       Analytics.pdfDownloaded(pdfData?.destination)
       toast.success('PDF downloaded! 🎉')
       setHasDistributed(true)
-      lockTripIfNeeded()
     } catch (e) {
       console.error('PDF error:', e)
       toast.error('Could not generate PDF. Please try again.')
@@ -858,7 +884,7 @@ export default function ItineraryResult() {
         body: JSON.stringify({ itinerary: data, edit_request: editRequest.trim(), trip_id: data.trip_id || null }),
       })
       const result = await res.json()
-      if (!res.ok) throw new Error(result?.detail || 'Could not apply that change')
+      if (!res.ok) throw new Error(result?.detail?.message || result?.detail || 'Could not apply that change')
 
       const beforeEdit = data
       setEditRequest('')

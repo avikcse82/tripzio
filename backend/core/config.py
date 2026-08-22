@@ -9,7 +9,11 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # Security
-    SECRET_KEY: str = "tripzio-super-secret-key-change-in-production"
+    # No default on purpose — a hardcoded fallback here would let anyone who
+    # reads this file (or a repo history leak) forge valid JWTs for any user.
+    # Missing SECRET_KEY should fail loudly at startup, not silently run with
+    # a known value.
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days — stay logged in
 

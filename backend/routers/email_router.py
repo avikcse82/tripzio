@@ -18,6 +18,11 @@ def get_current_user_from_token(credentials: HTTPAuthorizationCredentials = Secu
     if not payload:
         from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    # Password-reset tokens are single-purpose (see /auth/reset-password) and
+    # must never work as a general session token.
+    if payload.get("purpose"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
     user = get_user_by_email(payload.get("sub"))
     if not user:
         from fastapi import HTTPException

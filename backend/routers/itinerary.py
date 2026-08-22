@@ -124,7 +124,7 @@ from pydantic import BaseModel
 from models.schemas import ItineraryRequest, AgentItineraryRequest
 from core.config import settings
 from core.security import decode_access_token
-from database import get_user_by_email, get_user_by_id, save_or_replace_draft, check_guest_rate_limit, record_guest_generation
+from database import get_user_by_email, get_user_by_id, save_or_replace_draft, check_guest_rate_limit, record_guest_generation, check_generation_limit, record_generation
 from routers.weather import get_weather
 import asyncio
 import httpx
@@ -1639,6 +1639,10 @@ def get_current_user_from_token(credentials: HTTPAuthorizationCredentials = Depe
     payload = decode_access_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    # Password-reset tokens are single-purpose (see /auth/reset-password) and
+    # must never work as a general session token.
+    if payload.get("purpose"):
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
     user_id = payload.get("id")
     email = payload.get("sub")
     user = get_user_by_id(user_id) if user_id else None
@@ -1947,6 +1951,15 @@ async def generate_itinerary(
     req: ItineraryRequest,
     current_user: dict = Depends(get_current_user_from_token)
 ):
+    user_id = str(current_user["id"])
+    if not check_generation_limit(user_id):
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "DAILY_GENERATION_LIMIT",
+                "message": "You've reached today's plan generation limit. Try again in a few hours.",
+            }
+        )
     try:
         logger.info(f"Generating itinerary: {req.from_city} -> {req.destination}, {req.days}d")
 
@@ -2124,6 +2137,7 @@ async def generate_itinerary(
             logger.warning(f"city_hotels fetch failed: {_che}")
 
         logger.info(f"✓ Generated itinerary for {ai_response.get('destination')}")
+        record_generation(user_id)
         return ai_response
 
     except HTTPException:
@@ -2279,6 +2293,16 @@ async def edit_itinerary(
     if len(req.edit_request.strip()) < 3:
         raise HTTPException(status_code=400, detail="Please describe what you'd like to change")
 
+    edit_user_id = str(current_user["id"])
+    if not check_generation_limit(edit_user_id):
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "DAILY_GENERATION_LIMIT",
+                "message": "You've reached today's plan generation limit. Try again in a few hours.",
+            }
+        )
+
     plan_tier = (req.itinerary.get("plan_tier") or "silver").lower()
     travelers = estimate_travelers(req.itinerary.get("travelers"), req.itinerary.get("trip_type"))
     is_circuit = bool(req.itinerary.get("is_circuit"))
@@ -2328,6 +2352,7 @@ async def edit_itinerary(
         except Exception as e:
             logger.warning(f"Failed to persist edit to trip {req.trip_id}: {e}")
 
+    record_generation(edit_user_id)
     return edited
 
 
@@ -2391,6 +2416,15 @@ async def generate_custom_itinerary(
     req: CustomPlanRequest,
     current_user: dict = Depends(get_current_user_from_token)
 ):
+    user_id = str(current_user["id"])
+    if not check_generation_limit(user_id):
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "DAILY_GENERATION_LIMIT",
+                "message": "You've reached today's plan generation limit. Try again in a few hours.",
+            }
+        )
     try:
         if len(req.free_text.strip()) < 10:
             raise HTTPException(status_code=400, detail="Please describe your trip in more detail")
@@ -2705,6 +2739,7 @@ Do NOT show direct source→destination if via city is specified."""
             logger.warning(f"Hotel formatting error: {_pe}")
 
         logger.info(f"✓ Custom plan generated: {ai_response.get('destination')}")
+        record_generation(user_id)
         return ai_response
 
     except HTTPException:

@@ -27,6 +27,15 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token. Please login again."
         )
+    # Password-reset tokens are single-purpose (see /auth/reset-password) and
+    # must never work as a general session token — without this check, a
+    # leaked reset link authenticates as that user for its full 30-minute
+    # validity, not just for resetting the password.
+    if payload.get("purpose"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token. Please login again."
+        )
     user_id = payload.get("id")
     email = payload.get("sub")
 
@@ -160,7 +169,12 @@ async def update_client_status(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No valid fields to update."
         )
-    updated = update_agent_client(client_id, filtered)
+    # Client rows created via the live /agents/clients endpoint (agents.py)
+    # store agent_id as the agent's EMAIL, not their UUID — that endpoint's
+    # get_current_agent derives it from the JWT's "sub" claim, which is the
+    # email. Match that here or every legitimate update silently fails to
+    # find its own row.
+    updated = update_agent_client(client_id, current_user["email"], filtered)
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

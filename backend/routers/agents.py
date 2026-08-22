@@ -25,6 +25,10 @@ def get_current_agent(credentials: HTTPAuthorizationCredentials = Depends(securi
     payload = decode_access_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
+    # Password-reset tokens are single-purpose (see /auth/reset-password) and
+    # must never work as a general session token.
+    if payload.get("purpose"):
+        raise HTTPException(status_code=401, detail="Invalid token")
     if payload.get("role") != "agent":
         raise HTTPException(status_code=403, detail="Agent access only")
     return payload

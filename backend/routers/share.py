@@ -4,35 +4,30 @@ Tripzio Module 4A — Trip Sharing
 
 Synced to project patterns:
 - Supabase via: from database import get_supabase_client
-- Auth via: from routers.users import get_current_user (optional — share is public read)
+- Auth via: from routers.users import get_current_user (required — see note below)
+
+Sharing requires the trip be a real, owned, LOCKED (saved/paid) trip — see
+create_share. Previously this endpoint accepted an arbitrary client-supplied
+trip_data blob with auth optional, meaning anyone could publish anything
+(even fabricated content unrelated to any real trip) with zero ownership or
+payment check, defeating the pay-per-trip cap entirely: generate a full
+paid-tier itinerary for free, publish it here, never save or pay. Now the
+client only supplies a trip_id it owns; the actual content published is
+always the server's own copy of that trip's itinerary.
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from typing import Optional, Any
+from typing import Optional
 from database import get_supabase_client
-from core.security import decode_access_token
+from routers.users import get_current_user
+from routers.trips import _find_user_trip
 import random
 import string
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/share", tags=["Share"])
-security = HTTPBearer(auto_error=False)
-
-# ─── Auth (optional — for creating shares) ────────────────────
-
-def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-):
-    if not credentials:
-        return None
-    try:
-        payload = decode_access_token(credentials.credentials)
-        return payload
-    except Exception:
-        return None
 
 
 # ─── Helpers ──────────────────────────────────────────────────
@@ -59,12 +54,8 @@ def get_unique_slug(supabase):
 # ─── Schemas ──────────────────────────────────────────────────
 
 class CreateShareRequest(BaseModel):
-    trip_data: dict
+    trip_id: str
     title: Optional[str] = None
-    destination: Optional[str] = None
-    days: Optional[int] = None
-    plan_tier: Optional[str] = None
-    is_agent: Optional[bool] = False
     agent_name: Optional[str] = None
 
 
@@ -73,27 +64,44 @@ class CreateShareRequest(BaseModel):
 @router.post("/create")
 def create_share(
     body: CreateShareRequest,
-    user=Depends(get_optional_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Create a shareable link for a trip. Auth optional."""
+    """Create a shareable link for a trip the caller owns. The trip must be
+    locked (saved within the free cap, or unlocked via payment) — same gate
+    as My Trips and PDF export, so publishing a public link isn't a way
+    around the pay-per-trip cap."""
     try:
+        user_id = str(current_user["id"])
+        trip = _find_user_trip(user_id, body.trip_id)
+        if not trip:
+            raise HTTPException(status_code=404, detail="Trip not found.")
+        if not trip.get("locked"):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "TRIP_NOT_SAVED",
+                    "message": "Save this trip first to share it — free plan includes 3 saved trips.",
+                }
+            )
+
         supabase = get_supabase_client()
         if not supabase:
             raise HTTPException(status_code=500, detail="Database unavailable")
 
         slug = get_unique_slug(supabase)
-        user_id = str(user.get("sub") or user.get("id") or "anonymous") if user else "anonymous"
+        itinerary = trip.get("itinerary") or {}
+        is_agent = current_user.get("role") == "agent"
 
         payload = {
             "slug":        slug,
             "user_id":     user_id,
-            "trip_data":   body.trip_data,
-            "title":       body.title,
-            "destination": body.destination,
-            "days":        body.days,
-            "plan_tier":   body.plan_tier,
-            "is_agent":    body.is_agent or False,
-            "agent_name":  body.agent_name,
+            "trip_data":   itinerary,
+            "title":       body.title or trip.get("title"),
+            "destination": trip.get("destination"),
+            "days":        trip.get("days"),
+            "plan_tier":   trip.get("plan_tier"),
+            "is_agent":    is_agent,
+            "agent_name":  body.agent_name if is_agent else None,
             "views":       0,
         }
 
