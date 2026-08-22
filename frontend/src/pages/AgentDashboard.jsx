@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast'
 import GenerationOverlay from '../components/GenerationOverlay'
 import FestivalAlert from '../components/FestivalAlert'
+import PlanModeCoachmark from '../components/PlanModeCoachmark'
 
 import { API_URL } from '../api'
 
@@ -452,7 +453,7 @@ export default function AgentDashboard() {
         body: JSON.stringify({ itinerary: trip.itinerary, edit_request: customText.trim(), trip_id: latestTripId })
       })
       const data = await editRes.json()
-      if (!editRes.ok) throw new Error(data?.detail || 'Could not apply that change')
+      if (!editRes.ok) throw new Error(data?.detail?.message || data?.detail || 'Could not apply that change')
 
       try {
         const dest = data.destination || ''
@@ -530,7 +531,7 @@ export default function AgentDashboard() {
         body: JSON.stringify(body)
       })
       const data = await r.json()
-      if (!r.ok) { throw new Error(data?.detail || 'Generation failed') }
+      if (!r.ok) { throw new Error(data?.detail?.message || data?.detail || 'Generation failed') }
 
       // Update client trip requirement silently — never block navigation
       if (selectedClient) {
@@ -1083,6 +1084,7 @@ return (
         isAgent={true}
         clientName={selectedClient?.name || ''}
       />
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1601,6 +1603,7 @@ return (
           ════════════════════════════════════ */}
           {activeTab === 'generate' && (
             <div style={{ padding: '24px' }}>
+              <PlanModeCoachmark storageKey="tripzio_seen_mode_coachmark_agent" />
               {/* Client + mode banner — only when a client is actually
                   selected. Without this guard, landing on this tab with
                   zero clients (fresh account) or no client picked yet
@@ -1643,6 +1646,7 @@ return (
                   { id: 'custom',  label: '✍️ Circuit / Custom' },
                 ].map(m => (
                   <button key={m.id}
+                    data-coachmark={m.id}
                     onClick={() => { setPlanMode(m.id); if (m.id === 'detailed') setShowDetailed(true) }}
                     style={{ flex: 1, padding: '9px 10px', borderRadius: '9px', border: 'none', background: planMode === m.id ? 'white' : 'transparent', color: planMode === m.id ? '#0f172a' : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Inter, sans-serif', boxShadow: planMode === m.id ? '0 2px 8px rgba(0,0,0,0.09)' : 'none' }}>
                     {m.label}

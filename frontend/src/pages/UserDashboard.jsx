@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import GenerationOverlay from '../components/GenerationOverlay'
+import PlanModeCoachmark from '../components/PlanModeCoachmark'
 
 // ── Destination data ──────────────────────────────────────────────────
 const destinations = [
@@ -399,7 +400,13 @@ export default function UserDashboard() {
             setGenerating(false)
             return
           }
-          throw new Error(customData?.detail || 'Generation failed')
+          if (customData?.detail?.code === 'DAILY_GENERATION_LIMIT') {
+            toast.error('You\'ve reached today\'s plan generation limit. Try again in a few hours.', { duration: 6000 })
+            clearInterval(genStepIntervalRef.current)
+            setGenerating(false)
+            return
+          }
+          throw new Error(customData?.detail?.message || customData?.detail || 'Generation failed')
         }
         toast.success('Your custom itinerary is ready!')
         navigate('/itinerary/result', { state: { itinerary: customData } })
@@ -429,7 +436,9 @@ export default function UserDashboard() {
         })
         const genData = await response.json()
         if (!response.ok) {
-          throw new Error(genData?.detail || 'Generation failed')
+          const err = new Error(genData?.detail?.message || genData?.detail || 'Generation failed')
+          err.code = genData?.detail?.code
+          throw err
         }
         navigate('/itinerary/result', { state: { itinerary: genData } })
       } else {
@@ -970,6 +979,8 @@ export default function UserDashboard() {
         }} />
       </div>
 
+      <PlanModeCoachmark storageKey="tripzio_seen_mode_coachmark_user" />
+
       {/* ── Generation Overlay ─────────────────────────────────── */}
       <GenerationOverlay
         generating={generating}
@@ -1128,6 +1139,7 @@ export default function UserDashboard() {
                 {Object.entries(modeConfig).map(([id, cfg]) => (
                   <button key={id}
                     className="mode-btn"
+                    data-coachmark={id}
                     onClick={() => { setPlanMode(id); if (id === 'detailed') setShowDetailed(true) }}
                     style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: planMode === id ? 'linear-gradient(135deg,#F97316,#F59E0B)' : 'transparent', color: planMode === id ? 'white' : '#64748B', fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', fontFamily: 'Inter, sans-serif', boxShadow: planMode === id ? '0 4px 14px rgba(249,115,22,0.3)' : 'none', whiteSpace: 'nowrap' }}>
                     {cfg.label}
