@@ -176,6 +176,8 @@ Return ONLY a valid JSON object, no other text:
   "icon": one weather emoji (☀️ ⛅ 🌧️ 🔥 ❄️ 🌨️ 🌸 🍂),
   "reason": "specific 1-line reason for this destination in {month_name}",
   "upside": "silver lining even for avoid — what makes it special",
+  "cost_tier": "peak" or "shoulder" or "low",
+  "cost_impact": "1-line note on hotel/travel pricing in {month_name} for this destination vs its shoulder/low season — mention an approximate percentage if you can, e.g. 'Peak season — hotel rates typically run 30-40% higher than in shoulder months.'",
   "alternatives": [
     {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<brief>"}},
     {{"month": <number>, "monthName": "<name>", "icon": "<emoji>", "reason": "<brief>"}}
@@ -190,7 +192,8 @@ Rules:
 - alternatives: pick the 2 best months (excellent or good) that are NOT {month_name}
 - all_months: must have exactly 12 entries in order Jan to Dec
 - Be specific to the actual destination (Char Dham, Vaishno Devi, Andaman, etc.)
-- Consider accessibility, weather, crowds, festivals, road conditions"""
+- Consider accessibility, weather, crowds, festivals, road conditions
+- cost_tier/cost_impact: base this on real demand patterns for this destination (holidays, school vacations, weather-driven crowds) — not a guess, and not the same for every destination"""
 
         else:
             # Undated mode — clean up the text to get a better destination hint

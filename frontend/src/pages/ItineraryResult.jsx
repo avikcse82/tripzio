@@ -1612,6 +1612,13 @@ export default function ItineraryResult() {
                   </div>
                 )}
               </div>
+
+              {sw.cost_impact && (
+                <div style={{ padding: '14px 22px', borderTop: `1px solid ${rc.border}` }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cost impact</div>
+                  <div style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>💰 {sw.cost_impact}</div>
+                </div>
+              )}
             </div>
           )
         })()}
