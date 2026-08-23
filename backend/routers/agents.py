@@ -40,11 +40,13 @@ class ClientCreate(BaseModel):
     name: str
     phone: str
     city: str
+    email: Optional[str] = None
 
 class ClientUpdate(BaseModel):
     status: Optional[str] = None
     trip_requirement: Optional[str] = None
     notes: Optional[str] = None
+    email: Optional[str] = None
 
 class ProfileUpsert(BaseModel):
     business_name: Optional[str] = None
@@ -134,6 +136,7 @@ async def get_clients(agent=Depends(get_current_agent)):
                 "name": c["name"],
                 "phone": c["phone"],
                 "city": c["city"],
+                "email": c.get("email") or "",
                 "trip": c.get("trip_requirement") or "Not planned yet",
                 "status": c.get("status") or "pending",
                 "notes": c.get("notes") or "",
@@ -164,6 +167,7 @@ async def add_client(data: ClientCreate, agent=Depends(get_current_agent)):
             "name": data.name.strip(),
             "phone": data.phone.strip(),
             "city": data.city.strip(),
+            "email": (data.email or "").strip() or None,
             "status": "pending",
             "notes": "",
         }
@@ -178,6 +182,7 @@ async def add_client(data: ClientCreate, agent=Depends(get_current_agent)):
                 "name": client["name"],
                 "phone": client["phone"],
                 "city": client["city"],
+                "email": client.get("email") or "",
                 "trip": "Not planned yet",
                 "status": "pending",
                 "notes": "",

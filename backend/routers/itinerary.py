@@ -124,7 +124,7 @@ from pydantic import BaseModel
 from models.schemas import ItineraryRequest, AgentItineraryRequest
 from core.config import settings
 from core.security import decode_access_token
-from database import get_user_by_email, get_user_by_id, save_or_replace_draft, check_guest_rate_limit, record_guest_generation, check_generation_limit, record_generation
+from database import get_user_by_email, get_user_by_id, save_or_replace_draft, check_guest_rate_limit, record_guest_generation, check_generation_limit, record_generation, get_agent_client_by_id
 from routers.weather import get_weather
 import asyncio
 import httpx
@@ -2076,6 +2076,12 @@ async def generate_itinerary(
         ai_response["start_date"] = req.start_date
         ai_response["generated_at"] = datetime.now().isoformat()
 
+        # If this trip is for a specific agent client, pull their name/email
+        # onto the trip row so reminders.py can email the client directly,
+        # not just the agent. Fail-open — a lookup miss just means no
+        # client-side reminder for this trip, never a generation failure.
+        _client = get_agent_client_by_id(req.client_id) if req.client_id else None
+
         try:
             _saved_trip = save_or_replace_draft(str(current_user["id"]), {
                 "user_id": str(current_user["id"]),
@@ -2093,6 +2099,9 @@ async def generate_itinerary(
                 "itinerary": ai_response,
                 "climate_data": weather_data,
                 "client_id": req.client_id,
+                "is_agent_plan": bool(_client),
+                "client_email": _client.get("email") if _client else None,
+                "client_name": _client.get("name") if _client else None,
             })
             if _saved_trip:
                 ai_response["trip_id"] = _saved_trip.get("id")
@@ -2674,14 +2683,15 @@ Do NOT show direct source→destination if via city is specified."""
         ai_response["source"] = "custom_plan"
 
         # Save to DB
+        _client = get_agent_client_by_id(req.client_id) if req.client_id else None
         try:
             _saved_trip = save_or_replace_draft(str(current_user["id"]), {
                 "user_id": str(current_user["id"]),
                 "title": ai_response.get("destination", "Custom Trip"),
                 "from_city": ai_response.get("from_city", ""),
                 "destination": ai_response.get("destination", ""),
-                "start_date": datetime.now().strftime("%Y-%m-%d"),
-                "end_date": datetime.now().strftime("%Y-%m-%d"),
+                "start_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
+                "end_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
                 "days": ai_response.get("days", 0),
                 "budget": ai_response.get("budget", 0),
                 "trip_type": ai_response.get("trip_type"),
@@ -2691,6 +2701,9 @@ Do NOT show direct source→destination if via city is specified."""
                 "itinerary": ai_response,
                 "climate_data": {},
                 "client_id": req.client_id,
+                "is_agent_plan": bool(_client),
+                "client_email": _client.get("email") if _client else None,
+                "client_name": _client.get("name") if _client else None,
             })
             if _saved_trip:
                 ai_response["trip_id"] = _saved_trip.get("id")

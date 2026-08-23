@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request, status
 from pydantic import BaseModel
 from database import (
     get_supabase_client, create_payment, get_payment_by_order_id,
-    update_payment, update_trip,
+    update_payment, update_trip, ensure_share_slug,
 )
 from routers.trips import _find_user_trip
 from routers.users import get_current_user
@@ -84,6 +84,8 @@ async def _finalize_payment(order_id: str, razorpay_payment_id: str):
     locked_trip = update_trip(payment["trip_id"], payment["user_id"], {"locked": True})
     if not locked_trip:
         logger.error(f"Payment {order_id} verified but failed to unlock trip {payment['trip_id']}")
+    else:
+        ensure_share_slug(payment["trip_id"])
 
     return updated
 

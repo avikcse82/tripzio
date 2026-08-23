@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, Any
-from database import get_supabase_client, save_trip, update_trip, get_user_trips
+from database import get_supabase_client, save_trip, update_trip, get_user_trips, ensure_share_slug
 from routers.users import get_current_user
 import logging
 
@@ -111,6 +111,7 @@ def save_trip_route(
             detail="Failed to save trip. Please try again."
         )
 
+    ensure_share_slug(saved["id"])
     return saved
 
 
@@ -137,6 +138,7 @@ def lock_trip_route(
     updated = update_trip(trip_id, user_id, {"locked": True})
     if not updated:
         raise HTTPException(status_code=500, detail="Failed to lock trip.")
+    ensure_share_slug(trip_id)
     return updated
 
 

@@ -120,6 +120,65 @@ def update_trip(trip_id: str, user_id: str, trip_data: dict):
         return None
 
 
+def ensure_share_slug(trip_id: str) -> str:
+    """
+    Guarantees a locked trip has a working public share link, even if the
+    user never manually clicked Share — reminder emails and the trip
+    companion page both depend on trips.share_slug being real, and before
+    this existed it was never populated at all (reminders.py's link always
+    fell back to the generic homepage). Idempotent: returns the existing
+    slug unchanged if one's already there. Fail-open: never raises — a
+    failure here should never break the save/lock/payment flow it's
+    attached to, it just means that trip won't get a share link this time.
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+
+        trip_result = client.table("trips").select(
+            "share_slug, user_id, title, destination, days, plan_tier, itinerary, is_agent_plan"
+        ).eq("id", trip_id).single().execute()
+        trip = trip_result.data
+        if not trip:
+            return None
+        if trip.get("share_slug"):
+            return trip["share_slug"]
+
+        import random
+        import string
+        slug = None
+        for _ in range(5):
+            candidate = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            existing = client.table("shared_trips").select("id").eq("slug", candidate).execute()
+            if not existing.data:
+                slug = candidate
+                break
+        if not slug:
+            logger.warning(f"ensure_share_slug: could not generate a unique slug for trip {trip_id}")
+            return None
+
+        client.table("shared_trips").insert({
+            "slug": slug,
+            "trip_id": trip_id,
+            "user_id": trip.get("user_id"),
+            "trip_data": trip.get("itinerary") or {},
+            "title": trip.get("title"),
+            "destination": trip.get("destination"),
+            "days": trip.get("days"),
+            "plan_tier": trip.get("plan_tier"),
+            "is_agent": bool(trip.get("is_agent_plan")),
+            "agent_name": None,
+            "views": 0,
+        }).execute()
+
+        client.table("trips").update({"share_slug": slug}).eq("id", trip_id).execute()
+        return slug
+    except Exception as e:
+        logger.warning(f"ensure_share_slug failed for trip {trip_id}: {e}")
+        return None
+
+
 def get_unlocked_draft(user_id: str):
     """Most recent auto-saved-but-not-yet-kept trip for this user, if any."""
     try:
@@ -246,6 +305,22 @@ def get_agent_clients(agent_id: str):
     except Exception as e:
         logger.error(f"Error getting agent clients: {e}")
         return []
+
+
+def get_agent_client_by_id(client_id: str):
+    """Fetch a single client row by id, unscoped by agent — used at trip
+    generation time to pull the client's name/email onto the trip row.
+    Callers already know the client_id came from that agent's own request,
+    so this doesn't re-check ownership; it's not exposed as an API route."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        response = client.table("agent_clients").select("*").eq("id", client_id).single().execute()
+        return response.data
+    except Exception as e:
+        logger.warning(f"get_agent_client_by_id failed for {client_id}: {e}")
+        return None
 
 
 def update_agent_client(client_id: str, agent_id: str, update_data: dict):

@@ -216,7 +216,7 @@ async def run_reminders() -> dict:
         try:
             # Fetch trips for this date that haven't been reminded yet
             trips_result = supabase.table("trips")\
-                .select("id, user_id, destination, days, budget, from_city, plan_tier, share_slug, start_date, is_agent_plan, agent_id, client_email, client_name")\
+                .select("id, user_id, destination, days, budget, from_city, plan_tier, share_slug, start_date, is_agent_plan, client_email, client_name")\
                 .eq("start_date", target_date)\
                 .eq(col, False)\
                 .execute()

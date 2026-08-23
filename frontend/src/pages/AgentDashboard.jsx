@@ -150,7 +150,7 @@ export default function AgentDashboard() {
   const [showAddForm, setShowAddForm]       = useState(false)
 
   // Add client
-  const [newClient, setNewClient]           = useState({ name: '', phone: '', city: '' })
+  const [newClient, setNewClient]           = useState({ name: '', phone: '', city: '', email: '' })
   const [addErrors, setAddErrors]           = useState({})
   const [addingSaving, setAddingSaving]     = useState(false)
 
@@ -295,6 +295,7 @@ export default function AgentDashboard() {
     if (!newClient.name.trim()) e.name = 'Required'
     if (!newClient.phone.trim()) e.phone = 'Required'
     if (!newClient.city.trim()) e.city = 'Required'
+    if (newClient.email.trim() && !/\S+@\S+\.\S+/.test(newClient.email.trim())) e.email = 'Enter a valid email'
     setAddErrors(e)
     return !Object.keys(e).length
   }
@@ -306,12 +307,12 @@ export default function AgentDashboard() {
       const r = await fetch(`${API_URL}/agents/clients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ name: newClient.name, phone: newClient.phone, city: newClient.city })
+        body: JSON.stringify({ name: newClient.name, phone: newClient.phone, city: newClient.city, email: newClient.email.trim() || null })
       })
       const d = await r.json()
       if (!r.ok) { throw new Error(d?.detail || 'Request failed') }
       setClients(p => [d.client, ...p])
-      setNewClient({ name: '', phone: '', city: '' })
+      setNewClient({ name: '', phone: '', city: '', email: '' })
       setShowAddForm(false)
       toast.success(`${d.client.name} added! ✓`)
     } catch (e) { toast.error(e.message || 'Failed to add') }
@@ -1170,9 +1171,10 @@ return (
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '12px', marginBottom: '16px' }}>
               {[
-                { label: 'Full Name *', field: 'name',  type: 'text', ph: 'Ramesh Kumar' },
-                { label: 'Phone *',     field: 'phone', type: 'tel',  ph: '+91 98765 43210' },
-                { label: 'City *',      field: 'city',  type: 'text', ph: 'Kolkata' },
+                { label: 'Full Name *', field: 'name',  type: 'text',  ph: 'Ramesh Kumar' },
+                { label: 'Phone *',     field: 'phone', type: 'tel',   ph: '+91 98765 43210' },
+                { label: 'City *',      field: 'city',  type: 'text',  ph: 'Kolkata' },
+                { label: 'Email',       field: 'email', type: 'email', ph: 'ramesh@example.com (for trip reminders)' },
               ].map(({ label, field, type, ph }) => (
                 <div key={field}>
                   <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
