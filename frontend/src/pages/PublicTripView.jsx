@@ -6,10 +6,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { API_URL } from '../api'
+import toast from 'react-hot-toast'
 import {
   MapPin, Clock, Calendar, Heart, Share2,
   MessageCircle, ChevronDown, ChevronUp, Star,
-  ArrowRight, Sparkles, Users, Navigation
+  ArrowRight, Sparkles, Users, Navigation, AlertTriangle
 } from 'lucide-react'
 
 const TIER_COLORS = {
@@ -38,6 +39,9 @@ export default function PublicTripView() {
   const [error, setError]       = useState(null)
   const [expanded, setExpanded] = useState(null)
   const [copied, setCopied]     = useState(false)
+  const [adjustText, setAdjustText] = useState('')
+  const [adjusting, setAdjusting]   = useState(false)
+  const [showAdjust, setShowAdjust] = useState(false)
 
   useEffect(() => {
     fetch(`${API_URL}/share/${slug}`)
@@ -68,6 +72,42 @@ export default function PublicTripView() {
 
   function handlePlanMine() {
     navigate('/login', { state: { from: 'share', dest: trip?.destination } })
+  }
+
+  async function handleAdjustToday() {
+    if (adjustText.trim().length < 3) {
+      toast.error('Describe what you\'d like to change')
+      return
+    }
+    const token = localStorage.getItem('tripzio_token')
+    if (!token) {
+      toast('Log in as this trip\'s owner to make changes', { icon: '🔒' })
+      navigate('/login', { state: { from: 'trip-companion' } })
+      return
+    }
+    setAdjusting(true)
+    try {
+      const dayNumber = trip.companion?.day_number
+      const res = await fetch(`${API_URL}/itinerary/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          itinerary: trip.trip_data,
+          edit_request: `For day ${dayNumber} only: ${adjustText.trim()}`,
+          trip_id: trip.trip_id || null,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result?.detail?.message || result?.detail || 'Could not apply that change')
+      setTrip(t => ({ ...t, trip_data: result, companion: { ...t.companion, today_plan: (result.day_plans || []).find(d => d.day === dayNumber) } }))
+      setAdjustText('')
+      setShowAdjust(false)
+      toast.success('Today\'s plan updated! ✏️')
+    } catch (e) {
+      toast.error(e.message || 'Could not apply that change')
+    } finally {
+      setAdjusting(false)
+    }
   }
 
   if (loading) return (
@@ -204,6 +244,84 @@ export default function PublicTripView() {
       </div>
 
       <div style={{ maxWidth: '860px', margin: '0 auto', padding: '32px 20px' }}>
+
+        {/* ── TRIP COMPANION — shown only while the trip is actually happening ── */}
+        {trip?.companion?.active && (
+          <div style={{ marginBottom: '36px', background: 'white', border: '2px solid #0d9488', borderRadius: '20px', overflow: 'hidden', animation: 'fadeUp 0.2s ease' }}>
+            <div style={{ background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', padding: '16px 22px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '800', color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                Happening now
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: 'white', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Day {trip.companion.day_number}{trip.companion.today_plan?.title ? ` — ${trip.companion.today_plan.title}` : ''}
+              </div>
+            </div>
+
+            <div style={{ padding: '20px 22px' }}>
+              {trip.companion.today_plan ? (
+                <>
+                  {[
+                    { label: 'Morning', val: trip.companion.today_plan.morning, color: '#f59e0b' },
+                    { label: 'Afternoon', val: trip.companion.today_plan.afternoon, color: '#0ea5e9' },
+                    { label: 'Evening', val: trip.companion.today_plan.evening, color: '#8b5cf6' },
+                  ].filter(s => s.val).map(slot => (
+                    <div key={slot.label} style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{ minWidth: '80px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: '800', color: slot.color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{slot.label}</span>
+                      </div>
+                      <p style={{ fontSize: '13px', color: '#374151', lineHeight: 1.55 }}>{slot.val}</p>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#64748b' }}>No specific plan found for today — check the full itinerary below.</p>
+              )}
+
+              {trip.companion.weather?.advisory && (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 14px', marginTop: '8px', marginBottom: '16px' }}>
+                  <AlertTriangle size={16} color="#991b1b" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#991b1b' }}>Weather heads-up</div>
+                    <div style={{ fontSize: '13px', color: '#7f1d1d', marginTop: '2px' }}>{trip.companion.weather.advisory}</div>
+                  </div>
+                </div>
+              )}
+
+              {data.safety_info?.emergency_note && (
+                <div style={{ fontSize: '12px', color: '#64748b', background: '#f8fafc', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px' }}>
+                  <strong style={{ color: '#374151' }}>In case of emergency:</strong> {data.safety_info.emergency_note}
+                </div>
+              )}
+
+              {!showAdjust ? (
+                <button onClick={() => setShowAdjust(true)}
+                  style={{ padding: '10px 18px', background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: '10px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                  ✏️ Something changed — adjust today's plan
+                </button>
+              ) : (
+                <div>
+                  <textarea
+                    value={adjustText}
+                    onChange={e => setAdjustText(e.target.value)}
+                    placeholder="e.g. it's pouring rain, suggest an indoor alternative"
+                    rows={2}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter, sans-serif', resize: 'vertical', marginBottom: '8px' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={handleAdjustToday} disabled={adjusting}
+                      style={{ padding: '9px 18px', background: adjusting ? '#e2e8f0' : 'linear-gradient(135deg,#0d9488,#0ea5e9)', color: adjusting ? '#94a3b8' : 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: '700', cursor: adjusting ? 'not-allowed' : 'pointer' }}>
+                      {adjusting ? 'Updating...' : 'Update today'}
+                    </button>
+                    <button onClick={() => { setShowAdjust(false); setAdjustText('') }}
+                      style={{ padding: '9px 18px', background: 'white', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Highlights */}
         {data.highlights?.length > 0 && (

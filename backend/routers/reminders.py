@@ -295,6 +295,162 @@ async def run_reminders() -> dict:
     return results
 
 
+def build_daily_nudge_email(trip: dict, user: dict, day_number: int, today_plan: dict, weather_advisory: str = None) -> tuple[str, str]:
+    """Returns (subject, html) for one day of an in-progress trip — the
+    trip companion nudge, distinct from the pre-trip 7d/3d/1d reminders."""
+    dest = trip.get("destination", "your destination")
+    share_slug = trip.get("share_slug", "")
+    trip_url = f"https://tripzio.io/trip/{share_slug}" if share_slug else "https://tripzio.io"
+    user_name = user.get("full_name", "Traveller").split()[0]
+    day_title = (today_plan or {}).get("title") or f"Day {day_number}"
+
+    subject = f"📍 Day {day_number} in {dest} | Tripzio"
+
+    weather_html = ''
+    if weather_advisory:
+        weather_html = f'''<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:14px 18px;margin-bottom:20px;">
+          <p style="font-size:13px;color:#991b1b;margin:0;font-weight:700;">⚠️ Weather heads-up</p>
+          <p style="font-size:13px;color:#7f1d1d;margin:6px 0 0;line-height:1.5;">{weather_advisory}</p>
+        </div>'''
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>{subject}</title></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Inter,-apple-system,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+  <tr><td style="background:linear-gradient(135deg,#0d9488,#0ea5e9);border-radius:16px 16px 0 0;padding:28px 32px;text-align:center;">
+    <h1 style="color:white;font-size:22px;font-weight:900;margin:0 0 4px;">Day {day_number} in {dest}</h1>
+    <p style="color:rgba(255,255,255,0.85);font-size:14px;margin:0;">{day_title}</p>
+  </td></tr>
+  <tr><td style="background:white;padding:32px;">
+    <p style="font-size:16px;color:#0f172a;margin:0 0 20px;">Hi {user_name}! 👋</p>
+    {weather_html}
+    <div style="text-align:center;margin-bottom:8px;">
+      <a href="{trip_url}" style="display:inline-block;background:linear-gradient(135deg,#0d9488,#0ea5e9);color:white;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:15px;font-weight:700;">
+        View Today's Plan →
+      </a>
+    </div>
+    <p style="font-size:13px;color:#94a3b8;text-align:center;margin:16px 0 0;">Something changed? Tap the link above — you can adjust today's plan right there.</p>
+  </td></tr>
+  <tr><td style="background:#f8fafc;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+    <p style="font-size:12px;color:#94a3b8;margin:0;">
+      <a href="https://tripzio.io" style="color:#0d9488;text-decoration:none;">tripzio.io</a>
+      &nbsp;·&nbsp;
+      <a href="https://tripzio.io/unsubscribe?email={user.get('email','')}" style="color:#94a3b8;text-decoration:none;">Unsubscribe</a>
+    </p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
+    return subject, html
+
+
+async def run_daily_nudges() -> dict:
+    """
+    Type 4: daily in-trip nudge, the trip companion's push side. For trips
+    currently in progress (start_date <= today <= end_date), sends one
+    message per day pointing at that day's plan on the companion page
+    (/trip/{slug}), with a weather heads-up if conditions look disruptive —
+    reuses the exact get_weather()/advisory logic already built for the
+    1-day pre-trip reminder.
+
+    Dedup is race-safe: trip_daily_nudges has a unique constraint on
+    (trip_id, day_number), and the row is inserted BEFORE sending — a cron
+    retry or double-trigger's second insert just fails, so it can never
+    double-send. If the actual send fails for every recipient after a
+    successful insert, the row is removed again so a future run can retry
+    that trip/day instead of silently losing it forever.
+    """
+    supabase = get_supabase_client()
+    today = date.today()
+    results = {"sent": 0, "failed": 0, "skipped": 0, "errors": []}
+
+    try:
+        trips_result = supabase.table("trips") \
+            .select("id, user_id, destination, share_slug, start_date, end_date, itinerary, is_agent_plan, client_email, client_name") \
+            .lte("start_date", today.isoformat()) \
+            .gte("end_date", today.isoformat()) \
+            .execute()
+        trips = trips_result.data or []
+        logger.info(f"Found {len(trips)} active trips for daily nudge ({today.isoformat()})")
+
+        for trip in trips:
+            try:
+                start_date = trip.get("start_date")
+                if not start_date:
+                    results["skipped"] += 1
+                    continue
+                day_number = (today - date.fromisoformat(start_date)).days + 1
+
+                try:
+                    supabase.table("trip_daily_nudges").insert({
+                        "trip_id": trip["id"], "day_number": day_number
+                    }).execute()
+                except Exception:
+                    # Already nudged for this trip/day (unique constraint hit) —
+                    # or a genuine DB error, treated the same: skip, fail-open.
+                    results["skipped"] += 1
+                    continue
+
+                itinerary = trip.get("itinerary") or {}
+                day_plans = itinerary.get("day_plans") or []
+                today_plan = next((d for d in day_plans if d.get("day") == day_number), None)
+                city = (today_plan or {}).get("city") or (trip.get("destination") or "").split("→")[0].strip()
+
+                weather_advisory = None
+                if city:
+                    try:
+                        weather = await get_weather(city, start_date)
+                        weather_advisory = weather.get("advisory")
+                    except Exception as e:
+                        logger.warning(f"Daily nudge weather check failed for trip {trip.get('id')}: {e}")
+
+                emails_to_send = []
+                if trip.get("user_id"):
+                    user_result = supabase.table("users").select("email, full_name").eq("id", trip["user_id"]).single().execute()
+                    if user_result.data:
+                        emails_to_send.append(user_result.data)
+                if trip.get("is_agent_plan") and trip.get("client_email"):
+                    emails_to_send.append({"email": trip["client_email"], "full_name": trip.get("client_name", "Traveller")})
+
+                if not emails_to_send:
+                    results["skipped"] += 1
+                    continue
+
+                any_sent = False
+                for user in emails_to_send:
+                    subject, html = build_daily_nudge_email(trip, user, day_number, today_plan, weather_advisory)
+                    sent = await send_email(user["email"], subject, html)
+                    if sent:
+                        results["sent"] += 1
+                        any_sent = True
+                    else:
+                        results["failed"] += 1
+
+                if not any_sent:
+                    try:
+                        supabase.table("trip_daily_nudges").delete() \
+                            .eq("trip_id", trip["id"]).eq("day_number", day_number).execute()
+                    except Exception:
+                        pass
+
+            except Exception as e:
+                logger.error(f"Error processing daily nudge for trip {trip.get('id')}: {e}")
+                results["failed"] += 1
+                results["errors"].append(str(e))
+
+    except Exception as e:
+        logger.error(f"Error fetching active trips for daily nudge: {e}")
+        results["errors"].append(str(e))
+
+    logger.info(f"Daily nudge run complete: {results}")
+    return results
+
+
 # ── Type 2: Seasonal nudge (provisioned, not yet active) ─────────────────
 # Trigger: October → email all users for winter travel planning
 # Logic: Run once in October, send "Winter season starting" email
@@ -324,10 +480,12 @@ async def run_reminders_endpoint(x_cron_secret: str = Header(None)):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
 
     results = await run_reminders()
+    nudge_results = await run_daily_nudges()
     return {
         "status": "completed",
         "date": date.today().isoformat(),
-        **results
+        **results,
+        "daily_nudges": nudge_results,
     }
 
 

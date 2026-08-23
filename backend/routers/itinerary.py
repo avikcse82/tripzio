@@ -130,7 +130,7 @@ import asyncio
 import httpx
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -533,6 +533,24 @@ TRIP_TYPE_DEFAULT_TRAVELERS = {
     "group": 6,
     "adventure": 2,
 }
+
+
+def compute_end_date(start_date: str, days) -> str:
+    """
+    start_date + (days - 1), so a trip's active window is its real span, not
+    a single day. Previously every save set end_date = start_date regardless
+    of length — harmless until something needed to know "is this trip
+    happening right now" (the trip companion's day-awareness), where it
+    silently made every multi-day trip's active window just its first day.
+    Fails safe to start_date on any bad input (missing/zero days, unparsable
+    date) — never raises, since callers use this inline in a save path.
+    """
+    try:
+        d = int(days) if days else 1
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        return (start + timedelta(days=max(d, 1) - 1)).strftime("%Y-%m-%d")
+    except Exception:
+        return start_date
 
 
 def estimate_travelers(explicit: int = None, trip_type: str = None) -> int:
@@ -2089,7 +2107,7 @@ async def generate_itinerary(
                 "from_city": req.from_city,
                 "destination": ai_response.get("destination", req.destination or ""),
                 "start_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
-                "end_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
+                "end_date": compute_end_date(req.start_date or datetime.now().strftime("%Y-%m-%d"), req.days),
                 "days": req.days,
                 "budget": req.budget,
                 "trip_type": req.trip_type,
@@ -2691,7 +2709,7 @@ Do NOT show direct source→destination if via city is specified."""
                 "from_city": ai_response.get("from_city", ""),
                 "destination": ai_response.get("destination", ""),
                 "start_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
-                "end_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
+                "end_date": compute_end_date(req.start_date or datetime.now().strftime("%Y-%m-%d"), ai_response.get("days", 0)),
                 "days": ai_response.get("days", 0),
                 "budget": ai_response.get("budget", 0),
                 "trip_type": ai_response.get("trip_type"),

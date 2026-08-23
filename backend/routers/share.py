@@ -19,9 +19,11 @@ always the server's own copy of that trip's itinerary.
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
+from datetime import date
 from database import get_supabase_client
 from routers.users import get_current_user
 from routers.trips import _find_user_trip
+from routers.weather import get_weather
 import random
 import string
 import logging
@@ -94,6 +96,7 @@ def create_share(
 
         payload = {
             "slug":        slug,
+            "trip_id":     body.trip_id,
             "user_id":     user_id,
             "trip_data":   itinerary,
             "title":       body.title or trip.get("title"),
@@ -122,8 +125,33 @@ def create_share(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _compute_companion(trip_data: dict, start_date: str, end_date: str):
+    """
+    Day-awareness for the trip companion view: is this trip happening right
+    now, and if so, which day? Returns None outside the trip window (before
+    it starts, after it ends, or if either date is missing/unparsable) —
+    the frontend falls back to the normal full-itinerary view in that case.
+    Never raises — a bad date shouldn't break the whole share page.
+    """
+    if not start_date or not end_date:
+        return None
+    try:
+        sd = date.fromisoformat(start_date)
+        ed = date.fromisoformat(end_date)
+        today = date.today()
+        if not (sd <= today <= ed):
+            return None
+        day_number = (today - sd).days + 1
+        day_plans = trip_data.get("day_plans") or []
+        today_plan = next((d for d in day_plans if d.get("day") == day_number), None)
+        return {"active": True, "day_number": day_number, "today_plan": today_plan}
+    except Exception as e:
+        logger.warning(f"companion day computation failed: {e}")
+        return None
+
+
 @router.get("/{slug}")
-def get_shared_trip(slug: str):
+async def get_shared_trip(slug: str):
     """Get a shared trip by slug. Public — no auth required."""
     try:
         supabase = get_supabase_client()
@@ -139,16 +167,55 @@ def get_shared_trip(slug: str):
         if not res.data:
             raise HTTPException(status_code=404, detail="Trip not found")
 
+        share = res.data
+
         # Increment view count (best-effort, don't fail if this errors)
         try:
             supabase.table("shared_trips") \
-                .update({"views": (res.data.get("views") or 0) + 1}) \
+                .update({"views": (share.get("views") or 0) + 1}) \
                 .eq("slug", slug) \
                 .execute()
         except Exception:
             pass
 
-        return res.data
+        # Prefer the live trip over the share-time snapshot, so edits made
+        # after sharing actually show up here — this is the whole point of
+        # a companion view. Falls back to the snapshot (trip_data, already
+        # in `share`) if the live trip is gone or the lookup fails for any
+        # reason; the page should never hard-fail just because live data
+        # isn't reachable.
+        trip_data = share.get("trip_data") or {}
+        start_date = None
+        end_date = None
+        if share.get("trip_id"):
+            try:
+                live = supabase.table("trips") \
+                    .select("itinerary, start_date, end_date") \
+                    .eq("id", share["trip_id"]) \
+                    .maybe_single().execute()
+                if live.data and live.data.get("itinerary"):
+                    trip_data = live.data["itinerary"]
+                    start_date = live.data.get("start_date")
+                    end_date = live.data.get("end_date")
+            except Exception as e:
+                logger.warning(f"Live trip lookup failed for share {slug}, using snapshot: {e}")
+
+        # Snapshot-only shares (no trip_id, or live lookup found nothing)
+        # still carry dates inside the itinerary JSON itself.
+        start_date = start_date or trip_data.get("start_date")
+        end_date = end_date or trip_data.get("end_date")
+
+        share["trip_data"] = trip_data
+        companion = _compute_companion(trip_data, start_date, end_date)
+        if companion:
+            city = (companion.get("today_plan") or {}).get("city") or trip_data.get("destination", "").split("→")[0].strip()
+            try:
+                companion["weather"] = await get_weather(city) if city else None
+            except Exception as e:
+                logger.warning(f"Companion weather fetch failed for share {slug}: {e}")
+                companion["weather"] = None
+        share["companion"] = companion
+        return share
 
     except HTTPException:
         raise
