@@ -18,6 +18,18 @@ CITY_COORDS = {
     "mirik": (26.8873, 88.1837),
     "siliguri": (26.7271, 88.3953),
 
+    # Heritage & Culture — West Bengal
+    "bishnupur": (23.0699, 87.3199),
+    "shantiniketan": (23.6820, 87.6828),
+    "santiniketan": (23.6820, 87.6828),
+    "murshidabad": (24.1833, 88.2667),
+
+    # Dooars — a region, not one town; Jalpaiguri is the main gateway
+    "dooars": (26.5167, 88.7167),
+    "jalpaiguri": (26.5167, 88.7167),
+    "lataguri": (26.6667, 88.7833),
+    "gorumara": (26.7167, 88.7667),
+
     # Hill Stations — Himachal Pradesh
     "manali": (32.2396, 77.1887),
     "shimla": (31.1048, 77.1734),

@@ -1850,8 +1850,19 @@ async def generate_itinerary_guest(
     """
     try:
         # ── IP rate limit ─────────────────────────────────────
-        client_ip = request.headers.get("x-forwarded-for", request.client.host or "unknown")
-        client_ip = client_ip.split(",")[0].strip()  # take first IP if proxied
+        # Trust the LAST hop in X-Forwarded-For, not the first. Each proxy
+        # in the chain APPENDS the IP it saw to the end of the header — so
+        # a value the client sets on their own request always lands at the
+        # START, ahead of anything a real proxy adds, while the actual
+        # edge-observed client IP is always the final entry. Taking the
+        # first entry (the old behavior) let anyone bypass the 1-per-24h
+        # guest limit entirely just by sending their own X-Forwarded-For
+        # header with a random IP on every request.
+        xff = request.headers.get("x-forwarded-for", "")
+        if xff:
+            client_ip = xff.split(",")[-1].strip()
+        else:
+            client_ip = request.client.host or "unknown"
 
         allowed = check_guest_rate_limit(client_ip)
         if not allowed:
