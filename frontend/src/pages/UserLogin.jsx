@@ -110,8 +110,16 @@ export default function UserLogin() {
       if (detail.toLowerCase().includes('already')) {
         toast.error('Email already registered. Please login.')
         setErrors({ email: 'Email already registered' })
-      } else if (detail.toLowerCase().includes('invalid') || detail.toLowerCase().includes('credentials') || detail.includes('401')) {
-        toast.error('Incorrect email or password')
+      } else if (
+        detail.toLowerCase().includes('incorrect email') ||
+        detail.toLowerCase().includes('invalid') ||
+        detail.toLowerCase().includes('credentials') ||
+        detail.includes('401')
+      ) {
+        // The API deliberately won't say whether it was the email or the
+        // password that was wrong (see INVALID_LOGIN_DETAIL in auth.py), so
+        // point at the reset flow rather than guessing which field is at fault.
+        toast.error('Incorrect email or password — use "Forgot password?" if you\'re stuck')
         setErrors({ password: 'Incorrect email or password' })
       } else {
         toast.error(detail || 'Something went wrong. Please try again.')

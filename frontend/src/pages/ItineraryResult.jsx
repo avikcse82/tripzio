@@ -1085,7 +1085,11 @@ export default function ItineraryResult() {
         const detail = result?.detail || ''
         if (detail.toLowerCase().includes('already')) {
           setAuthErrors({ email: 'Email already registered — try signing in' })
-        } else if (detail.toLowerCase().includes('invalid') || detail.toLowerCase().includes('credentials')) {
+        } else if (
+          detail.toLowerCase().includes('incorrect email') ||
+          detail.toLowerCase().includes('invalid') ||
+          detail.toLowerCase().includes('credentials')
+        ) {
           setAuthErrors({ password: 'Incorrect email or password' })
         } else {
           toast.error(detail || 'Something went wrong. Please try again.')

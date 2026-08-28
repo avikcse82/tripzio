@@ -14,6 +14,11 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+# A real bcrypt hash of a throwaway value, used only to burn the same CPU on
+# the unknown-email path as a genuine password check does. Computed once at
+# import so it never costs anything per request.
+_DUMMY_HASH = get_password_hash("tripzio-timing-equaliser")
+
 
 @router.post("/register", response_model=Token)
 async def register(user_data: UserRegister):
@@ -76,21 +81,33 @@ async def register(user_data: UserRegister):
     )
 
 
+# One message for "no such account" and "wrong password" alike. Saying which
+# one it was let anyone check whether a given address has a Tripzio account,
+# which is exactly what forgot_password below deliberately refuses to reveal —
+# login was quietly undoing that. A user who genuinely can't get in is pointed
+# at the reset flow instead, and that flow is itself safe to run against an
+# address that may not exist.
+INVALID_LOGIN_DETAIL = "Incorrect email or password. Try again, or reset your password."
+
+
 @router.post("/login", response_model=Token)
 async def login(credentials: UserLogin):
-    # Find user
     user = get_user_by_email(credentials.email)
     if not user:
+        # Hash anyway before failing. Returning early here is measurably
+        # faster than the password-verify path below, so a caller timing the
+        # two responses could still tell a real account from a fake one even
+        # with the text identical.
+        verify_password(credentials.password, _DUMMY_HASH)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No account found with this email."
+            detail=INVALID_LOGIN_DETAIL
         )
 
-    # Verify password
     if not verify_password(credentials.password, user["password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect password. Please try again."
+            detail=INVALID_LOGIN_DETAIL
         )
 
     # Check if active
