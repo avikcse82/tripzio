@@ -6,6 +6,7 @@ from database import (
     get_user_by_email,
     get_user_by_id,
     get_user_trips,
+    get_user_trip_status_counts,
     get_agent_clients,
     save_agent_client,
     update_agent_client
@@ -80,16 +81,17 @@ async def get_my_profile(
 async def user_dashboard(
     current_user: dict = Depends(get_current_user)
 ):
-    trips = get_user_trips(str(current_user["id"]))
+    trip_stats = get_user_trip_status_counts(str(current_user["id"]))
+    recent_trips = get_user_trips(str(current_user["id"]), limit=5)
     return {
         "message": f"Welcome to Tripzio, {current_user['full_name']}!",
         "role": current_user["role"],
         "stats": {
-            "trips_planned": len(trips),
-            "saved_trips": len([t for t in trips if t.get("status") == "saved"]),
-            "completed_trips": len([t for t in trips if t.get("status") == "completed"]),
+            "trips_planned": len(trip_stats),
+            "saved_trips": len([t for t in trip_stats if t.get("status") == "saved"]),
+            "completed_trips": len([t for t in trip_stats if t.get("status") == "completed"]),
         },
-        "recent_trips": trips[:5]
+        "recent_trips": recent_trips
     }
 
 

@@ -6,6 +6,7 @@
 # Fail-open: any error → log and continue, never crash
 
 import os
+import asyncio
 import logging
 import httpx
 from datetime import date, timedelta
@@ -224,19 +225,47 @@ async def run_reminders() -> dict:
             trips = trips_result.data or []
             logger.info(f"Found {len(trips)} trips for {days_until}-day reminder ({target_date})")
 
+            # Batch the user lookup — one query for every trip in this batch
+            # instead of one `.single()` round trip per trip.
+            users_by_id = {}
+            try:
+                user_ids = list({t["user_id"] for t in trips if t.get("user_id")})
+                if user_ids:
+                    users_result = supabase.table("users")\
+                        .select("id, email, full_name")\
+                        .in_("id", user_ids)\
+                        .execute()
+                    users_by_id = {u["id"]: u for u in (users_result.data or [])}
+            except Exception as e:
+                logger.warning(f"Batch user lookup failed for {days_until}-day reminder (fail-open): {e}")
+
+            # Weather heads-up — 1-day reminder only, and only when conditions
+            # actually look disruptive. get_weather() returns CURRENT
+            # conditions, not a forecast, but at a 1-day lead time that's a
+            # reasonable proxy: the kind of weather this flags (monsoon rain,
+            # heatwaves, snow) is a multi-day pattern, not a same-day flip.
+            # Fetched concurrently across trips instead of one await per trip.
+            weather_advisories = {}
+            if days_until == 1:
+                async def _fetch_weather(t):
+                    try:
+                        w = await get_weather(t["destination"], t.get("start_date"))
+                        return t["id"], w.get("advisory")
+                    except Exception as e:
+                        logger.warning(f"Weather check failed for trip {t.get('id')}: {e}")
+                        return t["id"], None
+                dest_trips = [t for t in trips if t.get("destination")]
+                if dest_trips:
+                    pairs = await asyncio.gather(*[_fetch_weather(t) for t in dest_trips])
+                    weather_advisories = dict(pairs)
+
             for trip in trips:
                 try:
                     emails_to_send = []
 
-                    # Get user email
-                    if trip.get("user_id"):
-                        user_result = supabase.table("users")\
-                            .select("email, full_name")\
-                            .eq("id", trip["user_id"])\
-                            .single()\
-                            .execute()
-                        if user_result.data:
-                            emails_to_send.append(user_result.data)
+                    user = users_by_id.get(trip.get("user_id"))
+                    if user:
+                        emails_to_send.append(user)
 
                     # Get agent's client email (if agent plan)
                     if trip.get("is_agent_plan") and trip.get("client_email"):
@@ -249,20 +278,7 @@ async def run_reminders() -> dict:
                         results["skipped"] += 1
                         continue
 
-                    # Weather heads-up — 1-day reminder only, and only when
-                    # conditions actually look disruptive. get_weather()
-                    # returns CURRENT conditions, not a forecast, but at a
-                    # 1-day lead time that's a reasonable proxy: the kind of
-                    # weather this flags (monsoon rain, heatwaves, snow) is
-                    # a multi-day pattern, not a same-day flip. Fails open —
-                    # get_weather() never raises, just returns no advisory.
-                    weather_advisory = None
-                    if days_until == 1 and trip.get("destination"):
-                        try:
-                            weather = await get_weather(trip["destination"], trip.get("start_date"))
-                            weather_advisory = weather.get("advisory")
-                        except Exception as e:
-                            logger.warning(f"Weather check failed for trip {trip.get('id')}: {e}")
+                    weather_advisory = weather_advisories.get(trip["id"])
 
                     # Send to each recipient
                     trip_sent = False
@@ -378,6 +394,11 @@ async def run_daily_nudges() -> dict:
         trips = trips_result.data or []
         logger.info(f"Found {len(trips)} active trips for daily nudge ({today.isoformat()})")
 
+        # Pass 1 — claim the per-trip dedup slot (must stay one insert per
+        # trip, sequential: it's the race-safe gate deciding whether this
+        # trip gets nudged today at all — see docstring above). Everything
+        # after this point only runs for trips that actually passed the gate.
+        eligible = []  # (trip, day_number, today_plan, city)
         for trip in trips:
             try:
                 start_date = trip.get("start_date")
@@ -400,20 +421,47 @@ async def run_daily_nudges() -> dict:
                 day_plans = itinerary.get("day_plans") or []
                 today_plan = next((d for d in day_plans if d.get("day") == day_number), None)
                 city = (today_plan or {}).get("city") or (trip.get("destination") or "").split("→")[0].strip()
+                eligible.append((trip, day_number, today_plan, city))
+            except Exception as e:
+                logger.error(f"Error processing daily nudge for trip {trip.get('id')}: {e}")
+                results["failed"] += 1
+                results["errors"].append(str(e))
 
-                weather_advisory = None
-                if city:
-                    try:
-                        weather = await get_weather(city, start_date)
-                        weather_advisory = weather.get("advisory")
-                    except Exception as e:
-                        logger.warning(f"Daily nudge weather check failed for trip {trip.get('id')}: {e}")
+        # Pass 2 — batch the user lookup (one query instead of one per trip)
+        # and fetch weather concurrently (independent per-trip network calls),
+        # only for trips that passed the dedup gate above.
+        users_by_id = {}
+        try:
+            user_ids = list({t["user_id"] for t, _, _, _ in eligible if t.get("user_id")})
+            if user_ids:
+                users_result = supabase.table("users").select("id, email, full_name").in_("id", user_ids).execute()
+                users_by_id = {u["id"]: u for u in (users_result.data or [])}
+        except Exception as e:
+            logger.warning(f"Batch user lookup failed for daily nudge (fail-open): {e}")
+
+        async def _fetch_weather(trip, city):
+            try:
+                w = await get_weather(city, trip["start_date"])
+                return trip["id"], w.get("advisory")
+            except Exception as e:
+                logger.warning(f"Daily nudge weather check failed for trip {trip.get('id')}: {e}")
+                return trip["id"], None
+
+        weather_targets = [(t, city) for t, _, _, city in eligible if city]
+        weather_advisories = {}
+        if weather_targets:
+            pairs = await asyncio.gather(*[_fetch_weather(t, c) for t, c in weather_targets])
+            weather_advisories = dict(pairs)
+
+        # Pass 3 — send.
+        for trip, day_number, today_plan, city in eligible:
+            try:
+                weather_advisory = weather_advisories.get(trip["id"])
 
                 emails_to_send = []
-                if trip.get("user_id"):
-                    user_result = supabase.table("users").select("email, full_name").eq("id", trip["user_id"]).single().execute()
-                    if user_result.data:
-                        emails_to_send.append(user_result.data)
+                user = users_by_id.get(trip.get("user_id"))
+                if user:
+                    emails_to_send.append(user)
                 if trip.get("is_agent_plan") and trip.get("client_email"):
                     emails_to_send.append({"email": trip["client_email"], "full_name": trip.get("client_name", "Traveller")})
 

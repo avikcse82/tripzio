@@ -213,7 +213,7 @@ def save_or_replace_draft(user_id: str, trip_data: dict):
     return save_trip(trip_data)
 
 
-def get_user_trips(user_id: str, locked_only: bool = False):
+def get_user_trips(user_id: str, locked_only: bool = False, limit: int = None):
     try:
         client = get_supabase_client()
         if not client:
@@ -221,10 +221,28 @@ def get_user_trips(user_id: str, locked_only: bool = False):
         query = client.table("trips").select("*").eq("user_id", user_id)
         if locked_only:
             query = query.eq("locked", True)
-        response = query.order("created_at", desc=True).execute()
+        query = query.order("created_at", desc=True)
+        if limit:
+            query = query.limit(limit)
+        response = query.execute()
         return response.data or []
     except Exception as e:
         logger.error(f"Error getting trips: {e}")
+        return []
+
+
+def get_user_trip_status_counts(user_id: str):
+    """Counts-only version of get_user_trips for dashboard stats — selects
+    id+status instead of every trip's full itinerary blob (which can be
+    tens of KB each), since the dashboard only ever counts them."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return []
+        response = client.table("trips").select("id, status").eq("user_id", user_id).execute()
+        return response.data or []
+    except Exception as e:
+        logger.error(f"Error getting trip status counts: {e}")
         return []
 
 
