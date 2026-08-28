@@ -18,6 +18,17 @@ import { generateTripPDF } from '../utils/generateItineraryHTML'
 import { payToUnlockTrip } from '../utils/razorpay'
 import FeedbackWidget from '../components/FeedbackWidget'
 import FestivalAlert from '../components/FestivalAlert'
+import PlanModeCoachmark from '../components/PlanModeCoachmark'
+
+// First-time pointer at the two tabs users most often can't find on their
+// own — where to pick a hotel and where to book the train/bus. Module-level
+// (not defined inside the component) so the array reference stays stable
+// across re-renders — an inline literal here would re-run the coachmark's
+// effect on every render.
+const RESULT_TAB_COACHMARKS = [
+  { id: 'hotels', label: 'Pick your stay here', offset: 0 },
+  { id: 'transport', label: 'Book trains & buses here', offset: 0 },
+]
 
 // Affiliate/tracked-link builders — shared with generateItineraryHTML.js (the PDF
 // generator) so every provider's URL format has exactly one source of truth. See
@@ -1679,10 +1690,12 @@ export default function ItineraryResult() {
         )}
 
         {/* ── TABS ── */}
+        <PlanModeCoachmark storageKey="tripzio_seen_result_tabs_coachmark" targets={RESULT_TAB_COACHMARKS} />
         <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.04)', marginBottom: '28px' }}>
           <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #f1f5f9', padding: '0 8px' }}>
             {tabs.map(tab => (
               <button key={tab.id} className="tab-btn"
+                data-coachmark={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 style={{ padding: '14px 14px', border: 'none', borderBottom: `2px solid ${activeTab === tab.id ? '#0d9488' : 'transparent'}`, background: 'transparent', color: activeTab === tab.id ? '#0d9488' : '#64748b', fontSize: '13px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'Inter, sans-serif', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease' }}>
                 {tab.label}

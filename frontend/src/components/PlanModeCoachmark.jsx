@@ -1,24 +1,26 @@
 import { useEffect, useState, useCallback } from 'react'
 
-// Points an arrow + short label at each of the three plan-mode tabs
-// (Quick / Detailed / Custom) so a first-time user knows which one to pick,
-// instead of landing on the dashboard and having to guess. Shows once ever
-// per browser (localStorage flag keyed by storageKey — separate keys per
-// dashboard since a user account is either role=user or role=agent, never
-// both, but this keeps the two fully independent regardless). Dismisses on
-// any click/tap, same as the reference pattern this was modeled on.
-const TARGETS = [
+// Points an arrow + short label at a set of DOM elements tagged
+// data-coachmark="<id>", so a first-time user knows what to look for instead
+// of having to guess. Shows once ever per browser (localStorage flag keyed
+// by storageKey — callers pass a distinct key per screen/dashboard, so e.g.
+// the user dashboard, agent dashboard, and itinerary result page each get
+// their own independent one-time tour). Dismisses on any click/tap, same as
+// the reference pattern this was modeled on. `targets` defaults to the
+// original plan-mode tabs (Quick / Detailed / Custom) for backward
+// compatibility with existing call sites that don't pass one.
+const DEFAULT_TARGETS = [
   { id: 'quick', label: 'Fastest — just 4 inputs', offset: 0 },
   { id: 'detailed', label: 'Choose dates, tier, everything', offset: 34 },
   { id: 'custom', label: 'Describe your trip in your own words', offset: 0 },
 ]
 
-export default function PlanModeCoachmark({ storageKey }) {
+export default function PlanModeCoachmark({ storageKey, targets = DEFAULT_TARGETS }) {
   const [rects, setRects] = useState(null)
   const [visible, setVisible] = useState(false)
 
   const measure = useCallback(() => {
-    const found = TARGETS.map(t => {
+    const found = targets.map(t => {
       const el = document.querySelector(`[data-coachmark="${t.id}"]`)
       if (!el) return null
       const r = el.getBoundingClientRect()
@@ -26,11 +28,11 @@ export default function PlanModeCoachmark({ storageKey }) {
     })
     if (found.every(Boolean)) setRects(found)
     else setVisible(false)
-  }, [])
+  }, [targets])
 
   useEffect(() => {
     if (typeof window === 'undefined' || localStorage.getItem(storageKey)) return
-    const el = document.querySelector('[data-coachmark="quick"]')
+    const el = document.querySelector(`[data-coachmark="${targets[0]?.id}"]`)
     if (!el) return
 
     el.scrollIntoView({ behavior: 'instant', block: 'center' })
@@ -38,7 +40,7 @@ export default function PlanModeCoachmark({ storageKey }) {
     const onResize = () => measure()
     window.addEventListener('resize', onResize)
     return () => { clearTimeout(t); window.removeEventListener('resize', onResize) }
-  }, [storageKey, measure])
+  }, [storageKey, targets, measure])
 
   const dismiss = () => {
     localStorage.setItem(storageKey, '1')
