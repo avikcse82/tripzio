@@ -36,6 +36,10 @@ CITY_COORDS = {
     "dharamsala": (32.2190, 76.3234),
     "mcleod ganj": (32.2427, 76.3234),
     "kasauli": (30.8996, 76.9647),
+    # Kalka — the Kalka-Shimla toy train railhead (station code KLK), so it
+    # shows up as a real destination in Delhi→hills plans. Was falling back
+    # to "India center" and returning plains weather for a foothill town.
+    "kalka": (30.8372, 76.9366),
     "dalhousie": (32.5387, 75.9734),
     "spiti": (32.2461, 78.0338),
     "kaza": (32.2272, 78.0716),

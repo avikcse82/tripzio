@@ -1174,44 +1174,43 @@ async def call_openai(prompt: str) -> dict:
 
 async def verify_itinerary_consistency(ai_response: dict, expected_days: int, api_key: str) -> dict:
     """Cheap Haiku pass checking STRUCTURAL consistency of what Sonnet just
-    generated — day_plans count matches the requested days, circuit_legs
-    days sum correctly and every day maps to a real leg, cost_breakdown adds
-    up. Deliberately narrow scope (not grading creative quality — that would
-    need a much more expensive pass) so this stays fast/cheap like every
-    other Haiku call in this file. Fail-open: any error here must never
-    block a generation the user is waiting on.
+    generated — day_plans count matches the requested days, and circuit_legs
+    days sum correctly with every day mapping to a real leg. Deliberately
+    narrow scope (not grading creative quality — that would need a much more
+    expensive pass) so this stays fast/cheap like every other Haiku call in
+    this file. Fail-open: any error here must never block a generation the
+    user is waiting on.
+
+    Costs are deliberately NOT checked here, and no cost data is even sent.
+    A cost_breakdown whose components don't sum to its stated total is pure
+    arithmetic that post_process_itinerary() re-derives deterministically a
+    moment later — flagging it here only ever triggered a full, expensive
+    Sonnet regeneration to "fix" a number that was about to be overwritten
+    anyway (seen in production: a ₹75,000-vs-₹95,000 mismatch forcing a
+    second generation on a request the user was waiting on). Only issues
+    that post-processing genuinely cannot repair belong in this check.
     """
     try:
         day_plans = ai_response.get("day_plans", []) or []
-        cb = ai_response.get("cost_breakdown", {}) or {}
         summary = {
             "expected_days": expected_days,
             "actual_day_plans_count": len(day_plans),
             "day_cities": [d.get("city", "") for d in day_plans],
             "is_circuit": ai_response.get("is_circuit"),
             "circuit_legs": ai_response.get("circuit_legs", []),
-            # Only the 5 raw components + total — deliberately NOT sending
-            # budget_utilisation/per_person/savings_tip. A previous version
-            # sent the whole cost_breakdown and the model started grading
-            # the utilisation percentage itself (flagging 103% as "wrong"
-            # when over-100% is a normal, expected state that a later
-            # deterministic step corrects) — giving it less to look at
-            # removed the temptation to comment on things outside scope.
-            "cost_components": {k: cb.get(k) for k in ["transport", "accommodation", "food", "activities", "miscellaneous", "total"]},
         }
         prompt = f"""Check this generated travel itinerary's metadata for structural consistency ONLY (not creative quality, not business logic, not whether numbers are "good"). Return ONLY JSON.
 
 DATA:
 {json.dumps(summary, ensure_ascii=False)}
 
-You may ONLY flag these three specific things — nothing else, no matter what else you notice:
+You may ONLY flag these two specific things — nothing else, no matter what else you notice:
 1. Does actual_day_plans_count exactly equal expected_days?
 2. If is_circuit is true: do circuit_legs' "days" values sum to expected_days, and does every entry in day_cities match one of circuit_legs' city names?
-3. Does cost_components.total roughly equal transport+accommodation+food+activities+miscellaneous added together (within ~10%)?
 
 Explicitly NOT your job, do not comment on these even if they look unusual:
 - circuit_legs having exactly one entry when is_circuit is false — that is the correct, intentional shape for a single-destination trip, not an inconsistency.
-- Whether the total is high, low, over, or under any budget — you have no budget figure here and were not asked to judge spending, only whether the 5 components sum to the stated total.
+- Anything about costs, budgets, or money — no cost data is shown to you and none is your concern.
 
 Return exactly: {{"ok": true_or_false, "issues": ["short specific description of each problem found — empty array if none"]}}"""
 
@@ -1231,10 +1230,17 @@ Return exactly: {{"ok": true_or_false, "issues": ["short specific description of
             return {"ok": True, "issues": []}
 
         text = r.json()["content"][0]["text"].strip()
-        s = text.find("{"); e = text.rfind("}") + 1
-        if s < 0 or e <= s:
+        s = text.find("{")
+        if s < 0:
             return {"ok": True, "issues": []}
-        result = json.loads(text[s:e])
+        # raw_decode stops at the end of the FIRST complete JSON object rather
+        # than assuming everything up to the last "}" in the reply is one
+        # object. Slicing find("{")..rfind("}") broke whenever Haiku appended
+        # anything after its JSON — a second object, or prose containing a
+        # brace — producing "Extra data: line N" and silently fail-opening.
+        # That was live: every such reply skipped the day-count and circuit
+        # checks entirely while logging only a vague warning.
+        result, _ = json.JSONDecoder().raw_decode(text[s:])
         return {"ok": bool(result.get("ok", True)), "issues": result.get("issues", []) or []}
     except Exception as ex:
         logger.warning(f"Consistency check failed (fail-open): {ex}")
@@ -1265,6 +1271,39 @@ async def recheck_and_correct(ai_response: dict, prompt: str, expected_days: int
     except Exception as ex:
         logger.warning(f"Consistency recheck skipped (fail-open): {ex}")
     return ai_response
+
+
+def parse_rupee_amount(v) -> int:
+    """Pull the rupee figure out of one cost_breakdown line item.
+
+    The schema asks for "₹X,XXX (explanatory text)", and for that shape any
+    reasonable rule works. This exists for the shapes Sonnet actually
+    produces when it drifts off-schema, where a naive "first number wins"
+    silently returns a count instead of an amount:
+
+        "4 nights × ₹8,000 = ₹32,000"  -> 4        (was)  -> 32000 (now)
+        "2 people × ₹5,000 = ₹10,000"  -> 2        (was)  -> 10000 (now)
+
+    A component reduced from ₹32,000 to ₹4 doesn't just show a wrong line —
+    it collapses the computed total, which then drags the under-budget
+    branch above into inflating every other category to compensate. So the
+    rules, in order:
+      1. An explicit "= ₹X" is the result of the model's own arithmetic — trust it.
+      2. Otherwise the first ₹-prefixed number, since the schema puts the
+         real amount first and any later ₹ figures are asides
+         ("₹5,500 (₹8,000 buffer recommended)" must stay 5,500).
+      3. Otherwise the first bare number — the original behavior, kept so
+         an un-prefixed "12000" still parses.
+    """
+    s = str(v)
+    eq = re.search(r"=\s*₹?\s*([0-9][0-9,]*)", s)
+    if eq:
+        return int(eq.group(1).replace(",", ""))
+    rupee = re.search(r"₹\s*([0-9][0-9,]*)", s)
+    if rupee:
+        return int(rupee.group(1).replace(",", ""))
+    bare = re.search(r"([0-9][0-9,]*)", s)
+    return int(bare.group(1).replace(",", "")) if bare else 0
 
 
 def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", plan_tier: str = "silver", cached_trains: list = None, train_dest_city: str = None, travelers: int = None) -> dict:
@@ -1384,11 +1423,16 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
     data["accommodation"] = accom  # No limit — show all
 
     # ── Fix 3: Budget utilisation 90-95% ─────────────────────
-    if budget > 0:
-        cb = data.get("cost_breakdown", {})
-        def parse_amt(v):
-            nums = _re.findall(r"[0-9][0-9,]*", str(v))
-            return int(nums[0].replace(",","")) if nums else 0
+    # Gated on the cost_breakdown existing, NOT on a budget being known.
+    # This used to be `if budget > 0`, which meant a free-text custom plan
+    # that never stated a budget (Sonnet returns budget=0, and /generate-custom
+    # passes that straight through) skipped this block entirely — leaving the
+    # AI's own unverified `total` on the trip and never setting per_person at
+    # all. Budget-relative scaling still requires a real budget; making the
+    # components add up does not.
+    cb = data.get("cost_breakdown", {})
+    if cb:
+        parse_amt = parse_rupee_amount
 
         parts = ["transport","accommodation","food","activities","miscellaneous"]
         amounts = {p: parse_amt(cb.get(p,0)) for p in parts}
@@ -1402,7 +1446,11 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
         # callers that don't pass the param explicitly.
         people = max(1, travelers or data.get("travelers") or 1)
 
-        if util < 85:
+        if budget <= 0:
+            # No budget to scale against — but the 5 components must still
+            # sum to the stated total, and per_person still matters.
+            cb["total"] = f"₹{total:,}"
+        elif util < 85:
             gap = int(budget * 0.92) - total
             amounts["accommodation"] += int(gap * 0.45)
             amounts["activities"]    += int(gap * 0.30)
@@ -1431,6 +1479,14 @@ def post_process_itinerary(data: dict, budget: int = 0, from_city: str = "", pla
             cb["over_budget_note"]   = f"Scaled down from the AI's initial ₹{total:,} estimate to fit your ₹{budget:,} budget — consider a higher tier or fewer travelers if you want the original scope."
             logger.info(f"Over-budget corrected: {int(util)}% → {int(new_total/budget*100)}%")
         else:
+            # Spending level itself is fine (85-110% of budget) — but that's
+            # judged against `total` (the REAL sum of the 5 components), not
+            # whatever number the AI wrote into cb["total"]. Those two can
+            # still disagree (seen in production: total=₹75,000 vs a real
+            # component sum of ₹95,000) since nothing else in this branch
+            # ever re-synced them. Force it here too, not just in the two
+            # correction branches above.
+            cb["total"] = f"₹{total:,}"
             cb["budget_utilisation"] = f"{int(util)}%"
 
         # per_person is worth having regardless of whether a budget
