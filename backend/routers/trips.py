@@ -13,7 +13,10 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, Any
-from database import get_supabase_client, save_trip, update_trip, get_user_trips, ensure_share_slug
+from database import (
+    get_supabase_client, save_trip, update_trip, get_user_trips,
+    get_trip_for_user, get_user_trip_stats, ensure_share_slug,
+)
 from routers.users import get_current_user
 import logging
 
@@ -64,8 +67,7 @@ def check_save_limit(user_id: str):
 
 def _find_user_trip(user_id: str, trip_id: str):
     """Fetch a single trip owned by this user, draft or kept."""
-    trips = get_user_trips(user_id)
-    return next((t for t in trips if str(t.get("id")) == str(trip_id)), None)
+    return get_trip_for_user(user_id, trip_id)
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
@@ -146,7 +148,9 @@ def lock_trip_route(
 def get_stats(current_user: dict = Depends(get_current_user)):
     """Live counts for Dashboard stats cards — kept trips only, not drafts."""
     user_id = str(current_user["id"])
-    trips = get_user_trips(user_id, locked_only=True)
+    # Stats-only columns — this used to pull every trip's full itinerary JSON
+    # just to count rows and sum a days column.
+    trips = get_user_trip_stats(user_id, locked_only=True)
 
     total = len(trips)
     total_days = sum(t.get("days", 0) for t in trips)

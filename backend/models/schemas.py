@@ -27,7 +27,10 @@ class TransportMode(str, Enum):
 class UserRegister(BaseModel):
     full_name: str
     email: EmailStr
-    password: str
+    # The API accepted an empty string before this — the frontend enforced a
+    # minimum but nothing server-side did, so anything hitting the endpoint
+    # directly could create an account with a blank password.
+    password: str = Field(min_length=8)
     role: UserRole = UserRole.USER
     business_name: Optional[str] = None
     city: Optional[str] = None
@@ -45,7 +48,7 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     token: str
-    new_password: str
+    new_password: str = Field(min_length=8)
 
 
 class Token(BaseModel):
@@ -76,8 +79,13 @@ class UserResponse(BaseModel):
 # ── Itinerary Request schemas ─────────────────
 class ItineraryRequest(BaseModel):
     from_city: str
-    days: int
-    budget: int
+    # Bounded at the schema so EVERY endpoint taking this model is covered,
+    # not just the two that happened to hand-roll the same check inline.
+    # Unbounded, these reached the prompt builder directly — a 9999-day
+    # request billed a full Sonnet call to produce nonsense, and days=0
+    # divided by zero in /suggest-destinations.
+    days: int = Field(ge=1, le=30)
+    budget: int = Field(ge=1000)
     trip_type: Optional[str] = None
     destination: Optional[str] = None
     destination_mode: str = "suggest"
@@ -100,8 +108,8 @@ class AgentItineraryRequest(BaseModel):
     client_name: str
     client_phone: Optional[str] = None
     from_city: str
-    days: int
-    budget: int
+    days: int = Field(ge=1, le=30)
+    budget: int = Field(ge=1000)
     trip_type: Optional[str] = None
     destination: Optional[str] = None
     destination_mode: str = "suggest"

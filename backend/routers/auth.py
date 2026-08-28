@@ -8,6 +8,7 @@ from core.security import (
     decode_access_token
 )
 from database import get_user_by_email, create_user, update_user
+import hashlib
 import logging
 
 logger = logging.getLogger(__name__)
@@ -116,6 +117,20 @@ async def login(credentials: UserLogin):
     )
 
 
+def _password_fingerprint(password_hash: str) -> str:
+    """Short digest of the user's CURRENT password hash, embedded in reset
+    tokens so they become single-use.
+
+    Without this a reset link stayed valid for its full 30 minutes even after
+    it had been used — so anyone who saw that email (a forwarded message, a
+    shared device, a synced browser) could reset the password again, after
+    the legitimate owner had already set a new one. Changing the password
+    changes the hash, which changes this fingerprint, which retires every
+    outstanding link for that account at once.
+    """
+    return hashlib.sha256((password_hash or "").encode()).hexdigest()[:16]
+
+
 @router.post("/forgot-password")
 async def forgot_password(body: ForgotPasswordRequest):
     """
@@ -125,7 +140,11 @@ async def forgot_password(body: ForgotPasswordRequest):
     user = get_user_by_email(body.email)
     if user:
         reset_token = create_access_token(
-            data={"sub": user["email"], "purpose": "password_reset"},
+            data={
+                "sub": user["email"],
+                "purpose": "password_reset",
+                "pfp": _password_fingerprint(user.get("password")),
+            },
             expires_delta=timedelta(minutes=30)
         )
         reset_url = f"https://tripzio.io/reset-password?token={reset_token}"
@@ -156,6 +175,14 @@ async def reset_password(body: ResetPasswordRequest):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This reset link is invalid or has expired. Please request a new one."
+        )
+
+    # Single-use check — see _password_fingerprint. A link that has already
+    # been redeemed (or was superseded by a newer one) no longer matches.
+    if payload.get("pfp") != _password_fingerprint(user.get("password")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link has already been used or has expired. Please request a new one."
         )
 
     hashed_password = get_password_hash(body.new_password)

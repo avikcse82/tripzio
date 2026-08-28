@@ -2263,6 +2263,14 @@ async def suggest_destinations(
         season = seasons.get(month, "winter")
         tier = TIER_CONFIG.get(req.plan_tier.value, TIER_CONFIG["silver"])
         trip_type_str = f"for a {req.trip_type} trip" if req.trip_type else ""
+        # /generate and /generate/guest both bounds-check days/budget before
+        # doing anything with them; this endpoint never did, so days=0 divided
+        # by zero here and surfaced as a 500 carrying the raw Python error
+        # ("Failed to generate suggestions: division by zero").
+        if req.days < 1 or req.days > 30:
+            raise HTTPException(status_code=400, detail="Days must be between 1 and 30")
+        if req.budget < 1000:
+            raise HTTPException(status_code=400, detail="Minimum budget is ₹1,000")
         per_day = req.budget // req.days
 
         prompt = f"""You are Tripzio's Indian travel expert. Suggest 4 best destinations.

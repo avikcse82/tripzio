@@ -12,6 +12,7 @@ import httpx
 from datetime import date, timedelta
 from fastapi import APIRouter, Header, HTTPException
 from database import get_supabase_client
+from routers.share import today_ist
 from routers.weather import get_weather
 
 logger = logging.getLogger(__name__)
@@ -209,7 +210,7 @@ async def run_reminders() -> dict:
     Returns summary of what was sent.
     """
     supabase = get_supabase_client()
-    today = date.today()
+    today = today_ist()  # traveller-local date, not the UTC server's
     results = {"sent": 0, "failed": 0, "skipped": 0, "errors": []}
 
     for days_until, col in [(7, "reminder_sent_7d"), (3, "reminder_sent_3d"), (1, "reminder_sent_1d")]:
@@ -382,7 +383,7 @@ async def run_daily_nudges() -> dict:
     that trip/day instead of silently losing it forever.
     """
     supabase = get_supabase_client()
-    today = date.today()
+    today = today_ist()  # traveller-local date, not the UTC server's
     results = {"sent": 0, "failed": 0, "skipped": 0, "errors": []}
 
     try:
@@ -531,7 +532,7 @@ async def run_reminders_endpoint(x_cron_secret: str = Header(None)):
     nudge_results = await run_daily_nudges()
     return {
         "status": "completed",
-        "date": date.today().isoformat(),
+        "date": today_ist().isoformat(),
         **results,
         "daily_nudges": nudge_results,
     }

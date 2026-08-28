@@ -231,6 +231,45 @@ def get_user_trips(user_id: str, locked_only: bool = False, limit: int = None):
         return []
 
 
+def get_trip_for_user(user_id: str, trip_id: str):
+    """One trip by id, scoped to its owner — a single indexed lookup.
+
+    Callers used to do this by pulling EVERY trip the user owns (each with
+    its full itinerary JSON) and scanning in Python for a matching id. That
+    ran on the hot path of save, lock, share-create and payment-order, so a
+    user with 20 saved trips shipped 20 full itineraries across the wire to
+    find one row.
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        response = client.table("trips").select("*").eq(
+            "id", trip_id
+        ).eq("user_id", user_id).execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Error getting trip {trip_id} for user: {e}")
+        return None
+
+
+def get_user_trip_stats(user_id: str, locked_only: bool = False):
+    """Columns needed for the stats cards only — never the itinerary blob."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return []
+        query = client.table("trips").select("id, days, destination, status").eq("user_id", user_id)
+        if locked_only:
+            query = query.eq("locked", True)
+        return query.execute().data or []
+    except Exception as e:
+        logger.error(f"Error getting trip stats: {e}")
+        return []
+
+
 def get_user_trip_status_counts(user_id: str):
     """Counts-only version of get_user_trips for dashboard stats — selects
     id+status instead of every trip's full itinerary blob (which can be

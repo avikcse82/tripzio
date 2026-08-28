@@ -19,7 +19,7 @@ always the server's own copy of that trip's itinerary.
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 from database import get_supabase_client
 from routers.users import get_current_user
 from routers.trips import _find_user_trip
@@ -33,6 +33,21 @@ router = APIRouter(prefix="/share", tags=["Share"])
 
 
 # ─── Helpers ──────────────────────────────────────────────────
+
+# Tripzio is India-only, and the servers run UTC. `date.today()` there is a
+# calendar day BEHIND the traveller for the 5.5 hours between 00:00 and 05:29
+# IST — long enough that someone opening their companion page over early
+# breakfast on day 4 was shown day 3, and someone opening it just after
+# midnight on the first night of their trip saw no companion at all (the
+# server still thought the trip hadn't started). Every "what day is it for
+# the traveller" decision uses this, never the server's local date.
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def today_ist() -> date:
+    """Current calendar date in India, independent of server timezone."""
+    return datetime.now(IST).date()
+
 
 def generate_slug(length=8):
     """Generate a short unique slug like 'abc12345'"""
@@ -90,6 +105,33 @@ def create_share(
         if not supabase:
             raise HTTPException(status_code=500, detail="Database unavailable")
 
+        # Every locked trip already gets a share link minted by
+        # ensure_share_slug() at save/lock/payment time, so by the time anyone
+        # clicks Share the link usually exists. Minting a second one here left
+        # two shared_trips rows pointing at one trip, split its view count, and
+        # — worst of it — meant reminder/nudge emails (which read
+        # trips.share_slug) pointed at a DIFFERENT url than the one the user
+        # had actually shared with their travel companions. Reuse the existing
+        # link instead; both urls resolve to the same live trip anyway.
+        existing_slug = trip.get("share_slug")
+        if existing_slug:
+            # Keep the title/agent_name the user just supplied.
+            try:
+                patch = {}
+                if body.title:
+                    patch["title"] = body.title
+                if current_user.get("role") == "agent" and body.agent_name:
+                    patch["agent_name"] = body.agent_name
+                if patch:
+                    supabase.table("shared_trips").update(patch).eq("slug", existing_slug).execute()
+            except Exception as e:
+                logger.warning(f"Could not update share metadata for {existing_slug}: {e}")
+            return {
+                "slug": existing_slug,
+                "share_url": f"https://tripzio.io/trip/{existing_slug}",
+                "short_url": f"tripzio.io/trip/{existing_slug}",
+            }
+
         slug = get_unique_slug(supabase)
         itinerary = trip.get("itinerary") or {}
         is_agent = current_user.get("role") == "agent"
@@ -111,6 +153,15 @@ def create_share(
         res = supabase.table("shared_trips").insert(payload).execute()
         if not res.data:
             raise HTTPException(status_code=500, detail="Failed to create share")
+
+        # Record it on the trip itself, so reminder/nudge emails link to THIS
+        # url and a later ensure_share_slug() sees the link already exists
+        # rather than minting a second one. Best-effort: the share itself
+        # already succeeded and must not fail on this.
+        try:
+            supabase.table("trips").update({"share_slug": slug}).eq("id", body.trip_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not stamp share_slug on trip {body.trip_id}: {e}")
 
         return {
             "slug": slug,
@@ -138,7 +189,7 @@ def _compute_companion(trip_data: dict, start_date: str, end_date: str):
     try:
         sd = date.fromisoformat(start_date)
         ed = date.fromisoformat(end_date)
-        today = date.today()
+        today = today_ist()
         if not (sd <= today <= ed):
             return None
         day_number = (today - sd).days + 1
