@@ -2071,60 +2071,64 @@ async def generate_itinerary(
         if req.budget < 1000:
             raise HTTPException(status_code=400, detail="Minimum budget is ₹1,000")
 
-        weather_data = {}
-        try:
-            dest_for_weather = req.destination or "india"
-            weather_data = await get_weather(dest_for_weather, req.start_date)
-        except Exception as e:
-            logger.warning(f"Weather fetch failed: {e}")
-
-        # SerpAPI — fetch real TripAdvisor data
-        places_context = ""
-        serp_hotels = []
-        serpapi_key = os.getenv("SERPAPI_KEY", "")
-        if serpapi_key:
+        # Weather, live trains, and TripAdvisor places are three independent
+        # network calls — none reads another's result — that used to run one
+        # after another. Gathering them means the wait is the SLOWEST of the
+        # three, not their sum.
+        #
+        # This also removes a fetch that was doing nothing: the destination
+        # used to be queried on SerpAPI here a SECOND time later too (further
+        # down, via get_destination_places, for the actual photo/restaurant
+        # data attached to the response). This first query's own hotel data
+        # (serp_hotels) was assigned and never read again anywhere in the
+        # file, and its formatted text (places_context) was never sent to
+        # the AI prompt — build_itinerary_prompt takes only weather_data.
+        # The ONLY thing this block's result was ever used for was a
+        # yes/no gate deciding whether to bother making that second call.
+        # get_destination_places() already reports that same yes/no signal
+        # itself, so one fetch now serves both purposes instead of six
+        # sequential SerpAPI round trips becoming three.
+        async def _fetch_weather_task():
             try:
-                dest_q = (req.destination or destination or "").split(":")[-1].strip().split("→")[-1].strip()
-                if dest_q and "best destination" not in dest_q:
-                    async with httpx.AsyncClient(timeout=10) as _cl:
-                        _r1 = await _cl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"hotels {dest_q} India","ssrc":"h","api_key":serpapi_key})
-                        _r2 = await _cl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"restaurants {dest_q} India","ssrc":"r","api_key":serpapi_key})
-                        _r3 = await _cl.get("https://serpapi.com/search.json", params={"engine":"tripadvisor","q":f"things to do {dest_q} India","ssrc":"A","api_key":serpapi_key})
-                    _hotels = _r1.json().get("places", _r1.json().get("results",[]))
-                    _rests  = _r2.json().get("places", _r2.json().get("results",[]))
-                    _attrs  = _r3.json().get("places", _r3.json().get("results",[]))
-                    serp_hotels = _hotels
-                    logger.info(f"SerpAPI ✅ {dest_q}: hotels={len(_hotels)} rest={len(_rests)} attr={len(_attrs)}")
-                    _lines = [f"=== REAL TripAdvisor data for {dest_q} — use these exact names ==="]
-                    if _hotels:
-                        _lines.append("HOTELS:")
-                        for _i,_h in enumerate(_hotels,1):
-                            _lines.append(f"{_i}. {_h.get('title','')} ⭐{_h.get('rating','')} ({_h.get('reviews','')} reviews)")
-                    if _rests:
-                        _lines.append("RESTAURANTS:")
-                        for _i,_r in enumerate(_rests,1):
-                            _lines.append(f"{_i}. {_r.get('title','')} ⭐{_r.get('rating','')}")
-                    if _attrs:
-                        _lines.append("TOURIST ATTRACTIONS:")
-                        for _i,_a in enumerate(_attrs,1):
-                            _lines.append(f"{_i}. {_a.get('title','')} ⭐{_a.get('rating','')}")
-                    places_context = "\n".join(_lines)
-            except Exception as _se:
-                logger.warning(f"SerpAPI skip: {_se}")
+                dest_for_weather = req.destination or "india"
+                return await get_weather(dest_for_weather, req.start_date)
+            except Exception as e:
+                logger.warning(f"Weather fetch failed: {e}")
+                return {}
 
-        # Fetch LIVE train data via RapidAPI
-        train_context = ""
-        _live_trains = []
-        try:
-            from services.railway_service import get_trains_between_stations, build_train_context as _btc
-            dest_for_trains = req.destination or destination
-            if dest_for_trains and req.from_city:
-                _live_trains = await get_trains_between_stations(req.from_city, dest_for_trains)
-                if _live_trains:
-                    train_context = _btc(req.from_city, dest_for_trains, _live_trains)
-                    logger.info(f"Live trains: {len(_live_trains)} for {req.from_city}→{dest_for_trains}")
-        except Exception as _te:
-            logger.warning(f"Live train fetch failed: {_te}")
+        async def _fetch_trains_task():
+            try:
+                from services.railway_service import get_trains_between_stations
+                dest_for_trains = req.destination or destination
+                if dest_for_trains and req.from_city:
+                    trains = await get_trains_between_stations(req.from_city, dest_for_trains)
+                    if trains:
+                        logger.info(f"Live trains: {len(trains)} for {req.from_city}→{dest_for_trains}")
+                    return trains
+                return []
+            except Exception as _te:
+                logger.warning(f"Live train fetch failed: {_te}")
+                return []
+
+        # Same destination-cleanup the old first fetch used (strip anything
+        # before a trailing ":" or "→", skip the destination_mode="suggest"
+        # placeholder) — applied once now instead of twice.
+        _dest_for_places = (req.destination or destination or "").split(":")[-1].strip().split("→")[-1].strip()
+        _skip_places_fetch = not _dest_for_places or "best destination" in _dest_for_places
+
+        async def _fetch_places_task():
+            if _skip_places_fetch:
+                return {}
+            try:
+                from services.places_serpapi import get_destination_places
+                return await get_destination_places(_dest_for_places)
+            except Exception as e:
+                logger.warning(f"TripAdvisor places fetch failed: {e}")
+                return {}
+
+        weather_data, _live_trains, _places_data = await asyncio.gather(
+            _fetch_weather_task(), _fetch_trains_task(), _fetch_places_task()
+        )
 
         prompt = build_itinerary_prompt(req, weather_data)
         # Detect children and add safety instructions
@@ -2204,20 +2208,19 @@ async def generate_itinerary(
             cached_trains=_cached_trains_main,
             travelers=estimate_travelers(getattr(req, "travelers", None), req.trip_type),
         )
-        # Attach real TripAdvisor photos to accommodation
-        if places_context:
+        # Attach real TripAdvisor photos to accommodation — reuses the data
+        # already fetched in parallel with weather/trains above, not a
+        # second live call.
+        if _places_data.get("hotels") or _places_data.get("attractions"):
             try:
-                from services.places_serpapi import get_destination_places
-                dest_for_photos = req.destination or destination
-                places_data = await get_destination_places(dest_for_photos)
-                real_hotels = places_data.get("hotels", [])
+                real_hotels = _places_data.get("hotels", [])
                 for i, hotel in enumerate(ai_response.get("accommodation", [])):
                     if i < len(real_hotels) and real_hotels[i].get("photo_url"):
                         hotel["photo_url"] = real_hotels[i]["photo_url"]
                         hotel["tripadvisor_url"] = real_hotels[i].get("tripadvisor_url", "")
                 ai_response["tripadvisor_places"] = {
-                    "restaurants": places_data.get("restaurants", []),
-                    "attractions": places_data.get("attractions", []),
+                    "restaurants": _places_data.get("restaurants", []),
+                    "attractions": _places_data.get("attractions", []),
                 }
             except Exception as e:
                 logger.warning(f"Photo attach failed: {e}")
