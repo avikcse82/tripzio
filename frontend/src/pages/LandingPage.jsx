@@ -105,7 +105,7 @@ const SAMPLE_PLANS = {
 export default function LandingPage() {
   useSEO({
     title: 'Tripzio — AI Travel Planner for India',
-    description: 'AI-powered travel planning for India. Get personalized itineraries with real trains, hotels, and budgets in seconds.',
+    description: 'AI-powered travel planning for India. Get personalized itineraries with real trains, hotels, and budgets in minutes.',
     path: '/',
   })
 

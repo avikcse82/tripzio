@@ -23,7 +23,7 @@ const DEST_NAMES = ['Ladakh', 'Kerala', 'Rajasthan', 'Goa', 'Varanasi', 'Manali'
 const AgentLogin = () => {
   useSEO({
     title: 'Travel Agent Login — Tripzio for Agents',
-    description: 'Tripzio for travel agents — generate branded AI itineraries for clients in seconds, with white-label PDFs and WhatsApp-ready plans.',
+    description: 'Tripzio for travel agents — generate branded AI itineraries for clients in minutes, with white-label PDFs and WhatsApp-ready plans.',
     path: '/agent/login',
   })
 

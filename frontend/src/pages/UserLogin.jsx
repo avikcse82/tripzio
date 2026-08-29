@@ -33,7 +33,7 @@ export default function UserLogin() {
     path: '/login',
   } : {
     title: 'Sign Up Free — Tripzio',
-    description: 'Create a free Tripzio account to save unlimited trip plans, get real train and hotel options, and plan trips in seconds.',
+    description: 'Create a free Tripzio account to save unlimited trip plans, get real train and hotel options, and plan trips in minutes.',
     path: '/register',
   })
 
