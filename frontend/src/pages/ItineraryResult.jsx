@@ -312,6 +312,74 @@ export default function ItineraryResult() {
     latestItineraryRef.current = data
   }, [data])
 
+  // ── Travel dates added after generation ───────────────────────
+  // Quick Plan has no date field and Custom Plan's is optional, so a plan can
+  // arrive here undated — and undated silently means no countdown reminders,
+  // no festival alerts and no in-trip companion, since all three key off
+  // start_date. `data` is a useMemo, not state, so the date is mirrored here
+  // to force the re-render that reveals those sections once it's set.
+  const [addedStartDate, setAddedStartDate] = useState(null)
+  const [dateDraft, setDateDraft] = useState('')
+  const [savingDate, setSavingDate] = useState(false)
+  const effectiveStartDate = data?.start_date || addedStartDate
+
+  const todayString = (() => {
+    const n = new Date()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+  })()
+
+  const handleSetTripDate = async () => {
+    if (!dateDraft) return
+    setSavingDate(true)
+    try {
+      const token = localStorage.getItem('tripzio_token')
+      const tripId = data?.trip_id
+      // A guest plan has no row to patch yet — hold the date on the object so
+      // the page updates now, and it rides along into /trips/save when they
+      // sign up (that call posts `itinerary` wholesale).
+      if (token && tripId) {
+        const res = await fetch(`${API_URL}/trips/${tripId}/dates`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ start_date: dateDraft }),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err?.detail || 'Could not save your travel dates')
+        }
+      }
+      data.start_date = dateDraft
+      if (latestItineraryRef.current) latestItineraryRef.current.start_date = dateDraft
+
+      // Persist into whichever cached copy this plan was read from. `data` is
+      // parsed out of localStorage on refresh, and the guest signup handler
+      // posts that cached copy verbatim to /trips/save — without this the
+      // date survives only until reload, and a guest who set a date and then
+      // signed up would silently save an undated trip.
+      for (const key of ['tripzio_guest_plan', 'tripzio_last_itinerary']) {
+        try {
+          const cached = localStorage.getItem(key)
+          if (!cached) continue
+          const parsed = JSON.parse(cached)
+          if (parsed?.generated_at && data?.generated_at && parsed.generated_at !== data.generated_at) continue
+          parsed.start_date = dateDraft
+          localStorage.setItem(key, JSON.stringify(parsed))
+        } catch { /* a corrupt cache entry must not fail the save */ }
+      }
+
+      setAddedStartDate(dateDraft)
+      toast.success(
+        token && tripId
+          ? 'Dates saved — you\'ll get trip reminders and day-by-day guidance'
+          : 'Dates added to your plan'
+      )
+    } catch (e) {
+      toast.error(e.message || 'Could not save your travel dates')
+    } finally {
+      setSavingDate(false)
+    }
+  }
+
   // ── Guest mode ────────────────────────────────────────────────
   const isGuest = location.state?.isGuest === true || data?.is_guest === true
   const [showAuthModal, setShowAuthModal]       = useState(false)
@@ -377,7 +445,13 @@ export default function ItineraryResult() {
   // instead of leaving the displayed total frozen at the original tier
   // while the hotel list/badges say something more expensive
   const effectiveCostBreakdown = (() => {
-    const base = data.cost_breakdown || {}
+    // data can legitimately be undefined here — a stale bookmark, a shared
+    // /itinerary/result link, or cleared storage all land on this page with
+    // nothing to show. The `if (!data)` redirect further down can't run any
+    // earlier (React forbids returning before the hooks above it), so this
+    // render-time read has to tolerate it or the page dies in the
+    // ErrorBoundary instead of redirecting.
+    const base = data?.cost_breakdown || {}
     const newAccomPerTrip = getUpgradedAccomCost()
     if (!isUpgraded || !newAccomPerTrip) return base
     const oldAccom = parseCurrency(base.accommodation)
@@ -1711,12 +1785,58 @@ export default function ItineraryResult() {
 
             {/* ── DAY PLAN ── */}
             {/* ── Festival Alert ── */}
-          {data?.start_date && (
+          {effectiveStartDate ? (
             <FestivalAlert
               destination={data.destination}
-              startDate={data.start_date}
+              startDate={effectiveStartDate}
               days={data.days}
             />
+          ) : (
+            /* Undated plan — offer the date here rather than making the user
+               regenerate. This is the one screen every mode passes through,
+               so it covers Quick (no date field at all), Custom (optional)
+               and any older trip saved before dates were captured. */
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap',
+              padding: '14px 18px', marginBottom: '20px',
+              background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '14px',
+            }}>
+              <Calendar size={18} color="#0284c7" style={{ flexShrink: 0 }} />
+              <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: '800', color: '#0369a1' }}>
+                  When are you travelling?
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#0284c7', marginTop: '2px', lineHeight: 1.5 }}>
+                  Add dates to get countdown reminders, festival alerts and day-by-day
+                  guidance while you're on the trip.
+                </div>
+              </div>
+              <input
+                type="date"
+                min={todayString}
+                value={dateDraft}
+                onChange={e => setDateDraft(e.target.value)}
+                aria-label="Trip start date"
+                style={{
+                  padding: '8px 10px', border: '1px solid #7dd3fc', borderRadius: '9px',
+                  fontSize: '13px', fontFamily: 'Inter, sans-serif', color: '#0f172a',
+                  background: 'white', flexShrink: 0,
+                }}
+              />
+              <button
+                onClick={handleSetTripDate}
+                disabled={!dateDraft || savingDate}
+                style={{
+                  padding: '9px 18px', borderRadius: '9px', border: 'none',
+                  background: !dateDraft || savingDate ? '#cbd5e1' : '#0284c7',
+                  color: 'white', fontSize: '13px', fontWeight: '700',
+                  cursor: !dateDraft || savingDate ? 'not-allowed' : 'pointer',
+                  fontFamily: 'Inter, sans-serif', flexShrink: 0,
+                }}
+              >
+                {savingDate ? 'Saving…' : 'Add dates'}
+              </button>
+            </div>
           )}
 
           {activeTab === 'itinerary' && (

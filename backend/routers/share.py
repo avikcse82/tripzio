@@ -19,7 +19,8 @@ always the server's own copy of that trip's itinerary.
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date, datetime, timezone, timedelta
+from datetime import date
+from core.dates import IST, today_ist  # noqa: F401  (IST re-exported for callers)
 from database import get_supabase_client
 from routers.users import get_current_user
 from routers.trips import _find_user_trip
@@ -33,21 +34,6 @@ router = APIRouter(prefix="/share", tags=["Share"])
 
 
 # ─── Helpers ──────────────────────────────────────────────────
-
-# Tripzio is India-only, and the servers run UTC. `date.today()` there is a
-# calendar day BEHIND the traveller for the 5.5 hours between 00:00 and 05:29
-# IST — long enough that someone opening their companion page over early
-# breakfast on day 4 was shown day 3, and someone opening it just after
-# midnight on the first night of their trip saw no companion at all (the
-# server still thought the trip hadn't started). Every "what day is it for
-# the traveller" decision uses this, never the server's local date.
-IST = timezone(timedelta(hours=5, minutes=30))
-
-
-def today_ist() -> date:
-    """Current calendar date in India, independent of server timezone."""
-    return datetime.now(IST).date()
-
 
 def generate_slug(length=8):
     """Generate a short unique slug like 'abc12345'"""

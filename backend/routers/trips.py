@@ -18,6 +18,9 @@ from database import (
     get_trip_for_user, get_user_trip_stats, ensure_share_slug,
 )
 from routers.users import get_current_user
+from core.dates import today_ist
+from routers.itinerary import compute_end_date
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,6 +28,10 @@ router = APIRouter(prefix="/trips", tags=["Trips"])
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
+
+class SetTripDatesRequest(BaseModel):
+    start_date: str  # YYYY-MM-DD
+
 
 class SaveTripRequest(BaseModel):
     title: str
@@ -142,6 +149,59 @@ def lock_trip_route(
         raise HTTPException(status_code=500, detail="Failed to lock trip.")
     ensure_share_slug(trip_id)
     return updated
+
+
+@router.patch("/{trip_id}/dates")
+def set_trip_dates(
+    trip_id: str,
+    body: SetTripDatesRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Attach travel dates to a trip that was planned without them.
+
+    Quick Plan has no date field at all and Custom Plan's is optional, so a
+    trip can legitimately be saved undated — in which case it silently gets
+    no countdown reminders, no festival alerts and no in-trip companion,
+    because every one of those keys off start_date. This lets the result
+    page offer the date afterwards instead of making the user regenerate.
+
+    Writes the date to both the column and the itinerary JSON: the column is
+    what the reminder and nudge queries select on, while the embedded copy is
+    what the public share page falls back to and what the PDF renders.
+    """
+    user_id = str(current_user["id"])
+
+    try:
+        start = datetime.strptime(body.start_date, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Date must be in YYYY-MM-DD format.")
+
+    # today_ist, not the UTC server's date — a traveller setting a date just
+    # after midnight in India would otherwise have "today" rejected as past.
+    if start < today_ist():
+        raise HTTPException(status_code=400, detail="Travel date can't be in the past.")
+
+    trip = _find_user_trip(user_id, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found.")
+
+    itinerary = trip.get("itinerary") or {}
+    if isinstance(itinerary, dict):
+        itinerary = {**itinerary, "start_date": body.start_date}
+
+    updated = update_trip(trip_id, user_id, {
+        "start_date": body.start_date,
+        "end_date": compute_end_date(body.start_date, trip.get("days")),
+        "itinerary": itinerary,
+    })
+    if not updated:
+        raise HTTPException(status_code=500, detail="Could not save the travel dates.")
+
+    return {
+        "start_date": updated.get("start_date"),
+        "end_date": updated.get("end_date"),
+        "trip_id": trip_id,
+    }
 
 
 @router.get("/stats")

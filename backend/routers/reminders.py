@@ -12,7 +12,7 @@ import httpx
 from datetime import date, timedelta
 from fastapi import APIRouter, Header, HTTPException
 from database import get_supabase_client, ensure_share_slug
-from routers.share import today_ist
+from core.dates import today_ist
 from routers.weather import get_weather
 
 logger = logging.getLogger(__name__)
