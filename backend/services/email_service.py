@@ -226,7 +226,7 @@ async def send_welcome_email(to_email: str, full_name: str, role: str = "user") 
     ]
     steps_user = [
         "Go to Dashboard → describe your trip",
-        "AI generates full plan in 30 seconds",
+        "AI generates your full plan in minutes",
         "Explore hotels, transport, places & day plans"
     ]
     steps = steps_agent if is_agent else steps_user

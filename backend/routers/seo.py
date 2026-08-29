@@ -272,7 +272,7 @@ async def trip_og(slug: str):
         raise HTTPException(status_code=400, detail="Invalid slug")
 
     og_title = "Tripzio — AI Travel Planner for India"
-    og_desc = "Plan your perfect Indian trip in 30 seconds. Real trains, hotels & budget. Free to start."
+    og_desc = "Plan your perfect Indian trip in minutes. Real trains, hotels & budget. Free to start."
     og_image = "https://tripzio.io/og-image.png"
     canonical = f"https://tripzio.io/trip/{slug}"
 
@@ -390,9 +390,9 @@ async def get_seo_page(destination_slug: str, request: Request):
         "data": {
             "destination_name": destination_name,
             "meta_title": f"{destination_name} Trip Planner AI | Tripzio",
-            "meta_description": f"Plan your {destination_name} trip with AI. Real trains, hotels and budget breakdown in 60 seconds. Free to start.",
+            "meta_description": f"Plan your {destination_name} trip with AI. Real trains, hotels and budget breakdown in minutes. Free to start.",
             "hero_title": f"Plan Your {destination_name} Trip with AI",
-            "hero_subtitle": f"Get a complete {destination_name} itinerary with real trains, hotels and budget in 60 seconds.",
+            "hero_subtitle": f"Get a complete {destination_name} itinerary with real trains, hotels and budget in minutes.",
             "sample_prompts": [
                 f"{destination_name} trip 5 days from Delhi",
                 f"{destination_name} tour couple trip, budget ₹25,000",
