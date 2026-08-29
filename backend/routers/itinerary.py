@@ -2173,8 +2173,10 @@ async def generate_itinerary(
                 "title": f"{ai_response.get('destination', 'Trip')} — {req.days} days",
                 "from_city": req.from_city,
                 "destination": ai_response.get("destination", req.destination or ""),
-                "start_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
-                "end_date": compute_end_date(req.start_date or datetime.now().strftime("%Y-%m-%d"), req.days),
+                # Left NULL when the user never gave a date — see the note on
+                # the same pair of fields in /generate-custom below.
+                "start_date": req.start_date,
+                "end_date": compute_end_date(req.start_date, req.days) if req.start_date else None,
                 "days": req.days,
                 "budget": req.budget,
                 "trip_type": req.trip_type,
@@ -2783,8 +2785,17 @@ Do NOT show direct source→destination if via city is specified."""
                 "title": ai_response.get("destination", "Custom Trip"),
                 "from_city": ai_response.get("from_city", ""),
                 "destination": ai_response.get("destination", ""),
-                "start_date": req.start_date or datetime.now().strftime("%Y-%m-%d"),
-                "end_date": compute_end_date(req.start_date or datetime.now().strftime("%Y-%m-%d"), ai_response.get("days", 0)),
+                # NULL, not today, when the user never told us when they're
+                # going. Defaulting to the generation date made an undated
+                # plan look like a trip starting the moment it was created:
+                # start_date <= today <= end_date is exactly what the daily
+                # nudge cron selects on, so someone planning a May trip in
+                # August got "Day 1 in Darjeeling" that same evening. Every
+                # consumer already treats a missing date as undated — the
+                # reminder queries match nothing, _compute_companion returns
+                # None, and the result page hides its date chip.
+                "start_date": req.start_date,
+                "end_date": compute_end_date(req.start_date, ai_response.get("days", 0)) if req.start_date else None,
                 "days": ai_response.get("days", 0),
                 "budget": ai_response.get("budget", 0),
                 "trip_type": ai_response.get("trip_type"),

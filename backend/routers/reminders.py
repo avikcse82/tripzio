@@ -11,7 +11,7 @@ import logging
 import httpx
 from datetime import date, timedelta
 from fastapi import APIRouter, Header, HTTPException
-from database import get_supabase_client
+from database import get_supabase_client, ensure_share_slug
 from routers.share import today_ist
 from routers.weather import get_weather
 
@@ -387,8 +387,14 @@ async def run_daily_nudges() -> dict:
     results = {"sent": 0, "failed": 0, "skipped": 0, "errors": []}
 
     try:
+        # locked=True matters: an unlocked row is a draft the user never kept,
+        # and save_or_replace_draft OVERWRITES it on their next generation —
+        # so its contents may already describe a completely different trip by
+        # the time this runs. "Here's your day 3" is only meaningful for a
+        # trip the traveller actually saved.
         trips_result = supabase.table("trips") \
             .select("id, user_id, destination, share_slug, start_date, end_date, itinerary, is_agent_plan, client_email, client_name") \
+            .eq("locked", True) \
             .lte("start_date", today.isoformat()) \
             .gte("end_date", today.isoformat()) \
             .execute()
@@ -422,6 +428,17 @@ async def run_daily_nudges() -> dict:
                 day_plans = itinerary.get("day_plans") or []
                 today_plan = next((d for d in day_plans if d.get("day") == day_number), None)
                 city = (today_plan or {}).get("city") or (trip.get("destination") or "").split("→")[0].strip()
+
+                # The whole nudge is a "tap to see today's plan" link, so it's
+                # worthless without a slug. ensure_share_slug only started
+                # running at save/lock time recently, which leaves every trip
+                # saved before that with none — mint one here rather than
+                # emailing those travellers a link to the generic homepage.
+                # Idempotent and fail-open; a None just means this trip keeps
+                # the homepage fallback it would have had anyway.
+                if not trip.get("share_slug"):
+                    trip["share_slug"] = ensure_share_slug(trip["id"]) or ""
+
                 eligible.append((trip, day_number, today_plan, city))
             except Exception as e:
                 logger.error(f"Error processing daily nudge for trip {trip.get('id')}: {e}")
