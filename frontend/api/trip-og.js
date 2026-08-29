@@ -3,8 +3,29 @@
 // Injects dynamic OG meta tags into index.html
 // Works for both bots (WhatsApp preview) and real users (React app loads normally)
 
+import { DESTINATION_PHOTOS } from './_destinationPhotos.js'
+
 export const config = {
   runtime: 'edge',
+}
+
+// Matches a real trip's free-text destination ("Goa", "North Goa Beaches",
+// "Circuit: Shimla → Manali") against the same destination-photo database
+// seo-destination.js uses for the trip-planner pages — that one only needs
+// an exact key lookup because its slug IS the destination; a shared trip's
+// destination is whatever the AI or the traveller wrote, so this checks for
+// any known place name appearing inside it. For a circuit this picks
+// whichever leg happens to match first — good enough for a preview image,
+// which only needs to look like the right kind of place, not be exhaustive.
+function findDestinationPhoto(destination) {
+  if (!destination) return null
+  const norm = destination.toLowerCase()
+  const asSlug = norm.trim().replace(/\s+/g, '-')
+  if (DESTINATION_PHOTOS[asSlug]) return DESTINATION_PHOTOS[asSlug]
+  for (const key of Object.keys(DESTINATION_PHOTOS)) {
+    if (norm.includes(key.replace(/-/g, ' '))) return DESTINATION_PHOTOS[key]
+  }
+  return null
 }
 
 const API_URL = process.env.VITE_API_URL || 'https://tripzio-production.up.railway.app'
@@ -23,6 +44,21 @@ function escHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
+// The backend now escapes og_title/og_desc/destination before embedding
+// them in its own HTML (they used to go in raw). Regex-extracting them from
+// that response means what we get back is already-escaped text — decoding
+// it here keeps this whole function working on plain text exactly as
+// before, so every existing escHtml() call below still runs exactly once
+// instead of double-escaping ("&" -> "&amp;" -> "&amp;amp;").
+function unescHtml(str) {
+  return String(str || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+}
+
 export default async function handler(request) {
   const url = new URL(request.url)
   const slug = url.searchParams.get('slug') || url.pathname.split('/').pop()
@@ -38,7 +74,7 @@ export default async function handler(request) {
   // Default OG values
   let ogTitle = 'AI-Generated Trip Plan | Tripzio'
   let ogDesc = 'Complete trip plan with real trains, hotels & budget breakdown. Plan yours free at tripzio.io'
-  const ogImage = 'https://tripzio.io/og-image.png'
+  let ogImage = 'https://tripzio.io/og-image.png'
 
   // Always fetch trip data — both bots and users benefit from correct title
   try {
@@ -50,8 +86,17 @@ export default async function handler(request) {
       const html = await apiRes.text()
       const titleMatch = html.match(/property="og:title"\s+content="([^"]+)"/)
       const descMatch  = html.match(/property="og:description"\s+content="([^"]+)"/)
-      if (titleMatch) ogTitle = titleMatch[1]
-      if (descMatch)  ogDesc  = descMatch[1]
+      const destMatch  = html.match(/name="tripzio:destination-raw"\s+content="([^"]*)"/)
+      if (titleMatch) ogTitle = unescHtml(titleMatch[1])
+      if (descMatch)  ogDesc  = unescHtml(descMatch[1])
+      const destination = destMatch ? unescHtml(destMatch[1]) : ''
+      // Same DESTINATION_PHOTOS database seo-destination.js already uses
+      // for its own og:image, the same way (a meta tag pointing at the
+      // photo URL, no attribution rendered alongside it — there's no page
+      // body here to put a credit line in, unlike that file's fully
+      // rendered static page).
+      const photo = findDestinationPhoto(destination)
+      if (photo) ogImage = photo.photo
     }
   } catch {
     // Fail open — use defaults

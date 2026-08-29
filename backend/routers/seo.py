@@ -6,6 +6,7 @@
 import os
 import re
 import json
+import html as html_lib
 import logging
 import httpx
 from datetime import datetime
@@ -275,6 +276,11 @@ async def trip_og(slug: str):
     og_desc = "Plan your perfect Indian trip in minutes. Real trains, hotels & budget. Free to start."
     og_image = "https://tripzio.io/og-image.png"
     canonical = f"https://tripzio.io/trip/{slug}"
+    # Raw destination, exposed as its own tag below (not folded into og_title)
+    # so the calling Vercel Edge Function (trip-og.js) can look it up against
+    # its own destination-photo database and swap in a real Goa/Manali/etc.
+    # photo instead of the generic graphic every shared trip used to show.
+    dest_raw = ""
 
     try:
         supabase = get_supabase_client()
@@ -287,6 +293,7 @@ async def trip_og(slug: str):
         if result.data:
             trip = result.data
             dest = trip.get("destination", "India")
+            dest_raw = dest
             days = trip.get("days", "")
             budget = trip.get("budget", "")
             trip_type = trip.get("trip_type", "")
@@ -301,6 +308,14 @@ async def trip_og(slug: str):
             og_desc = " ".join(desc_parts)
     except Exception as e:
         logger.warning(f"trip_og: slug {slug}: {e}")
+
+    # Escaped once, used everywhere below — og_title/og_desc previously went
+    # straight into HTML attributes unescaped, so a destination or title
+    # containing a `"` would break the attribute (or, in the worst case,
+    # inject markup) rather than just rendering oddly.
+    og_title = html_lib.escape(og_title)
+    og_desc = html_lib.escape(og_desc)
+    dest_raw = html_lib.escape(dest_raw)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -320,6 +335,10 @@ async def trip_og(slug: str):
   <meta name="twitter:description" content="{og_desc}"/>
   <meta name="twitter:image" content="{og_image}"/>
   <link rel="canonical" href="{canonical}"/>
+  <!-- Not an OG tag Google/WhatsApp read — read by trip-og.js (the Vercel
+       Edge Function that actually serves /trip/{{slug}}) to pick a real
+       destination photo instead of the generic one above. -->
+  <meta name="tripzio:destination-raw" content="{dest_raw}"/>
   <script>window.location.replace("{canonical}")</script>
 </head>
 <body><p>Loading trip plan...</p></body>

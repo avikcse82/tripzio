@@ -1918,7 +1918,7 @@ return (
                       ))}
                     </div>
                     <p style={{ fontSize: '11px', color: '#64748b', margin: 0, textAlign: 'center' }}>
-                      Step {genStep + 1} of {GEN_STEPS.length} · Usually 30-90 seconds — complex routes take longer
+                      Step {genStep + 1} of {GEN_STEPS.length} · Usually under 3 minutes — complex routes take longer
                     </p>
                   </div>
                 )}

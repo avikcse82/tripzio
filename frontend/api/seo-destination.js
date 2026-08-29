@@ -249,7 +249,7 @@ function renderHTML(data, slug) {
         ${(d.sample_prompts || []).map(p => `<div class="prompt-chip">"${escHtml(p)}"</div>`).join('')}
       </div>
       <a href="/guest" class="cta-btn">Plan My ${escHtml(d.destination_name)} Trip Free →</a>
-      <p class="cta-note">No signup needed · Takes 30-90 seconds · Real trains & hotels</p>
+      <p class="cta-note">No signup needed · Takes a few minutes · Real trains & hotels</p>
     </div>
     ${heroPhoto?.credit ? `
     <div class="hero-credit">
@@ -305,7 +305,7 @@ function renderHTML(data, slug) {
       <h2>Ready to Plan Your ${escHtml(d.destination_name)} Trip?</h2>
       <p>Join thousands of Indian travellers who plan smarter with Tripzio</p>
       <a href="/guest" class="cta-btn">Generate My Free ${escHtml(d.destination_name)} Plan →</a>
-      <p class="cta-note" style="margin-top:12px">Free · No credit card · Takes 30-90 seconds</p>
+      <p class="cta-note" style="margin-top:12px">Free · No credit card · Takes a few minutes</p>
     </div>
   </div>
 

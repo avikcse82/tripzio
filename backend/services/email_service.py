@@ -249,7 +249,7 @@ async def send_welcome_email(to_email: str, full_name: str, role: str = "user") 
 
     cta_url = "https://tripzio.io/agent" if is_agent else "https://tripzio.io/dashboard"
     cta_text = "🚀 Start Planning for Clients" if is_agent else "🗺️ Plan My First Trip"
-    welcome_text = "You\'re now registered as a <strong>Travel Agent</strong> on Tripzio. You can now create AI-powered itineraries for your clients in seconds." if is_agent else "You\'re all set to start planning amazing Indian trips with AI. Just describe your trip and we\'ll handle everything!"
+    welcome_text = "You\'re now registered as a <strong>Travel Agent</strong> on Tripzio. You can now create AI-powered itineraries for your clients in minutes." if is_agent else "You\'re all set to start planning amazing Indian trips with AI. Just describe your trip and we\'ll handle everything!"
     what_text = "🎯 What you can do as an Agent:" if is_agent else "🎯 What you can do:"
 
     html = f"""<!DOCTYPE html>
