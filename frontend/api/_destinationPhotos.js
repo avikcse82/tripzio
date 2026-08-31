@@ -831,3 +831,64 @@ export const DESTINATION_PHOTOS = {
     }
   }
 }
+
+// Festival pages sharing a destination (e.g. all 4 Goa festivals) would
+// otherwise all fall back to that destination's one generic photo above —
+// keyed by festival slug so each festival gets its own real, on-theme photo
+// instead of duplicating a sibling's.
+export const FESTIVAL_PHOTOS = {
+  "goa-christmas": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Panaji%2C_Goa%2C_India%2C_Our_Lady_of_the_Immaculate_Conception_Church_at_night.jpg/1280px-Panaji%2C_Goa%2C_India%2C_Our_Lady_of_the_Immaculate_Conception_Church_at_night.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Vyacheslav Argenberg",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Argenberg",
+      "license": "CC BY",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+    }
+  },
+  "goa-new-year": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Anjuna_Beach%2C_Goa%2C_India%2C_New_Year%27s_Eve%2C_Fireworks_in_the_sky%2C_Night_party.jpg/1280px-Anjuna_Beach%2C_Goa%2C_India%2C_New_Year%27s_Eve%2C_Fireworks_in_the_sky%2C_Night_party.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Vyacheslav Argenberg",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Argenberg",
+      "license": "CC BY",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+    }
+  },
+  "goa-sunburn": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Sunburn_Festival%2C_Goa%2C_Lights_and_Sounds.jpg/1280px-Sunburn_Festival%2C_Goa%2C_Lights_and_Sounds.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Vyacheslav Argenberg",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Argenberg",
+      "license": "CC BY",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+    }
+  },
+  "goa-ganesh-chaturthi": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Ganesh_Chaturthi_in_Goa.jpg/1280px-Ganesh_Chaturthi_in_Goa.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Kbdessai",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Kbdessai",
+      "license": "CC BY",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
+    }
+  },
+  "jaipur-navratri": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Ganesha%2C_Durga_and_Saraswati_before_Navaratri_visarjan_in_Jaipur_Rajasthan.jpg/1280px-Ganesha%2C_Durga_and_Saraswati_before_Navaratri_visarjan_in_Jaipur_Rajasthan.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Nagarjun Kandukuru",
+      "authorUrl": "https://www.flickr.com/people/64924693@N00",
+      "license": "CC BY",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+    }
+  },
+  "jaipur-diwali": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Diwali_lamps_India_2011.jpg/1280px-Diwali_lamps_India_2011.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "siddarth varanasi",
+      "authorUrl": "https://www.flickr.com/people/62219957@N05",
+      "license": "CC BY",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+    }
+  }
+}

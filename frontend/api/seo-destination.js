@@ -3,7 +3,7 @@
 // Fetches page data from FastAPI, returns fully rendered HTML to Google bot
 // Cached by Vercel CDN after first render
 
-import { DESTINATION_PHOTOS } from './_destinationPhotos.js'
+import { DESTINATION_PHOTOS, FESTIVAL_PHOTOS } from './_destinationPhotos.js'
 
 export const config = {
   runtime: 'edge',
@@ -14,24 +14,33 @@ const API_URL = process.env.VITE_API_URL || 'https://tripzio-production.up.railw
 // Rotating accent colors for day cards — same palette used across the app
 const DAY_ACCENTS = ['#0D9488', '#F97316', '#6366F1', '#0EA5E9', '#EC4899', '#16A34A']
 
-// A route page ("delhi-to-manali") or festival page ("goa-christmas") is
-// keyed by a combined slug, which is never itself a photo-database key —
-// those are single destinations ("manali", "goa"). The place itself is what
-// should appear behind the hero (arriving in Manali is the visual, not
-// leaving Delhi; Goa is the visual, not "Christmas"), so both page types
-// look their photo up by destination_name instead of by the URL slug.
+// A route page ("delhi-to-manali") is keyed by a combined slug, which is
+// never itself a photo-database key — those are single destinations
+// ("manali"). Arriving in Manali is the visual, not leaving Delhi, so route
+// pages look their photo up by destination_name instead of by the URL slug.
 function photoSlugFor(d, slug) {
-  if ((d.page_type === 'route' || d.page_type === 'festival') && d.destination_name) {
+  if (d.page_type === 'route' && d.destination_name) {
     return d.destination_name.toLowerCase().replace(/\s+/g, '-')
   }
   return slug
+}
+
+// Festival pages look up a festival-specific photo by the full slug first
+// (goa-christmas and goa-new-year need different photos even though they
+// share a destination), falling back to the destination's generic photo
+// only for festivals that don't have a dedicated one curated yet.
+function heroPhotoFor(d, slug) {
+  if (d.page_type === 'festival') {
+    return FESTIVAL_PHOTOS[slug] || DESTINATION_PHOTOS[(d.destination_name || '').toLowerCase().replace(/\s+/g, '-')]
+  }
+  return DESTINATION_PHOTOS[photoSlugFor(d, slug)]
 }
 
 // ── HTML renderer ─────────────────────────────────────────────────────────
 function renderHTML(data, slug) {
   const d = data
   const canonicalUrl = `https://tripzio.io/${slug}-trip-planner`
-  const heroPhoto = DESTINATION_PHOTOS[photoSlugFor(d, slug)]
+  const heroPhoto = heroPhotoFor(d, slug)
 
   // Render day plans
   const dayPlansHTML = (d.sample_plan?.day_plans || []).map((day, i) => {
