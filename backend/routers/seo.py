@@ -44,6 +44,62 @@ def name_to_slug(name: str) -> str:
     return re.sub(r'[^a-z0-9-]', '', name.lower().replace(" ", "-"))
 
 
+# ── Route pages: "delhi-to-manali-trip-planner" ───────────────────────────
+# A destination-only page ("manali-trip-planner") answers "what do I do in
+# Manali". A route page answers the much more common, higher-intent search
+# "how do I get from Delhi to Manali" — and can answer it with REAL train
+# data via services.railway_service, which a generic travel blog can't.
+#
+# Deliberately a curated allowlist, not "any two cities someone types":
+# get_trains_between_stations() shares a hard 450-CALLS-PER-MONTH quota with
+# every real user's live generation (see services/railway_service.py). An
+# unbounded from/to combination space is trivially enumerable by a bot —
+# a handful of scripted requests to made-up route slugs could burn through
+# a quota real, paying-adjacent users depend on for accurate train info.
+# Curating the list bounds this to a one-time, known, small cost.
+CURATED_ROUTES = {
+    "delhi-to-manali", "delhi-to-shimla", "delhi-to-rishikesh",
+    "delhi-to-jaipur", "delhi-to-agra", "delhi-to-amritsar",
+    "mumbai-to-goa", "mumbai-to-lonavala", "pune-to-goa",
+    "kolkata-to-darjeeling", "kolkata-to-digha", "kolkata-to-puri",
+    "bangalore-to-ooty", "bangalore-to-coorg", "chennai-to-pondicherry",
+}
+
+_ROUTE_RE = re.compile(r'^([a-z0-9]+)-to-([a-z0-9-]+)$')
+
+
+def parse_route_slug(slug: str) -> tuple[str, str] | None:
+    """Returns (from_slug, dest_slug) if this is a curated route slug, else
+    None — including for a route-SHAPED slug that just isn't on the
+    allowlist, which callers must treat as not-found, not "generate it
+    anyway"."""
+    if slug not in CURATED_ROUTES:
+        return None
+    m = _ROUTE_RE.match(slug)
+    return (m.group(1), m.group(2)) if m else None
+
+
+def _extract_json_object(text: str) -> dict | None:
+    """Pull the first complete JSON object out of a Haiku reply.
+
+    Slicing first-{ to last-} (the previous approach here) breaks the moment
+    the model appends anything after its JSON — a trailing note, a second
+    object — producing a JSONDecodeError that this function's callers then
+    treat as total generation failure. raw_decode stops at the end of the
+    first complete object instead, so trailing content is simply ignored
+    rather than corrupting the parse. Same fix already applied to the
+    itinerary consistency check for the same observed failure mode.
+    """
+    s = text.find("{")
+    if s < 0:
+        return None
+    try:
+        data, _ = json.JSONDecoder().raw_decode(text[s:])
+        return data
+    except json.JSONDecodeError:
+        return None
+
+
 # ── Haiku page generation ─────────────────────────────────────────────────
 async def generate_destination_page(destination_name: str) -> dict:
     """
@@ -142,14 +198,10 @@ Rules:
             return None
 
         text = r.json()["content"][0]["text"].strip()
-        # Extract JSON from response
-        s = text.find("{")
-        e = text.rfind("}") + 1
-        if s < 0 or e <= s:
+        data = _extract_json_object(text)
+        if data is None:
             logger.error(f"No JSON found in Haiku response for {destination_name}")
             return None
-
-        data = json.loads(text[s:e])
 
         # Validate required fields
         required = ["destination_name", "meta_title", "meta_description",
@@ -170,6 +222,178 @@ Rules:
         return None
     except Exception as e:
         logger.error(f"Haiku SEO generation exception for {destination_name}: {e}")
+        return None
+
+
+def _format_duration(raw) -> str:
+    """The raw duration field's shape depends on which of the two data
+    sources actually answered — confirmed against a real request: irctc27
+    (the primary source) returns an integer count of MINUTES (213), while
+    the erail.in fallback returns an already-formatted string scraped from
+    its own page. Rendered as-is, 213 would show as a bare "213" on the
+    page with no unit — normalise the integer-minutes case into "3h 33m";
+    anything else is passed through rather than guessed at."""
+    if isinstance(raw, (int, float)) or (isinstance(raw, str) and raw.strip().isdigit()):
+        minutes = int(raw)
+        h, m = divmod(minutes, 60)
+        if h and m:
+            return f"{h}h {m}m"
+        return f"{h}h" if h else (f"{m}m" if m else "")
+    return str(raw) if raw else ""
+
+
+def _format_trains_for_page(trains: list) -> list:
+    """Raw irctc27 train dicts -> the small, stable shape the route-page
+    template renders directly. Field-extraction mirrors
+    railway_service.build_train_context, which already handles the API's
+    inconsistent field naming (trainName vs train_name vs name, etc.) —
+    kept independent rather than imported so a future prompt-text change to
+    that function can't silently reshape what this page displays.
+
+    These numbers are shown to the page as-is, never rewritten by Haiku —
+    the whole point of a route page is a real train number a searcher can
+    act on, not a plausible-sounding one.
+    """
+    formatted = []
+    for t in trains[:6]:
+        name = (t.get("trainName") or t.get("train_name") or t.get("name") or "")
+        number = (t.get("trainNumber") or t.get("train_number") or t.get("number") or "")
+        if not name and number:
+            name = f"Train {number}"
+        dep = (t.get("departureTime") or t.get("departure_time") or t.get("dep_time") or t.get("fromTime") or "")
+        arr = (t.get("arrivalTime") or t.get("arrival_time") or t.get("arr_time") or t.get("toTime") or "")
+        dur = _format_duration(t.get("duration") or t.get("travelTime") or t.get("travel_time") or "")
+        classes = t.get("avlClasses") or t.get("allowedQuotas") or t.get("classes") or []
+        if isinstance(classes, list):
+            classes = "/".join(str(x) for x in classes)
+        if name or number:
+            formatted.append({
+                "name": name, "number": str(number), "departure": dep,
+                "arrival": arr, "duration": dur, "classes": classes,
+            })
+    return formatted
+
+
+async def generate_route_page(from_name: str, to_name: str, trains: list) -> dict | None:
+    """Same contract as generate_destination_page (fail-open, returns None
+    on any error) but for a from-city -> destination ROUTE page. Real train
+    data is fetched by the caller (it's the thing being rationed against the
+    monthly quota) and passed in — Haiku only writes the prose around it, it
+    never invents or is asked to transcribe train numbers itself."""
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        logger.error("ANTHROPIC_API_KEY not set — cannot generate route page")
+        return None
+
+    train_summary = "No live train data available for this route right now."
+    if trains:
+        lines = [f"{t.get('trainName') or t.get('train_name') or t.get('name') or 'Train'} "
+                 f"({t.get('trainNumber') or t.get('train_number') or t.get('number') or '?'}): "
+                 f"dep {t.get('departureTime') or t.get('departure_time') or '?'}, "
+                 f"arr {t.get('arrivalTime') or t.get('arrival_time') or '?'}, "
+                 f"{_format_duration(t.get('duration') or t.get('travelTime')) or '?'}"
+                 for t in trains[:6]]
+        train_summary = "Real trains on this route (use these exact names/numbers if you mention any specific train — do not invent others):\n" + "\n".join(lines)
+
+    prompt = f"""You are an expert Indian travel writer and SEO specialist.
+Generate complete travel page content for the route: {from_name} to {to_name} (India), for a traveller deciding how to make this specific journey.
+
+{train_summary}
+
+Return ONLY a valid JSON object with this EXACT structure (no markdown, no explanation):
+{{
+  "route_name": "{from_name} to {to_name}",
+  "meta_title": "SEO title under 60 chars — include '{from_name} to {to_name}'",
+  "meta_description": "SEO description under 155 chars — mention travel time/mode and trip planning",
+  "hero_title": "Compelling H1 for planning a {from_name} to {to_name} trip",
+  "hero_subtitle": "One sentence on why/how people make this specific journey",
+  "sample_prompts": [
+    "natural Hinglish/English trip prompt mentioning both {from_name} and {to_name}",
+    "another prompt with budget and duration"
+  ],
+  "quick_facts": [
+    {{"icon": "emoji", "value": "factual value (distance, typical journey time, etc.)", "label": "short label"}},
+    {{"icon": "emoji", "value": "factual value", "label": "short label"}},
+    {{"icon": "emoji", "value": "factual value", "label": "short label"}},
+    {{"icon": "emoji", "value": "factual value", "label": "short label"}}
+  ],
+  "sample_plan": {{
+    "days": <integer — realistic trip length once arrived at {to_name}>,
+    "budget": "₹X,XXX total estimated budget for couple, including the {from_name}-{to_name} journey",
+    "trip_type": "trip type",
+    "day_plans": [
+      {{"title": "Day title", "description": "2-3 sentences, specific places, timings.", "stay": "Real hotel name or area", "transport": "How to get around this day", "cost": "₹X,XXX estimated daily cost"}}
+    ]
+  }},
+  "why_tripzio": [
+    {{"title": "Feature title", "desc": "How Tripzio specifically helps for the {from_name} to {to_name} route"}},
+    {{"title": "Feature title", "desc": "Another specific benefit"}},
+    {{"title": "Feature title", "desc": "Another specific benefit"}}
+  ],
+  "best_months": [
+    {{"month": "MonthName", "icon": "weather emoji", "rating": "excellent|good|avoid", "reason": "one line reason, considering {to_name}'s climate"}}
+  ],
+  "faqs": [
+    {{"q": "How do I get from {from_name} to {to_name}?", "a": "Detailed helpful answer 2-3 sentences — do not state specific train numbers here, that data is shown separately on the page"}},
+    {{"q": "How long does the {from_name} to {to_name} journey take?", "a": "Detailed answer"}},
+    {{"q": "Another common question about this specific route", "a": "Detailed answer"}},
+    {{"q": "Another common question about {to_name} itself", "a": "Detailed answer"}}
+  ]
+}}
+
+Rules:
+- Do NOT state specific train numbers, names, or timings anywhere in your response — real ones are displayed separately on the page from live data, and yours would conflict with them.
+- All content must be factually accurate for this specific route and destination
+- best_months: include ALL 12 months with accurate ratings for visiting {to_name}
+- sample_plan: include 3-6 day_plans depending on realistic trip length
+- faqs: 4 questions specific to this route/journey
+- meta_title: must be under 60 characters
+- meta_description: must be under 155 characters
+- Return ONLY the JSON object, nothing else"""
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 4000,
+                    "temperature": 0.2,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+            )
+
+        if r.status_code != 200:
+            logger.error(f"Haiku route-page generation failed [{r.status_code}] for {from_name}->{to_name}")
+            return None
+
+        text = r.json()["content"][0]["text"].strip()
+        data = _extract_json_object(text)
+        if data is None:
+            logger.error(f"No JSON found in Haiku response for route {from_name}->{to_name}")
+            return None
+
+        required = ["route_name", "meta_title", "meta_description", "hero_title", "sample_plan", "best_months", "faqs"]
+        for field in required:
+            if field not in data:
+                logger.error(f"Missing field '{field}' in Haiku route response for {from_name}->{to_name}")
+                return None
+
+        # The real data, not AI output — attached here rather than trusted
+        # to the model, per this function's whole reason for existing.
+        data["destination_name"] = to_name
+        data["from_name"] = from_name
+        data["page_type"] = "route"
+        data["trains"] = _format_trains_for_page(trains)
+        return data
+
+    except Exception as e:
+        logger.error(f"Haiku route-page generation exception for {from_name}->{to_name}: {e}")
         return None
 
 
@@ -377,6 +601,61 @@ async def get_seo_page(destination_slug: str, request: Request):
             break
 
     destination_name = slug_to_name(slug)
+
+    # ── Route pages ("delhi-to-manali") branch off entirely here — the
+    # destination-only flow below is completely unaffected either way ──────
+    route = parse_route_slug(slug)
+    if route:
+        from_slug, dest_slug = route
+        cached_route = await get_cached_page(slug)
+        if cached_route:
+            logger.info(f"SEO cache HIT (route): {slug}")
+            return {"source": "cache", "slug": slug, "data": cached_route}
+
+        from_name = slug_to_name(from_slug)
+        dest_name = slug_to_name(dest_slug)
+        logger.info(f"SEO cache MISS (route): {slug} — generating via Haiku")
+
+        try:
+            from services.railway_service import get_trains_between_stations
+            trains = await get_trains_between_stations(from_name, dest_name)
+        except Exception as e:
+            logger.warning(f"Route page train fetch failed for {slug}: {e}")
+            trains = []
+
+        route_page_data = await generate_route_page(from_name, dest_name, trains)
+        if route_page_data:
+            await save_cached_page(slug, dest_name, route_page_data)
+            return {"source": "generated", "slug": slug, "data": route_page_data}
+
+        logger.error(f"Route page generation failed for {slug} — returning fallback")
+        return {
+            "source": "fallback",
+            "slug": slug,
+            "data": {
+                "destination_name": dest_name,
+                "from_name": from_name,
+                "page_type": "route",
+                "meta_title": f"{from_name} to {dest_name} Trip Planner | Tripzio",
+                "meta_description": f"Plan your {from_name} to {dest_name} trip with AI. Real trains and a full itinerary in minutes.",
+                "hero_title": f"Plan Your {from_name} to {dest_name} Trip",
+                "hero_subtitle": f"Get a complete itinerary for travelling from {from_name} to {dest_name}.",
+                "sample_prompts": [f"{from_name} to {dest_name} trip 5 days"],
+                "quick_facts": [],
+                "trains": _format_trains_for_page(trains),
+                "sample_plan": {"days": 5, "budget": "₹20,000", "trip_type": "couple trip", "day_plans": []},
+                "why_tripzio": [],
+                "best_months": [],
+                "faqs": [],
+            }
+        }
+
+    # A route-SHAPED slug ("random-to-random") that isn't curated is a
+    # not-found, not a destination page called "Random To Random" — without
+    # this it would fall through to slug_to_name() below and quietly render
+    # as if that were a real place.
+    if _ROUTE_RE.match(slug):
+        raise HTTPException(status_code=404, detail="This route isn't available yet")
 
     # ── 2. Check cache ────────────────────────────────────────────────────
     cached = await get_cached_page(slug)
