@@ -9,7 +9,7 @@ import json
 import html as html_lib
 import logging
 import httpx
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import APIRouter, HTTPException, Request
 from database import get_supabase_client
 
@@ -109,6 +109,88 @@ def related_destinations_for(slug: str, limit: int = 4) -> list[str]:
         if slug in cluster:
             return sorted(cluster - {slug})[:limit]
     return []
+
+
+# ── Festival pages: "goa-diwali-trip-planner" ─────────────────────────────
+# Timed to a real, specific event ("plan your Diwali trip to Varanasi") is a
+# sharper, more urgent search than either a bare destination or a route —
+# and, per the lesson from seeding the route pages, only pays off if the
+# page exists and is indexed BEFORE the festival, not after the search
+# spike has already passed.
+#
+# Keyed against the real festivals table (backend/routers/festivals.py) that
+# already computes accurate, year-correct dates for real Indian festivals —
+# never left to Haiku's own idea of "when is Diwali", the same reasoning
+# that kept train numbers out of the model's hands for route pages. A
+# curated (destination, festival) allowlist rather than every combination:
+# most destinations don't actually have a notable tie to most festivals, and
+# an ungrounded pairing ("andaman-holi") would be exactly the kind of
+# plausible-sounding-but-empty page the destination-validation guard above
+# was built to stop.
+CURATED_FESTIVAL_PAGES = {
+    "goa-ganesh-chaturthi": ("Goa", "Ganesh Chaturthi"),
+    "mumbai-ganesh-chaturthi": ("Mumbai", "Ganesh Chaturthi"),
+    "jaipur-navratri": ("Jaipur", "Navratri Begins"),
+    "udaipur-navratri": ("Udaipur", "Navratri Begins"),
+    "manali-dussehra": ("Manali", "Dussehra Kullu"),
+    "mysore-dussehra": ("Mysore", "Dussehra Mysore"),
+    "pushkar-camel-fair": ("Pushkar", "Pushkar Camel Fair"),
+    "varanasi-diwali": ("Varanasi", "Diwali"),
+    "jaipur-diwali": ("Jaipur", "Diwali"),
+    "goa-christmas": ("Goa", "Christmas in Goa"),
+    "goa-new-year": ("Goa", "New Year Celebrations"),
+    "goa-sunburn": ("Goa", "Sunburn Festival"),
+}
+
+
+def parse_festival_slug(slug: str) -> tuple[str, str] | None:
+    """Returns (destination_name, festival_name_in_db) for a curated
+    festival slug, else None. Direct lookup rather than a regex split —
+    unlike routes there's no single separator token to split on ("goa-new-
+    year" has no marker between destination and festival), so the allowlist
+    itself carries the parse."""
+    return CURATED_FESTIVAL_PAGES.get(slug)
+
+
+def related_festivals_for(slug: str, limit: int = 3) -> list[str]:
+    """Other curated festival pages for the SAME destination — e.g. Goa's
+    Christmas page links to its New Year and Sunburn pages. Deterministic,
+    same reasoning as related_routes_for."""
+    pair = CURATED_FESTIVAL_PAGES.get(slug)
+    if not pair:
+        return []
+    dest_name, _ = pair
+    return sorted(s for s, (d, _) in CURATED_FESTIVAL_PAGES.items() if s != slug and d == dest_name)[:limit]
+
+
+async def _lookup_festival(festival_name: str, today: date) -> dict | None:
+    """Real date/description/price-impact for a named festival, from the
+    same festivals table festivals.py's own endpoint reads — never Haiku's
+    guess. Tries the current year first; if that year's occurrence has
+    already passed, tries next year so a page built in December about a
+    March festival still points at the UPCOMING one, not one already over.
+    Returns None (fail-open) if the table has neither — the caller falls
+    back to a generic, undated page rather than a wrong date."""
+    supabase = get_supabase_client()
+    if not supabase:
+        return None
+    for year in (today.year, today.year + 1):
+        try:
+            res = supabase.table("festivals").select("*").eq("name", festival_name).eq("year", year).limit(1).execute()
+            rows = res.data or []
+            if not rows:
+                continue
+            row = rows[0]
+            try:
+                if date.fromisoformat(row["date"]) < today:
+                    continue  # this year's instance is over — try next year
+            except (ValueError, TypeError):
+                pass
+            return row
+        except Exception as e:
+            logger.warning(f"Festival lookup failed for {festival_name} {year}: {e}")
+    return None
+
 
 _ROUTE_RE = re.compile(r'^([a-z0-9]+)-to-([a-z0-9-]+)$')
 
@@ -482,6 +564,141 @@ Rules:
         return None
 
 
+async def generate_festival_page(destination_name: str, festival_row: dict) -> dict | None:
+    """Same contract as generate_destination_page/generate_route_page (fail-
+    open, returns None on any error), for a destination-tied-to-a-festival
+    page. The date, description and price impact come from festival_row —
+    the real festivals table row the caller already looked up — and are
+    attached directly to the response, never left to Haiku to state itself.
+    A festival page is worthless if it puts the wrong month in front of a
+    real search, so the one fact a reader most needs is exactly the one
+    kept out of the model's hands."""
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        logger.error("ANTHROPIC_API_KEY not set — cannot generate festival page")
+        return None
+
+    festival_name = festival_row.get("name", "")
+    festival_date = festival_row.get("date", "")
+    festival_desc = festival_row.get("description", "")
+    price_impact = festival_row.get("price_impact", "")
+    festival_tip = festival_row.get("tip", "")
+
+    try:
+        # %-d (no leading zero) is a Linux/Mac-only strftime extension —
+        # %d then a manual lstrip keeps this portable to any host, since
+        # this code needs to run correctly wherever it's tested, not just
+        # in production.
+        _dt = datetime.strptime(festival_date, "%Y-%m-%d")
+        pretty_date = f"{_dt.strftime('%B')} {_dt.day}, {_dt.year}" if festival_date else ""
+    except ValueError:
+        pretty_date = festival_date  # unfamiliar format — show it raw rather than crash
+
+    prompt = f"""You are an expert Indian travel writer and SEO specialist.
+Generate complete travel page content for visiting {destination_name} (India) during {festival_name}.
+
+REAL FACTS about this festival (use these, do not invent or restate a different date):
+- Festival: {festival_name}
+- Date: {pretty_date or "date to be confirmed"}
+- About: {festival_desc or "a notable regional celebration"}
+- Typical price/crowd impact: {price_impact or "moderate"}
+- Practical tip: {festival_tip or "book accommodation and transport well in advance"}
+
+Return ONLY a valid JSON object with this EXACT structure (no markdown, no explanation):
+{{
+  "meta_title": "SEO title under 60 chars — include '{destination_name}' and '{festival_name}'",
+  "meta_description": "SEO description under 155 chars — mention the festival and trip planning",
+  "hero_title": "Compelling H1 for planning a {destination_name} trip around {festival_name}",
+  "hero_subtitle": "One sentence on what makes experiencing {festival_name} in {destination_name} special",
+  "sample_prompts": [
+    "natural Hinglish/English trip prompt mentioning {destination_name} and {festival_name}",
+    "another prompt with budget and duration"
+  ],
+  "quick_facts": [
+    {{"icon": "emoji", "value": "factual value about the festival experience (crowd level, best viewing spot, duration of celebrations, etc.)", "label": "short label"}},
+    {{"icon": "emoji", "value": "factual value", "label": "short label"}},
+    {{"icon": "emoji", "value": "factual value", "label": "short label"}}
+  ],
+  "sample_plan": {{
+    "days": <integer — realistic trip length to properly experience the festival>,
+    "budget": "₹X,XXX total estimated budget for couple — factor in festival-season price increases",
+    "trip_type": "trip type",
+    "day_plans": [
+      {{"title": "Day title, tied to the festival where relevant", "description": "2-3 sentences, specific to the festival experience or {destination_name} sightseeing.", "stay": "Real hotel name or area — note if advance booking is essential", "transport": "How to get around this day", "cost": "₹X,XXX estimated daily cost"}}
+    ]
+  }},
+  "why_tripzio": [
+    {{"title": "Feature title", "desc": "How Tripzio specifically helps plan around {festival_name} timing"}},
+    {{"title": "Feature title", "desc": "Another specific benefit"}},
+    {{"title": "Feature title", "desc": "Another specific benefit"}}
+  ],
+  "faqs": [
+    {{"q": "When is {festival_name} in {destination_name}?", "a": "State that the exact date is shown above on this page, and describe the general time of year — do not state a specific date yourself"}},
+    {{"q": "Should I book accommodation in advance for {festival_name}?", "a": "Detailed answer given the price/crowd impact level"}},
+    {{"q": "Another common question specific to experiencing this festival here", "a": "Detailed answer"}},
+    {{"q": "Another common question about {destination_name} itself", "a": "Detailed answer"}}
+  ]
+}}
+
+Rules:
+- Do NOT state a specific calendar date anywhere in your response — the real date is displayed separately on the page from verified data, and a date you write yourself risks contradicting it.
+- All content must be factually accurate for this specific destination and festival
+- sample_plan: include 2-5 day_plans depending on realistic trip length
+- faqs: exactly 4 questions
+- meta_title: must be under 60 characters
+- meta_description: must be under 155 characters
+- Return ONLY the JSON object, nothing else"""
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 4000,
+                    "temperature": 0.2,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+            )
+
+        if r.status_code != 200:
+            logger.error(f"Haiku festival-page generation failed [{r.status_code}] for {destination_name}/{festival_name}")
+            return None
+
+        text = r.json()["content"][0]["text"].strip()
+        data = _extract_json_object(text)
+        if data is None:
+            logger.error(f"No JSON found in Haiku response for festival {destination_name}/{festival_name}")
+            return None
+
+        required = ["meta_title", "meta_description", "hero_title", "sample_plan", "faqs"]
+        for field in required:
+            if field not in data:
+                logger.error(f"Missing field '{field}' in Haiku festival response for {destination_name}/{festival_name}")
+                return None
+
+        # Real data, not AI output — attached here, matching every other
+        # page type this session: the fact a reader most needs is exactly
+        # the one kept out of the model's hands.
+        data["destination_name"] = destination_name
+        data["festival_name"] = festival_name
+        data["page_type"] = "festival"
+        data["festival_date"] = festival_date
+        data["festival_date_display"] = pretty_date
+        data["price_impact"] = price_impact
+        data["festival_tip"] = festival_tip
+        return data
+
+    except Exception as e:
+        logger.error(f"Haiku festival-page generation exception for {destination_name}/{festival_name}: {e}")
+        return None
+
+
 # ── Supabase cache helpers ────────────────────────────────────────────────
 async def get_cached_page(slug: str) -> dict | None:
     """Check Supabase for cached page data. Returns None if not found."""
@@ -670,8 +887,11 @@ async def get_seo_page(destination_slug: str, request: Request):
     slug = result.get("slug")
     data = result.get("data")
     if isinstance(data, dict) and slug:
-        if data.get("page_type") == "route":
+        page_type = data.get("page_type")
+        if page_type == "route":
             data["related_routes"] = related_routes_for(slug)
+        elif page_type == "festival":
+            data["related_festivals"] = related_festivals_for(slug)
         else:
             data["related_destinations"] = related_destinations_for(slug)
     return result
@@ -760,6 +980,71 @@ async def _get_seo_page_impl(destination_slug: str, request: Request):
     # as if that were a real place.
     if _ROUTE_RE.match(slug):
         raise HTTPException(status_code=404, detail="This route isn't available yet")
+
+    # ── Festival pages ("goa-diwali") also branch off entirely here, before
+    # the destination-only flow — a slug like "goa-diwali" would otherwise
+    # pass _looks_like_a_real_destination (two clean words, no stopwords)
+    # and get generated as if "Goa Diwali" were a place name ──────────────
+    festival_pair = parse_festival_slug(slug)
+    if festival_pair:
+        dest_name_f, festival_name = festival_pair
+        cached_festival = await get_cached_page(slug)
+        # A cached page whose festival_date has already passed is treated as
+        # a miss, not a hit — the whole point of this page type is pointing
+        # at the UPCOMING occurrence, and Supabase upsert() means
+        # regenerating just overwrites the same row rather than duplicating it.
+        is_stale = False
+        if cached_festival:
+            try:
+                cached_date = cached_festival.get("festival_date")
+                is_stale = bool(cached_date) and date.fromisoformat(cached_date) < date.today()
+            except (ValueError, TypeError):
+                is_stale = False
+        if cached_festival and not is_stale:
+            logger.info(f"SEO cache HIT (festival): {slug}")
+            return {"source": "cache", "slug": slug, "data": cached_festival}
+        if is_stale:
+            logger.info(f"SEO cache STALE (festival, date passed): {slug} — regenerating")
+
+        festival_row = await _lookup_festival(festival_name, date.today())
+        if not festival_row:
+            logger.error(f"No real festival data found for {festival_name} — refusing to guess a date")
+            raise HTTPException(status_code=404, detail="Festival details not available")
+
+        logger.info(f"SEO cache MISS (festival): {slug} — generating via Haiku")
+        festival_page_data = await generate_festival_page(dest_name_f, festival_row)
+        if festival_page_data:
+            await save_cached_page(slug, dest_name_f, festival_page_data)
+            return {"source": "generated", "slug": slug, "data": festival_page_data}
+
+        logger.error(f"Festival page generation failed for {slug} — returning fallback")
+        try:
+            _dt = datetime.strptime(festival_row.get("date", ""), "%Y-%m-%d")
+            _pretty = f"{_dt.strftime('%B')} {_dt.day}, {_dt.year}"
+        except (ValueError, TypeError):
+            _pretty = festival_row.get("date", "")
+        return {
+            "source": "fallback",
+            "slug": slug,
+            "data": {
+                "destination_name": dest_name_f,
+                "festival_name": festival_name,
+                "page_type": "festival",
+                "festival_date": festival_row.get("date", ""),
+                "festival_date_display": _pretty,
+                "price_impact": festival_row.get("price_impact", ""),
+                "festival_tip": festival_row.get("tip", ""),
+                "meta_title": f"{dest_name_f} {festival_name} Trip Planner | Tripzio",
+                "meta_description": f"Plan your {dest_name_f} trip around {festival_name}. Real dates, real itinerary, in minutes.",
+                "hero_title": f"Plan Your {dest_name_f} Trip for {festival_name}",
+                "hero_subtitle": f"Experience {festival_name} in {dest_name_f} with a complete AI-planned itinerary.",
+                "sample_prompts": [f"{dest_name_f} trip for {festival_name}"],
+                "quick_facts": [],
+                "sample_plan": {"days": 4, "budget": "₹25,000", "trip_type": "couple trip", "day_plans": []},
+                "why_tripzio": [],
+                "faqs": [],
+            }
+        }
 
     # ── 2. Check cache ────────────────────────────────────────────────────
     cached = await get_cached_page(slug)
