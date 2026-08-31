@@ -243,7 +243,7 @@ function renderHTML(data, slug) {
     .hero-credit{position:absolute;bottom:8px;right:14px;font-size:9px;color:rgba(255,255,255,0.55)}
     .hero-credit a{color:inherit;text-decoration:none}
     .facts-bar{background:white;border-bottom:1px solid #E7E3D8;padding:18px 24px}
-    .facts-inner{max-width:900px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:center}
+    .facts-inner{max-width:900px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:flex-start}
     .fact-item{display:flex;align-items:center;gap:8px}
     .fact-icon{font-size:18px}
     .fact-value{font-size:13px;font-weight:700}

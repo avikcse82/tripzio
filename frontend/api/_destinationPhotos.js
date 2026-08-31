@@ -874,10 +874,10 @@ export const FESTIVAL_PHOTOS = {
     }
   },
   "jaipur-navratri": {
-    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Ganesha%2C_Durga_and_Saraswati_before_Navaratri_visarjan_in_Jaipur_Rajasthan.jpg/1280px-Ganesha%2C_Durga_and_Saraswati_before_Navaratri_visarjan_in_Jaipur_Rajasthan.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Artist_performing_Dandia.jpg/1280px-Artist_performing_Dandia.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
     "credit": {
-      "author": "Nagarjun Kandukuru",
-      "authorUrl": "https://www.flickr.com/people/64924693@N00",
+      "author": "Ramesh Lalwani",
+      "authorUrl": "https://www.flickr.com/people/11398652@N00",
       "license": "CC BY",
       "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
     }
