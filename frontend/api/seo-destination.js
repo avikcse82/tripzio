@@ -76,6 +76,34 @@ function renderHTML(data, slug) {
     </div>
   `).join('')
 
+  // Render cross-links (#2: contextual internal linking) — related_destinations
+  // for destination pages, related_routes for route pages. Computed
+  // server-side, deterministic, never AI-guessed (see routers/seo.py's
+  // related_destinations_for / related_routes_for) — this controls the
+  // internal link graph a topic-cluster SEO strategy depends on, so it's
+  // curated rather than left to a model to invent a page that might not
+  // even exist.
+  function slugToLabel(s) {
+    return s.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  }
+  // Splits on the FIRST "-to-" rather than naive hyphen-splitting — the
+  // backend's own route regex allows a hyphenated destination
+  // ([a-z0-9-]+ after "-to-"), even though none of today's 15 curated
+  // routes happen to use one. "delhi-to-mcleod-ganj" must become
+  // ["delhi", "mcleod-ganj"], not silently drop everything after "mcleod".
+  function splitRouteSlug(slug) {
+    const idx = slug.indexOf('-to-')
+    return idx === -1 ? [slug, ''] : [slug.slice(0, idx), slug.slice(idx + 4)]
+  }
+  const relatedHTML = d.page_type === 'route'
+    ? (d.related_routes || []).map(slug => {
+        const [fromSlug, destSlug] = splitRouteSlug(slug)
+        return `<a href="/${slug}-trip-planner" class="related-card">${escHtml(slugToLabel(fromSlug))} → ${escHtml(slugToLabel(destSlug))}</a>`
+      }).join('')
+    : (d.related_destinations || []).map(slug =>
+        `<a href="/${slug}-trip-planner" class="related-card">${escHtml(slugToLabel(slug))}</a>`
+      ).join('')
+
   // Render FAQs (also generates FAQ structured data for Google)
   const faqsHTML = (d.faqs || []).map(faq => `
     <div class="faq-item">
@@ -219,6 +247,9 @@ function renderHTML(data, slug) {
     .train-name{font-size:14px;font-weight:700;margin-bottom:8px}
     .train-number{font-weight:500;color:#64748b}
     .train-meta{display:flex;gap:8px;flex-wrap:wrap}
+    .related-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+    .related-card{display:block;background:white;border:1px solid #E7E3D8;border-radius:12px;padding:14px 16px;font-size:13px;font-weight:700;color:#0F172A;text-align:center;transition:transform .3s cubic-bezier(0.34,1.56,0.64,1),box-shadow .3s ease}
+    .related-card:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(15,23,42,.08);color:#0D9488}
     .budget-box{background:linear-gradient(135deg,#F0FDF4,#F0F9FF);border:1px solid #86efac;border-radius:16px;padding:20px 24px;display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:24px;transition:transform .35s cubic-bezier(0.34,1.56,0.64,1),box-shadow .35s ease}
     .budget-box:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
     .budget-amount{font-family:'Playfair Display',Georgia,serif;font-size:28px;font-weight:700;color:#0d9488}
@@ -338,6 +369,15 @@ function renderHTML(data, slug) {
     <section class="section">
       <h2 class="section-title">Frequently Asked Questions — ${escHtml(d.destination_name)} Trip</h2>
       ${faqsHTML}
+    </section>` : ''}
+
+    <!-- Related destinations/routes (#2: contextual cross-linking) — real
+         links only, computed server-side; nothing here can point at a page
+         that doesn't (or won't) exist -->
+    ${relatedHTML ? `
+    <section class="section">
+      <h2 class="section-title">${d.page_type === 'route' ? 'Other Popular Routes' : `You Might Also Like`}</h2>
+      <div class="related-grid">${relatedHTML}</div>
     </section>` : ''}
 
     <!-- Final CTA -->

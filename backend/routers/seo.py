@@ -65,6 +65,51 @@ CURATED_ROUTES = {
     "bangalore-to-ooty", "bangalore-to-coorg", "chennai-to-pondicherry",
 }
 
+
+def related_routes_for(slug: str, limit: int = 3) -> list[str]:
+    """Other curated routes sharing this one's departure city — fully
+    deterministic (CURATED_ROUTES is already the complete, real universe of
+    route pages, so there is nothing to guess at or hallucinate here)."""
+    route = parse_route_slug(slug)
+    if not route:
+        return []
+    from_slug, _ = route
+    return sorted(r for r in CURATED_ROUTES if r != slug and r.startswith(f"{from_slug}-to-"))[:limit]
+
+
+# ── Related destinations for cross-linking ─────────────────────────────────
+# The itinerary generator already computes "similar destinations at the same
+# budget" per real trip (a DIFFERENT prompt/schema in itinerary.py) — but
+# that reasoning happens per-generation, at AI cost, and isn't reusable here
+# as-is. Rather than adding a second AI call and risking it link to a
+# destination that doesn't have its own page, this groups the destinations
+# that are ACTUALLY live today (or obviously will be) into hand-picked
+# clusters. Deterministic on purpose, same reasoning as CURATED_ROUTES: this
+# controls what internal link graph gets built, rather than trusting a model
+# to invent one. A destination with no cluster below simply gets no related-
+# destinations section — silence over a guess, matching
+# _looks_like_a_real_destination's philosophy right above it.
+_DESTINATION_CLUSTERS = [
+    {"manali", "shimla", "kasol", "mcleod-ganj", "dharamshala", "spiti-valley"},
+    {"char-dham", "kedarnath", "rishikesh", "haridwar", "mussoorie", "nainital"},
+    {"darjeeling", "gangtok", "kaziranga", "shillong", "northeast"},
+    {"kashmir", "ladakh", "leh-ladakh"},
+    {"rajasthan", "jaisalmer", "udaipur", "jaipur", "jodhpur", "pushkar"},
+    {"goa", "gokarna"},
+    {"kerala", "munnar", "alleppey", "wayanad", "kovalam", "varkala"},
+    {"hampi", "coorg", "mysore", "ooty", "chikmagalur"},
+    {"varanasi", "bodh-gaya", "prayagraj"},
+    {"andaman", "lakshadweep"},
+]
+
+
+def related_destinations_for(slug: str, limit: int = 4) -> list[str]:
+    """Other destinations in the same hand-picked cluster as this one."""
+    for cluster in _DESTINATION_CLUSTERS:
+        if slug in cluster:
+            return sorted(cluster - {slug})[:limit]
+    return []
+
 _ROUTE_RE = re.compile(r'^([a-z0-9]+)-to-([a-z0-9-]+)$')
 
 
@@ -77,6 +122,46 @@ def parse_route_slug(slug: str) -> tuple[str, str] | None:
         return None
     m = _ROUTE_RE.match(slug)
     return (m.group(1), m.group(2)) if m else None
+
+
+# ── Destination validation ─────────────────────────────────────────────────
+# Found live in production data, not hypothetical: slugs like "day" and
+# "need" had reached generate_destination_page() and Haiku FABRICATED entire
+# fictional places for them rather than refusing — "Day: Ancient Temples &
+# Scenic Beauty in Maharashtra", a place that does not exist, written with
+# the same confident, specific detail as a real destination page. It was
+# never asked "is this real" — only "write a page for X" — and it complied
+# regardless of whether X existed. One cached row was a whole free-text
+# prompt ("goa-5-days-from-kolkata-couple-75000"), not a place name at all.
+#
+# Extends the trip-vocabulary stopword list already used elsewhere
+# (itinerary.py's free-text destination extraction) with a few general
+# non-place English words that list was never scoped to catch. Cheap and
+# deterministic, not exhaustive — a plausible-sounding but fake single word
+# can still slip through — but it closes both failure modes actually
+# observed: a single common English word, and a whole phrase.
+_NON_DESTINATION_WORDS = {
+    'day', 'days', 'trip', 'tour', 'plan', 'budget', 'need', 'want', 'from',
+    'with', 'and', 'the', 'for', 'via', 'this', 'that', 'have', 'will',
+    'also', 'our', 'your', 'some', 'good', 'best', 'nice', 'great', 'more',
+    'people', 'total', 'there', 'north', 'south', 'east', 'west',
+}
+
+
+def _looks_like_a_real_destination(slug: str) -> bool:
+    """First line of defence before a new (never-cached) slug is allowed to
+    spend a real Haiku call and a permanent cache row. Deliberately only
+    applied to NEW generation, not to reads of already-cached pages — a
+    false positive here should never hide a page that's already serving
+    fine; it should only stop a new bad one from being created."""
+    words = slug.split('-')
+    if len(words) > 5:
+        return False  # a real Indian place name is not a 6+-word phrase
+    if len(words) == 1 and words[0] in _NON_DESTINATION_WORDS:
+        return False
+    if any(w.isdigit() for w in words):
+        return False  # e.g. a budget figure ("75000") leaked into the slug
+    return True
 
 
 def _extract_json_object(text: str) -> dict | None:
@@ -574,6 +659,25 @@ async def trip_og(slug: str):
 # ── Main SEO page endpoint ────────────────────────────────────────────────
 @router.get("/seo/page/{destination_slug}")
 async def get_seo_page(destination_slug: str, request: Request):
+    """Thin wrapper around _get_seo_page_impl that attaches cross-links
+    (related_destinations / related_routes) to whatever it returns —
+    computed fresh on every response rather than baked into the cached
+    page_data, so an edit to a cluster or the route allowlist takes effect
+    immediately without needing every affected page manually refreshed.
+    Kept separate from the already-tested generation/caching logic below so
+    adding this couldn't touch any of its six existing return points."""
+    result = await _get_seo_page_impl(destination_slug, request)
+    slug = result.get("slug")
+    data = result.get("data")
+    if isinstance(data, dict) and slug:
+        if data.get("page_type") == "route":
+            data["related_routes"] = related_routes_for(slug)
+        else:
+            data["related_destinations"] = related_destinations_for(slug)
+    return result
+
+
+async def _get_seo_page_impl(destination_slug: str, request: Request):
     """
     Returns page data for any Indian destination.
     Flow:
@@ -666,6 +770,14 @@ async def get_seo_page(destination_slug: str, request: Request):
             "slug": slug,
             "data": cached
         }
+
+    # A brand-new slug gets one more check before it's allowed to spend a
+    # real Haiku call and a permanent cache row — see
+    # _looks_like_a_real_destination for what this catches and why. Only
+    # gates NEW generation; already-cached pages are unaffected either way.
+    if not _looks_like_a_real_destination(slug):
+        logger.warning(f"Rejected non-destination slug before generation: {slug}")
+        raise HTTPException(status_code=404, detail="Destination not found")
 
     # ── 3. Generate via Haiku ─────────────────────────────────────────────
     logger.info(f"SEO cache MISS: {slug} — generating via Haiku")
