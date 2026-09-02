@@ -829,6 +829,78 @@ export const DESTINATION_PHOTOS = {
       "license": "CC BY-SA",
       "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
     }
+  },
+  "rajasthan": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/1/18/Ship_of_Thar.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+    "credit": {
+      "author": "Sankalp19",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Sankalp19",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "kerala": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/MINUKKA%2C_the_feminine_character_of_Kathakali.jpg/1280px-MINUKKA%2C_the_feminine_character_of_Kathakali.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Shagil Kannur",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Shagil_Muzhappilangad",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "ladakh": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/a/a3/DRILING_at_PANGONG_Lake_Ladakh_India_-_Ritesh_Arya.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+    "credit": {
+      "author": "Chambatale",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Chambatale",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "char-dham": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Badrinath_Temple%2C_Uttarakhand%2C_India_%282012%29_18.jpg/1280px-Badrinath_Temple%2C_Uttarakhand%2C_India_%282012%29_18.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Guptaele",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Guptaele",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "prayagraj": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Triveni_Sangam_Prayagraj.jpg/1280px-Triveni_Sangam_Prayagraj.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "M27SHRA",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:M27SHRA",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "northeast": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Hornbill_Festival_%2CNagaland.jpg/1280px-Hornbill_Festival_%2CNagaland.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Sarangakrishnachetia",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Sarangakrishnachetia",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "south": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/A_view_of_Brihadeeswarar_Temple.jpg/1280px-A_view_of_Brihadeeswarar_Temple.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "simianwolverine",
+      "authorUrl": "https://www.flickr.com/people/53319892@N03",
+      "license": "CC BY",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+    }
+  },
+  "memari": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Temples_in_Amadpur%2C_Memari_08.jpg/1280px-Temples_in_Amadpur%2C_Memari_08.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Pinakpani",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Pinakpani",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
   }
 }
 
