@@ -2764,7 +2764,7 @@ Do NOT show direct source→destination if via city is specified."""
             if main_dest and "→" in main_dest:
                 main_dest = main_dest.split("→")[0].strip()
             if main_dest:
-                weather = await get_weather(main_dest)
+                weather = await get_weather(main_dest, req.start_date)
                 ai_response["weather"] = {
                     "temperature": weather.get("temperature", ""),
                     "condition": weather.get("condition", ""),
