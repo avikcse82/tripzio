@@ -27,7 +27,7 @@ import PlanModeCoachmark from '../components/PlanModeCoachmark'
 // effect on every render.
 const RESULT_TAB_COACHMARKS = [
   { id: 'hotels', label: 'Pick your stay here', offset: 0 },
-  { id: 'transport', label: 'Book trains & buses here', offset: 0 },
+  { id: 'transport', label: 'Book trains & buses here', offset: 50 },
 ]
 
 // Affiliate/tracked-link builders — shared with generateItineraryHTML.js (the PDF
@@ -1384,6 +1384,9 @@ export default function ItineraryResult() {
         @keyframes spin { to{transform:rotate(360deg)} }
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         .skeleton { background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size:200% 100%; animation:shimmer 1.5s infinite; border-radius:12px; }
+        @keyframes bounceIn { 0%{opacity:0;transform:scale(0.7)} 60%{opacity:1;transform:scale(1.08)} 80%{transform:scale(0.97)} 100%{opacity:1;transform:scale(1)} }
+        .pack-item { animation: bounceIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both; transition: transform 0.15s ease; cursor: default; }
+        .pack-item:hover { transform: scale(1.06); }
       `}</style>
 
       <Navbar />
@@ -2811,7 +2814,7 @@ export default function ItineraryResult() {
             {/* ── COST BREAKDOWN ── */}
             {activeTab === 'costs' && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '14px', marginBottom: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '14px', marginBottom: '24px', alignItems: 'start' }}>
                   {effectiveCostBreakdown && Object.entries(effectiveCostBreakdown).filter(([k]) => k !== 'total').map(([key, value], i) => {
                     const meta = {
                       transport: { emoji: '🚌', color: '#0ea5e9' },
@@ -2821,11 +2824,35 @@ export default function ItineraryResult() {
                       miscellaneous: { emoji: '📦', color: '#64748b' }
                     }
                     const m = meta[key] || { emoji: '📌', color: '#64748b' }
+                    // AI-generated values arrive as one run-on string, e.g.
+                    // "₹5,000 (Kolkata-Goa return train ₹4,200 + scooter rental ₹2,000...)"
+                    // — split the headline amount from the parenthetical
+                    // breakdown so the detail can be its own smaller, calmer
+                    // typographic tier instead of inheriting the amount's
+                    // 20px/900-weight styling verbatim.
+                    const strValue = String(value ?? '')
+                    const parenIdx = strValue.indexOf('(')
+                    const headline = (parenIdx >= 0 ? strValue.slice(0, parenIdx) : strValue).trim()
+                    const detailRaw = parenIdx >= 0 ? strValue.slice(parenIdx + 1).replace(/\)\s*$/, '') : ''
+                    const detailItems = detailRaw ? detailRaw.split(/\s*\+\s*/).map(s => s.trim()).filter(Boolean) : []
                     return (
-                      <div key={key} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
-                        <div style={{ fontSize: '24px', marginBottom: '10px' }}>{m.emoji}</div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{key}</div>
-                        <div style={{ fontSize: '20px', fontWeight: '900', color: m.color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</div>
+                      <div key={key} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '18px' }}>{m.emoji}</span>
+                          <div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{key}</div>
+                            <div style={{ fontSize: '17px', fontWeight: '800', color: m.color, fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.2 }}>{headline}</div>
+                          </div>
+                        </div>
+                        {detailItems.length > 0 && (
+                          <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                            {detailItems.map((d, j) => (
+                              <li key={j} style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.4, display: 'flex', gap: '5px' }}>
+                                <span style={{ color: '#cbd5e1', flexShrink: 0 }}>•</span>{d}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     )
                   })}
@@ -2984,7 +3011,7 @@ export default function ItineraryResult() {
                   <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>🎒 Packing List</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     {(data.weather?.pack?.length > 0 ? data.weather.pack : data.packing_list)?.map((item, i) => (
-                      <div key={i} style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div key={i} className="pack-item" style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', animationDelay: `${i * 0.05}s` }}>
                         <CheckCircle size={13} color="#0d9488" />
                         <span style={{ fontSize: '12px', color: '#374151', fontWeight: '500' }}>{item}</span>
                       </div>
@@ -3017,7 +3044,7 @@ export default function ItineraryResult() {
                 {data.cultural_etiquette && (
                   <div>
                     <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>🙏 Cultural Etiquette</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '10px', marginBottom: '10px', alignItems: 'start' }}>
                       {[
                         { icon: '👕', label: 'Dress code', value: data.cultural_etiquette.dress_code },
                         { icon: '📸', label: 'Photography', value: data.cultural_etiquette.photography_notes },

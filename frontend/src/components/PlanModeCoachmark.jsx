@@ -49,36 +49,40 @@ export default function PlanModeCoachmark({ storageKey, targets = DEFAULT_TARGET
 
   if (!visible || !rects) return null
 
+  // Pill-shaped speech-bubble tooltip anchored tight to its target (HSBC-app
+  // style), replacing the old long dashed line + tiny triangle — that shape
+  // read fine with one target far from the others, but two ADJACENT tabs
+  // (e.g. Hotels/Transport) sent two dashed lines converging into the same
+  // small area with overlapping labels. A tail-tipped bubble sitting right
+  // under its own tab, plus each caller's own `offset` to stagger targets
+  // that sit close together, keeps every label pinned to the tab it names.
   return (
     <div onClick={dismiss} style={{ position: 'fixed', inset: 0, background: 'rgba(20,20,18,0.55)', zIndex: 9999, cursor: 'pointer' }}>
-      <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none' }} aria-hidden="true">
-        {rects.map(r => {
-          const tipY = r.bottom + 16
-          const startY = r.bottom + 54 + r.offset
-          return (
-            <g key={r.id}>
-              <path d={`M ${r.x} ${startY} Q ${r.x} ${(startY + tipY) / 2} ${r.x} ${tipY + 8}`} fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="4 4" />
-              <path d={`M ${r.x} ${tipY} L ${r.x - 6} ${tipY + 12} L ${r.x + 6} ${tipY + 12} Z`} fill="#fff" />
-            </g>
-          )
-        })}
-      </svg>
-      {rects.map(r => (
-        <p key={r.id} style={{
-          position: 'fixed',
-          top: r.bottom + 58 + r.offset,
-          left: Math.max(8, Math.min(r.x - 70, window.innerWidth - 148)),
-          width: '140px',
-          color: '#fff',
-          fontSize: '13px',
-          fontWeight: '600',
-          lineHeight: 1.4,
-          margin: 0,
-          textAlign: 'center',
-          fontFamily: 'Inter, sans-serif',
-          pointerEvents: 'none',
-        }}>{r.label}</p>
-      ))}
+      {rects.map(r => {
+        const bubbleTop = r.bottom + 14 + r.offset
+        const clampedLeft = Math.max(72, Math.min(r.x, window.innerWidth - 72))
+        return (
+          <div key={r.id} style={{ position: 'fixed', top: bubbleTop, left: clampedLeft, transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+            <div style={{
+              position: 'absolute', top: '-6px', left: '50%', width: '12px', height: '12px',
+              background: '#fff', borderRadius: '3px', transform: 'translateX(-50%) rotate(45deg)',
+            }} />
+            <div style={{
+              position: 'relative',
+              background: '#fff',
+              color: '#0f172a',
+              fontSize: '13px',
+              fontWeight: '700',
+              fontFamily: 'Inter, sans-serif',
+              padding: '10px 18px',
+              borderRadius: '999px',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 10px 28px rgba(0,0,0,0.3)',
+              textAlign: 'center',
+            }}>{r.label}</div>
+          </div>
+        )
+      })}
       <p style={{ position: 'fixed', bottom: 24, left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,0.75)', fontSize: '13px', fontFamily: 'Inter, sans-serif', margin: 0 }}>
         Tap anywhere to close
       </p>
