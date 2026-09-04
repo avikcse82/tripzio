@@ -2587,11 +2587,34 @@ async def generate_custom_itinerary(
             travelers=_pre_travelers or 2, travelers_certain=_travelers_certain,
         )
 
+        # Real season/weather for req.start_date, fetched BEFORE the prompt is
+        # built — the only other place this endpoint fetched weather was
+        # AFTER call_openai, purely to fill the display widget. That left
+        # Claude with no grounding for what season the trip is actually in,
+        # so it wrote lines like "perfect monsoon getaway" for a December
+        # trip from guesswork alone, same failure mode as the season badge
+        # bug but in the free-text narrative instead of the weather widget.
+        # Uses the Haiku pre-parse's destination guess since the confirmed
+        # destination doesn't exist yet at this point in the flow.
+        _early_weather = {}
+        if _pre_dest_list:
+            try:
+                _early_weather = await get_weather(_pre_dest_list[0], req.start_date)
+            except Exception as _we:
+                logger.warning(f"Custom-plan early weather fetch failed: {_we}")
+        _weather_str = f"""
+REAL WEATHER/SEASON AT DESTINATION (use this — do not guess or assume a season):
+- Temperature: {_early_weather.get('temperature', 'Unknown')}
+- Condition: {_early_weather.get('condition', 'Unknown')}
+- Season: {_early_weather.get('season', 'Unknown')}
+- Advisory: {_early_weather.get('advisory', 'None')}
+""" if _early_weather else ""
+
         prompt = f"""You are Tripzio's AI travel expert for India. A user has described their dream trip in natural language. It may be in Hindi, English, or a mix.
 
 USER'S REQUEST:
 "{req.free_text}"
-
+{_weather_str}
 Your tasks:
 1. Parse the user's request to extract departure city, destinations + days per destination, total budget, trip type, travel dates, plan tier, and any special requirements
 2. Build a complete, detailed itinerary for this trip
@@ -2603,7 +2626,8 @@ Your tasks:
 ADDITIONAL RULES:
 - Day titles must mention the city e.g. "Shimla Day 1 — Arrival & Mall Road"
 - If budget not mentioned, estimate reasonable amount for the trip type
-- If departure city not mentioned, use most logical city"""
+- If departure city not mentioned, use most logical city
+- If real weather/season data is given above, use it exactly — never state a season, weather condition, or "perfect time to visit" claim that contradicts it"""
 
         # SerpAPI — fetch real TripAdvisor data
         cust_serp_context = ""
