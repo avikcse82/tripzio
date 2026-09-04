@@ -3057,7 +3057,7 @@ export default function ItineraryResult() {
                       ))}
                     </div>
                     {data.cultural_etiquette.local_customs?.map((custom, i) => (
-                      <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      <div key={i} className="bounce-box" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px', animationDelay: `${i * 0.05}s` }}>
                         <span style={{ fontSize: '14px', flexShrink: 0 }}>✨</span>
                         <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{custom}</span>
                       </div>
