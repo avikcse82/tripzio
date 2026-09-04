@@ -458,7 +458,7 @@ export default function PublicTripView() {
             Plan your own trip for free
           </h3>
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', marginBottom: '28px', maxWidth: '400px', margin: '0 auto 28px' }}>
-            Tripzio AI builds personalized itineraries in 3 minutes. Completely free.
+            Tripzio AI builds personalized itineraries in minutes. Completely free.
           </p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={handlePlanMine} className="cta-primary"

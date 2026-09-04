@@ -209,7 +209,7 @@ export default function GuestDashboard() {
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(28px,5vw,42px)', fontWeight: '700', color: '#0F172A', textAlign: 'center', marginBottom: '10px', letterSpacing: '-0.5px', lineHeight: 1.15 }}>
           Plan your perfect<br />
           <em style={{ fontStyle: 'italic', color: '#0D9488' }}>
-            Indian trip in 3 minutes
+            Indian trip in minutes
           </em>
         </h1>
         <p style={{ textAlign: 'center', color: '#475569', fontSize: '15px', marginBottom: '32px', lineHeight: 1.6 }}>
@@ -359,7 +359,7 @@ export default function GuestDashboard() {
                 ))}
               </div>
               <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>
-                Step {genStep + 1} of {GEN_STEPS.length} · Usually under 3 minutes
+                Step {genStep + 1} of {GEN_STEPS.length} · Usually 3–5 minutes
               </p>
             </div>
           )}

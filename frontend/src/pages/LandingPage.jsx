@@ -21,7 +21,7 @@ const FEATURES = [
   { icon: '⚡', color: '#0ea5e9', bg: '#eff6ff', title: 'No Chatbot. Just Type.', desc: 'No back-and-forth questions. Type your full trip in one line — AI understands everything. Faster than any chatbot.' },
   { icon: '🗺️', color: '#14b8a6', bg: '#f0fdfa', title: 'All India Coverage', desc: '101+ destinations across every Indian state. From Kashmir to Kanyakumari, Kutch to Arunachal — no destination left behind.' },
   { icon: '🎪', color: '#f59e0b', bg: '#fffbeb', title: 'Festival Intelligence', desc: 'Unique feature: Tripzio warns you about festivals near your travel dates. Know when Goa prices spike 4x for Christmas — before you book.' },
-  { icon: '💼', color: '#8b5cf6', bg: '#f5f3ff', title: 'Built for Travel Agents', desc: 'Generate 3 itinerary options in 2 minutes. White-label PDF with your agency branding. WhatsApp share in one click.' },
+  { icon: '💼', color: '#8b5cf6', bg: '#f5f3ff', title: 'Built for Travel Agents', desc: 'Generate client-ready itinerary options in minutes. White-label PDF with your agency branding. WhatsApp share in one click.' },
   { icon: '🇮🇳', color: '#ef4444', bg: '#fef2f2', title: 'India-First Intelligence', desc: 'Real Indian pricing. Budget from ₹5,000 to ₹5 lakh. Understands trains, permits, seasons, circuits, and regional festivals.' },
   { icon: '💰', color: '#22c55e', bg: '#f0fdf4', title: 'Transparent Budget', desc: 'Every plan includes a clear cost breakdown — transport, hotels, food, activities. No surprises. Plan confidently.' },
   { icon: '🏥', color: '#6366f1', bg: '#eef2ff', title: 'Health & Safety Built In', desc: 'Every plan includes the nearest hospital, India\'s emergency helpline, and destination-specific advisories — monsoon risks, altitude warnings, and more.' },
@@ -49,7 +49,7 @@ const SAMPLE_PLAN = {
 
 const HOW_IT_WORKS = [
   { step: '01', title: 'Describe your trip', desc: 'Type in Hindi, English, or mixed. "Goa 5 din December mein, budget 25 hajar, couple" — our AI understands it all.', icon: '✍️' },
-  { step: '02', title: 'AI builds your plan', desc: 'In under 2 minutes, get a complete itinerary with day-wise plan, hotels, cost breakdown, and festival alerts.', icon: '🤖' },
+  { step: '02', title: 'AI builds your plan', desc: 'In under 5 minutes, get a complete itinerary with day-wise plan, hotels, cost breakdown, and festival alerts.', icon: '🤖' },
   { step: '03', title: 'Share or export', desc: 'Share a beautiful link with family. Download a branded PDF. Send via WhatsApp. Your plan, your way.', icon: '📤' },
 ]
 
@@ -315,7 +315,7 @@ export default function LandingPage() {
                 <span style={{ display: 'block', fontStyle: 'italic', background: 'linear-gradient(135deg,#0D9488,#F97316)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                   perfect India trip
                 </span>
-                in under 2 minutes.
+                in under 5 minutes.
               </h1>
 
               <p style={{ fontSize: '12px', color: ' rgb(249, 115,22)', lineHeight: 1.7, marginBottom: '10px', maxWidth: '520px', fontWeight: '800' }}>
@@ -548,7 +548,7 @@ export default function LandingPage() {
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '18px' }}>
           {[
             { icon: '✈️', value: tripCount ? `${tripCount.toLocaleString('en-IN')}+` : '...', label: 'Trips Planned', sub: 'By Indian travellers', accent: '#0D9488', bg: '#F0FDFA', border: '#99F6E4' },
-            { icon: '⚡', value: 'Under 2 Min', label: 'Plan Generation', sub: 'Vs 3 hours manually', accent: '#F97316', bg: '#FFF7ED', border: '#FED7AA' },
+            { icon: '⚡', value: 'Under 5 Min', label: 'Plan Generation', sub: 'Vs 3 hours manually', accent: '#F97316', bg: '#FFF7ED', border: '#FED7AA' },
             { icon: '🗺️', value: '36', label: 'States & UTs', sub: 'No destination untouched', accent: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
             { icon: '₹', value: '₹0', label: 'To Start', sub: 'Free forever plan', accent: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' },
           ].map((stat, i) => (
@@ -699,7 +699,7 @@ export default function LandingPage() {
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(28px,4vw,40px)', fontWeight: '700', color: '#0F172A', marginBottom: '12px' }}>
               A trip that reads like <em style={{ fontStyle: 'italic', color: '#0D9488' }}>this</em>
             </h2>
-            <p style={{ fontSize: '15px', color: '#64748B' }}>{SAMPLE_PLAN.destination} — generated from one line, in under 2 minutes</p>
+            <p style={{ fontSize: '15px', color: '#64748B' }}>{SAMPLE_PLAN.destination} — generated from one line, in under 5 minutes</p>
           </div>
 
           <div style={{ position: 'relative', paddingLeft: '8px' }}>
@@ -807,7 +807,7 @@ export default function LandingPage() {
                 Your next India trip starts here
               </h2>
               <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.85)', marginBottom: '36px', lineHeight: 1.7 }}>
-                Free to start. No credit card. Plan your first trip in under 2 minutes.
+                Free to start. No credit card. Plan your first trip in under 5 minutes.
               </p>
               <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Link to="/guest"

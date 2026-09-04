@@ -4,7 +4,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 120000, // 2 minutes for AI generation
+  // 6 minutes. Real generations measured 3-5 minutes (a Sonnet call alone ran
+  // 181s), so the old 120s ceiling would have aborted a normal trip mid-flight.
+  // Nothing routes generation through this instance today — every page calls
+  // fetch() with API_URL directly — but the helpers below still would.
+  timeout: 360000,
 })
 
 // Auto attach token
