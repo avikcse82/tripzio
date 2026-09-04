@@ -1385,8 +1385,8 @@ export default function ItineraryResult() {
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         .skeleton { background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size:200% 100%; animation:shimmer 1.5s infinite; border-radius:12px; }
         @keyframes bounceIn { 0%{opacity:0;transform:scale(0.7)} 60%{opacity:1;transform:scale(1.08)} 80%{transform:scale(0.97)} 100%{opacity:1;transform:scale(1)} }
-        .pack-item { animation: bounceIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both; transition: transform 0.15s ease; cursor: default; }
-        .pack-item:hover { transform: scale(1.06); }
+        .bounce-box { animation: bounceIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both; transition: transform 0.15s ease; cursor: default; }
+        .bounce-box:hover { transform: scale(1.04); }
       `}</style>
 
       <Navbar />
@@ -2989,7 +2989,7 @@ export default function ItineraryResult() {
                   <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>💡 Local Tips</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {data.local_tips?.map((tip, i) => (
-                      <div key={i} style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <div key={i} className="bounce-box" style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px', animationDelay: `${i * 0.05}s` }}>
                         <span style={{ fontSize: '14px', flexShrink: 0 }}>💡</span>
                         <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{tip}</span>
                       </div>
@@ -2999,7 +2999,7 @@ export default function ItineraryResult() {
                     <div style={{ marginTop: '20px' }}>
                       <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '12px' }}>📋 Permits Required</h3>
                       {data.permit_info.map((p, i) => (
-                        <div key={i} style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', gap: '8px' }}>
+                        <div key={i} className="bounce-box" style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', gap: '8px', animationDelay: `${i * 0.05}s` }}>
                           <AlertTriangle size={14} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
                           <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{p}</span>
                         </div>
@@ -3011,7 +3011,7 @@ export default function ItineraryResult() {
                   <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>🎒 Packing List</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     {(data.weather?.pack?.length > 0 ? data.weather.pack : data.packing_list)?.map((item, i) => (
-                      <div key={i} className="pack-item" style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', animationDelay: `${i * 0.05}s` }}>
+                      <div key={i} className="bounce-box" style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', animationDelay: `${i * 0.05}s` }}>
                         <CheckCircle size={13} color="#0d9488" />
                         <span style={{ fontSize: '12px', color: '#374151', fontWeight: '500' }}>{item}</span>
                       </div>
@@ -3022,18 +3022,18 @@ export default function ItineraryResult() {
                 {data.safety_info && (
                   <div>
                     <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>🛡️ Safety & Emergency</h3>
-                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '14px 16px', marginBottom: '10px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <div className="bounce-box" style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '14px 16px', marginBottom: '10px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                       <AlertTriangle size={14} color="#dc2626" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{data.safety_info.emergency_note}</span>
                     </div>
                     {data.safety_info.health_advisories?.map((tip, i) => (
-                      <div key={i} style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      <div key={i} className="bounce-box" style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px', animationDelay: `${(i + 1) * 0.05}s` }}>
                         <span style={{ fontSize: '14px', flexShrink: 0 }}>🏔️</span>
                         <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{tip}</span>
                       </div>
                     ))}
                     {data.safety_info.safety_tips?.map((tip, i) => (
-                      <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      <div key={i} className="bounce-box" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px', animationDelay: `${(i + 1) * 0.05}s` }}>
                         <span style={{ fontSize: '14px', flexShrink: 0 }}>🔒</span>
                         <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>{tip}</span>
                       </div>
@@ -3042,7 +3042,7 @@ export default function ItineraryResult() {
                 )}
 
                 {data.cultural_etiquette && (
-                  <div>
+                  <div style={{ gridColumn: '1 / -1' }}>
                     <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>🙏 Cultural Etiquette</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '10px', marginBottom: '10px', alignItems: 'start' }}>
                       {[
@@ -3050,7 +3050,7 @@ export default function ItineraryResult() {
                         { icon: '📸', label: 'Photography', value: data.cultural_etiquette.photography_notes },
                         { icon: '💰', label: 'Tipping', value: data.cultural_etiquette.tipping_norms },
                       ].filter(row => row.value).map((row, i) => (
-                        <div key={i} style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                        <div key={i} className="bounce-box" style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px', animationDelay: `${i * 0.05}s` }}>
                           <span style={{ fontSize: '14px', flexShrink: 0 }}>{row.icon}</span>
                           <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6 }}><strong>{row.label}:</strong> {row.value}</span>
                         </div>
