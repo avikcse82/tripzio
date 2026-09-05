@@ -94,7 +94,10 @@ export default function DestinationSuggestions() {
     }
   }
 
-  const handleRefresh = async () => {
+  // `overrides` lets the all-avoid banner below re-ask without the vibe
+  // filter; with no argument this is the plain "show different options"
+  // refresh it has always been.
+  const handleRefresh = async (overrides = null) => {
     setRefreshing(true)
     try {
       const token = localStorage.getItem('tripzio_token')
@@ -104,7 +107,7 @@ export default function DestinationSuggestions() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(tripParams)
+        body: JSON.stringify(overrides ? { ...tripParams, ...overrides } : tripParams)
       })
 
       if (!response.ok) throw new Error('Failed to refresh')
@@ -216,13 +219,48 @@ export default function DestinationSuggestions() {
 
           {/* Refresh button */}
           <button
-            onClick={handleRefresh}
+            // Wrapped, not passed directly: handleRefresh now takes an
+            // overrides object, and React would hand it the click event.
+            onClick={() => handleRefresh()}
             disabled={refreshing}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', background: refreshing ? '#f8fafc' : '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '20px', padding: '6px 14px', fontSize: '13px', fontWeight: '700', color: '#0d9488', cursor: refreshing ? 'not-allowed' : 'pointer', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease' }}>
             <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
             {refreshing ? 'Refreshing...' : 'Show different options'}
           </button>
         </div>
+
+        {/* Asking for beaches in July is an honest dead end: the model rates
+            every option "avoid" and the page becomes a wall of red badges
+            with no way forward. Only fires when a vibe was actually chosen —
+            without one, all-avoid means the dates themselves are difficult,
+            which is different advice and not something dropping a filter
+            fixes. */}
+        {(() => {
+          const vibeUsed = tripParams?.vibe
+          const list = currentSuggestions || []
+          const allAvoid = list.length > 0 && list.every(d => d.season_rating === 'avoid')
+          if (!vibeUsed || !allAvoid) return null
+          const vibeLabel = vibeUsed === 'Hill Station' ? 'Mountain' : vibeUsed
+          return (
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fcd34d', borderRadius: '14px', padding: '16px 18px', marginBottom: '20px', display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '20px', flexShrink: 0 }}>🌧️</span>
+              <div style={{ flex: 1, minWidth: '260px' }}>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#92400e', marginBottom: '3px' }}>
+                  {vibeLabel} trips are a tough call in {season}
+                </div>
+                <div style={{ fontSize: '13px', color: '#78350f', lineHeight: 1.5 }}>
+                  Every option below is rated “avoid” for your dates — they’re still here if you want them, but a different kind of trip would suit this season far better.
+                </div>
+              </div>
+              <button
+                onClick={() => handleRefresh({ vibe: null })}
+                disabled={refreshing}
+                style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: '#f59e0b', color: 'white', fontSize: '13px', fontWeight: '700', cursor: refreshing ? 'not-allowed' : 'pointer', opacity: refreshing ? 0.7 : 1, fontFamily: 'Inter, sans-serif', flexShrink: 0 }}>
+                {refreshing ? 'Finding…' : `Show what suits ${season}`}
+              </button>
+            </div>
+          )
+        })()}
 
         {/* ── DESTINATION CARDS ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(480px,1fr))', gap: '20px', marginBottom: '40px' }}>

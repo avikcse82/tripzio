@@ -13,6 +13,7 @@ import toast from 'react-hot-toast'
 import GenerationOverlay from '../components/GenerationOverlay'
 import FestivalAlert from '../components/FestivalAlert'
 import { VIBE_OPTIONS } from './UserDashboard'
+import { Analytics } from '../utils/analytics'
 import PlanModeCoachmark from '../components/PlanModeCoachmark'
 import { extractDateFromText as extractDate } from '../utils/extractDateFromText'
 
@@ -1575,7 +1576,7 @@ return (
                           const active = vibe === opt.value
                           return (
                             <button key={opt.label} type="button"
-                              onClick={() => setVibe(opt.value)}
+                              onClick={() => { setVibe(opt.value); Analytics.destinationVibeSelected(opt.value, from, startDate) }}
                               style={{
                                 display: 'flex', alignItems: 'center', gap: '5px',
                                 padding: '7px 12px', borderRadius: '18px',

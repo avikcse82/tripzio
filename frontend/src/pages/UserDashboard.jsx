@@ -16,6 +16,7 @@ import toast from 'react-hot-toast'
 import GenerationOverlay from '../components/GenerationOverlay'
 import PlanModeCoachmark from '../components/PlanModeCoachmark'
 import { extractDateFromText as extractDate } from '../utils/extractDateFromText'
+import { Analytics } from '../utils/analytics'
 
 // ── Destination data ──────────────────────────────────────────────────
 const destinations = [
@@ -1470,7 +1471,11 @@ export default function UserDashboard() {
                         const active = vibe === opt.value
                         return (
                           <button key={opt.label} type="button"
-                            onClick={() => setVibe(opt.value)}
+                            // Fired on selection rather than on generate: the
+                            // tap is the preference signal, and it's still
+                            // worth knowing about when someone browses vibes
+                            // and never finishes the trip.
+                            onClick={() => { setVibe(opt.value); Analytics.destinationVibeSelected(opt.value, from, startDate) }}
                             style={{
                               display: 'flex', alignItems: 'center', gap: '6px',
                               padding: '8px 14px', borderRadius: '20px',

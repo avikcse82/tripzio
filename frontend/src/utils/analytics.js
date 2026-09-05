@@ -63,4 +63,22 @@ export const Analytics = {
   transportLinkClicked: (mode, provider, destination) => {
     trackEvent('transport_link_clicked', { mode, provider, destination })
   },
+
+  // User picks a trip vibe before letting the AI choose a destination.
+  // Deliberately records the ORIGIN CITY and MONTH alongside the choice:
+  // on its own "someone wanted beaches" is trivia, but "beach demand from
+  // Kolkata peaks in November" is the demand signal the tourism-partnership
+  // pitch describes, and it costs nothing to collect here.
+  // `vibe` is null when the user leaves it on "Surprise me", which is worth
+  // recording too — how often people express no preference is the baseline
+  // everything else is measured against.
+  destinationVibeSelected: (vibe, fromCity, startDate) => {
+    trackEvent('destination_vibe_selected', {
+      vibe: vibe || 'none',
+      from_city: (fromCity || '').trim().toLowerCase() || 'unknown',
+      travel_month: startDate
+        ? new Date(startDate).toLocaleString('en-IN', { month: 'short' })
+        : 'unspecified',
+    })
+  },
 }
