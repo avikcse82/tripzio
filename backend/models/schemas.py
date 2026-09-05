@@ -94,6 +94,12 @@ class ItineraryRequest(BaseModel):
     start_date: Optional[str] = None
     is_flexible: bool = False
     must_include: Optional[str] = None  # comma-separated places user must visit
+    # Optional filter for /suggest-destinations: "Beach", "Hill Station", etc.
+    # None means no preference, which is the existing behaviour. Validated
+    # against an allowlist in the router before it reaches a prompt — this is
+    # user-supplied text being interpolated into an LLM instruction, so it is
+    # never passed through raw.
+    vibe: Optional[str] = None
     # None = not specified, falls back to a trip_type-based estimate (see
     # estimate_travelers() in routers/itinerary.py). Capped at 50 — beyond a
     # single coach's capacity this stops being itinerary planning and

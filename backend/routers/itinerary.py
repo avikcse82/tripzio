@@ -518,6 +518,19 @@ def is_international_destination(destination: str, from_city: str = ""):
 # field. Matches the "Group (6+)" chip already used elsewhere in the UI
 # (AgentDashboard's Custom Plan quick-fill), so this isn't a new arbitrary
 # number — it's the threshold the app already implied but never enforced.
+# The only accepted values for /suggest-destinations' optional `vibe` filter.
+# Deliberately the exact strings the model already returns in each
+# suggestion's "type" field, so the filter, the prompt and the badges the UI
+# renders all speak one vocabulary instead of three that drift apart.
+SUGGESTION_VIBES = {
+    "Hill Station",
+    "Beach",
+    "Heritage",
+    "Nature",
+    "Adventure",
+}
+
+
 LARGE_GROUP_THRESHOLD = 6
 
 # Fallback headcount when travelers isn't explicitly given — trip_type is
@@ -2316,6 +2329,22 @@ async def suggest_destinations(
             raise HTTPException(status_code=400, detail="Minimum budget is ₹1,000")
         per_day = req.budget // req.days
 
+        # Optional "vibe" filter. Validated against the allowlist rather than
+        # interpolated raw: this is user-supplied text going into an LLM
+        # instruction, and an unchecked value could carry its own directions.
+        # Anything not on the list is treated as no preference rather than
+        # rejected — a stale or mistyped chip should quietly fall back to
+        # today's behaviour, not fail someone's trip.
+        _vibe = (req.vibe or "").strip()
+        _vibe = _vibe if _vibe in SUGGESTION_VIBES else ""
+        # With no vibe this line is byte-identical to what shipped before, so
+        # the default path is provably unchanged.
+        _vibe_rule = (
+            f"ALL 4 suggestions MUST be {_vibe} destinations"
+            if _vibe else
+            "Make diverse suggestions (not all same type)"
+        )
+
         prompt = f"""You are Tripzio's Indian travel expert. Suggest 4 best destinations.
 
 TRAVELER:
@@ -2329,7 +2358,7 @@ TRAVELER:
 Rules:
 - All 4 must fit Rs {req.budget} budget
 - For {req.days} days prefer within 12-15 hours of {req.from_city}
-- Make diverse suggestions (not all same type)
+- {_vibe_rule}
 - Season appropriate only
 - Be specific to {req.from_city} departure
 
@@ -2356,16 +2385,26 @@ Return ONLY JSON:
         ai_response = await call_openai(prompt)
         suggestions = ai_response.get("suggestions", [])
 
-        for suggestion in suggestions:
+        # One weather call per suggestion, run together rather than one after
+        # another — these are independent lookups and nothing reads another's
+        # result, so the wait is the slowest of them instead of their sum.
+        # Same change already made to the pre-generation fetches.
+        async def _weather_preview(name: str):
             try:
-                weather = await get_weather(suggestion["name"], req.start_date)
-                suggestion["weather_preview"] = {
-                    "temp": weather.get("temperature", ""),
-                    "condition": weather.get("condition", ""),
-                    "season": weather.get("season", "")
+                w = await get_weather(name, req.start_date)
+                return {
+                    "temp": w.get("temperature", ""),
+                    "condition": w.get("condition", ""),
+                    "season": w.get("season", ""),
                 }
-            except:
-                suggestion["weather_preview"] = None
+            except Exception:
+                return None  # fail-open: a preview is a nicety, not the page
+
+        previews = await asyncio.gather(
+            *[_weather_preview(s.get("name", "")) for s in suggestions]
+        )
+        for suggestion, preview in zip(suggestions, previews):
+            suggestion["weather_preview"] = preview
 
         return {
             "suggestions": suggestions,
