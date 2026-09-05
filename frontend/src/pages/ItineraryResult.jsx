@@ -258,6 +258,14 @@ export default function ItineraryResult() {
   }, [location.state])
   const clientName = location.state?.clientName || localStorage.getItem('tripzio_last_client') || null
   const [activeDay, setActiveDay]               = useState(1)
+  // Weather resolved at view time rather than read from the saved trip.
+  // The stored blob is frozen at generation, so a trip opened weeks later
+  // showed whatever the sky was doing the day it was created — and trips
+  // generated before the honesty labelling have no `basis` field at all,
+  // so they can't even be labelled correctly. Fetching on view fixes both,
+  // including retroactively for every trip already saved.
+  const [liveWeather, setLiveWeather]           = useState(null)
+  const weatherCacheRef                         = useRef({})
   const [activeTab, setActiveTab]               = useState('itinerary')
   const [expandedTransport, setExpandedTransport] = useState(0)
   const [googleHotels, setGoogleHotels]         = useState({})
@@ -465,6 +473,42 @@ export default function ItineraryResult() {
 
   const circuit = data ? isCircuit(data) : false
   const cities  = data ? parseCircuitCities(data) : []
+
+  // Which city's weather to show. On a circuit this follows the day you're
+  // looking at — a 9-day Rajasthan trip showing only Jaipur told you nothing
+  // about the three nights in Jaisalmer. Each day carries its own `city`
+  // (the backend backfills it to the destination when the model omits one);
+  // trips saved before that field existed fall back to the first stop.
+  const weatherCity = (() => {
+    if (!data) return null
+    if (circuit) {
+      const day = data.day_plans?.find(d => d.day === activeDay)
+      return day?.city || day?.stay || cities[0] || data.destination
+    }
+    return data.destination
+  })()
+
+  useEffect(() => {
+    if (!weatherCity) return
+    const key = `${weatherCity}|${data?.start_date || ''}`
+    if (weatherCacheRef.current[key]) {
+      setLiveWeather(weatherCacheRef.current[key])
+      return
+    }
+    let cancelled = false
+    const qs = data?.start_date ? `?date=${encodeURIComponent(data.start_date)}` : ''
+    fetch(`${API_URL}/weather/current/${encodeURIComponent(weatherCity)}${qs}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(w => {
+        if (cancelled || !w) return
+        weatherCacheRef.current[key] = w   // one call per city per session
+        setLiveWeather(w)
+      })
+      // Fail quiet: the stored snapshot below is the fallback, and a weather
+      // outage must never take the itinerary down with it.
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [weatherCity, data?.start_date])
 
   // Decorative destination photos for the hero — looked up by name, fails open to a generic India travel photo if unmatched
   const CITY_PHOTO_MAP = {
@@ -1742,31 +1786,39 @@ export default function ItineraryResult() {
           )
         })()}
 
-        {/* Weather */}
-        {data.weather && (
+        {/* Weather — live reading preferred, stored snapshot as fallback */}
+        {(() => {
+        const wx = liveWeather || data.weather
+        if (!wx) return null
+        // Only trust `basis` from a live fetch. Trips saved before that field
+        // existed have no basis at all, and defaulting those to "forecast"
+        // would silently reinstate the exact claim this was meant to stop.
+        const isStale = liveWeather ? wx.basis === 'current' : true
+        const dayCity = circuit ? weatherCity : null
+        return (
           <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', padding: '22px', marginBottom: '28px', boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                🌤 Weather at {circuit ? cities[0] : data.destination}
-                {circuit && <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '400', marginLeft: '8px' }}>(first stop)</span>}
+                🌤 Weather at {dayCity || data.destination}
+                {circuit && <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '400', marginLeft: '8px' }}>(Day {activeDay})</span>}
                 {/* These are live readings, and no forecast exists for a trip
                     months out — so say which one the user is looking at
                     rather than letting them read September rain as their
                     November weather. */}
-                {data.weather.basis === 'current' && (
+                {isStale && (
                   <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '400', marginLeft: '8px' }}>
                     — conditions there today, not a forecast for your dates
                   </span>
                 )}
               </h3>
-              <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '4px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>{data.weather.season}</span>
+              <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '4px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>{wx.season}</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: '12px', marginBottom: data.weather.advisory ? '14px' : '0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: '12px', marginBottom: wx.advisory ? '14px' : '0' }}>
               {[
-                { icon: <Thermometer size={13} color="#0ea5e9" />, label: 'Temperature', value: data.weather.temperature },
-                { icon: <Wind size={13} color="#8b5cf6" />, label: 'Condition', value: data.weather.condition },
-                { icon: <Umbrella size={13} color="#f59e0b" />, label: 'Humidity', value: data.weather.humidity || 'Moderate' },
-                { icon: <Car size={13} color="#22c55e" />, label: 'Wind', value: data.weather.wind || 'Light' },
+                { icon: <Thermometer size={13} color="#0ea5e9" />, label: 'Temperature', value: wx.temperature },
+                { icon: <Wind size={13} color="#8b5cf6" />, label: 'Condition', value: wx.condition },
+                { icon: <Umbrella size={13} color="#f59e0b" />, label: 'Humidity', value: wx.humidity || 'Moderate' },
+                { icon: <Car size={13} color="#22c55e" />, label: 'Wind', value: wx.wind || 'Light' },
               ].map((item, i) => (
                 <div key={i} style={{ padding: '12px', background: '#f8fafc', borderRadius: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
@@ -1777,14 +1829,17 @@ export default function ItineraryResult() {
                 </div>
               ))}
             </div>
-            {data.weather.advisory && (
+            {/* A stored snapshot's advisory was derived from the weather on
+                generation day, so it's only shown when the reading is live. */}
+            {wx.advisory && !isStale && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '10px' }}>
                 <AlertTriangle size={14} color="#ef4444" />
-                <span style={{ fontSize: '13px', color: '#ef4444', fontWeight: '600' }}>{data.weather.advisory}</span>
+                <span style={{ fontSize: '13px', color: '#ef4444', fontWeight: '600' }}>{wx.advisory}</span>
               </div>
             )}
           </div>
-        )}
+        )
+        })()}
 
         {/* ── CONCIERGE NOTES — Gold+ only, this is what should make a premium tier feel genuinely worth it ── */}
         {data.concierge_notes?.length > 0 && (
