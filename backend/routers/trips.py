@@ -16,6 +16,7 @@ from typing import Optional, Any
 from database import (
     get_supabase_client, save_trip, update_trip, get_user_trips,
     get_trip_for_user, get_user_trip_stats, ensure_share_slug,
+    count_lifetime_saves, record_trip_save, FREE_SAVE_LIMIT,
 )
 from routers.users import get_current_user
 from core.dates import today_ist
@@ -54,22 +55,37 @@ class SaveTripRequest(BaseModel):
 # ─── Free tier limit ───────────────────────────────────────────────────────────
 
 def check_save_limit(user_id: str):
-    """Free plan: max 3 KEPT trips (locked=true). Unsaved drafts don't count."""
-    try:
-        existing = get_user_trips(user_id, locked_only=True)
-        if len(existing) >= 3:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "code": "FREE_LIMIT_REACHED",
-                    "message": "Free plan allows saving up to 3 trips. Upgrade to Pro for unlimited.",
-                    "upgrade_url": "/pricing",
-                }
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error checking save limit: {e}")
+    """Free plan: 3 trips kept, counted for the lifetime of the account.
+
+    Deliberately NOT a live count of locked trips. Deleting a trip is a hard
+    delete, so counting current rows let a free user keep 3, delete 1 and
+    save another indefinitely — the paywall had a one-click bypass. The
+    count now comes from the append-only trip_save_log, which deletion never
+    touches. See database.count_lifetime_saves for the schema and the
+    backfill that has to run before this ships.
+    """
+    used = count_lifetime_saves(user_id)
+    if used < 0:
+        return  # count unavailable — fail open, saving costs us nothing
+    if used >= FREE_SAVE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "FREE_LIMIT_REACHED",
+                # Says the quiet part out loud on purpose: users WILL try
+                # deleting to free a slot, and finding out afterwards that it
+                # didn't work is exactly the kind of thing that generates
+                # angry support mail.
+                "message": (
+                    f"Your free plan includes {FREE_SAVE_LIMIT} saved trips and you've used all "
+                    f"{FREE_SAVE_LIMIT}. Deleting a trip clears it from My Trips but doesn't free "
+                    "up a slot. Upgrade to Pro for unlimited saves."
+                ),
+                "used": used,
+                "limit": FREE_SAVE_LIMIT,
+                "upgrade_url": "/pricing",
+            }
+        )
 
 
 def _find_user_trip(user_id: str, trip_id: str):
@@ -120,6 +136,10 @@ def save_trip_route(
             detail="Failed to save trip. Please try again."
         )
 
+    # Only after the write actually succeeded — a failed save must never
+    # cost the user a slot. Idempotent, so the re-save path above (which
+    # skips check_save_limit) can't double-count an already-kept trip.
+    record_trip_save(user_id, saved["id"])
     ensure_share_slug(saved["id"])
     return saved
 
@@ -147,6 +167,7 @@ def lock_trip_route(
     updated = update_trip(trip_id, user_id, {"locked": True})
     if not updated:
         raise HTTPException(status_code=500, detail="Failed to lock trip.")
+    record_trip_save(user_id, trip_id)
     ensure_share_slug(trip_id)
     return updated
 

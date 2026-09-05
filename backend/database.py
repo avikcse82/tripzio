@@ -509,3 +509,72 @@ def record_generation(user_id: str) -> None:
         client.table("generation_log").insert({"user_id": user_id}).execute()
     except Exception as e:
         logger.warning(f"generation log record failed (silent): {e}")
+
+
+# ── Free-plan save quota ──────────────────────────────────────────────────
+# Counted from an append-only log rather than from a live COUNT of kept
+# trips, because DELETE /trips/{id} is a hard delete: counting current rows
+# meant a free user could keep 3, delete 1, save another, forever — the
+# paywall had a one-click escape hatch. The log is never touched by trip
+# deletion, so deleting still tidies My Trips but no longer refunds a slot.
+#
+# UNIQUE (user_id, trip_id) is what makes this safe to call from every
+# promote-to-kept path without auditing them: re-saving or re-locking the
+# same trip conflicts and is ignored, so a trip can only ever be counted
+# once no matter how many times it's saved.
+#
+# Run this SQL in Supabase BEFORE deploying — including the backfill, or
+# every existing user's counter starts at 0 and they each get 3 fresh slots:
+#
+#   CREATE TABLE IF NOT EXISTS trip_save_log (
+#       id BIGSERIAL PRIMARY KEY,
+#       user_id TEXT NOT NULL,
+#       trip_id TEXT NOT NULL,
+#       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+#       UNIQUE (user_id, trip_id)
+#   );
+#   CREATE INDEX IF NOT EXISTS idx_trip_save_log_user ON trip_save_log (user_id);
+#
+#   INSERT INTO trip_save_log (user_id, trip_id, created_at)
+#   SELECT user_id::text, id::text, COALESCE(created_at, NOW())
+#   FROM trips WHERE locked = true
+#   ON CONFLICT (user_id, trip_id) DO NOTHING;
+FREE_SAVE_LIMIT = 3
+
+
+def count_lifetime_saves(user_id: str) -> int:
+    """How many distinct trips this user has ever kept. Returns -1 if the
+    count can't be established, which callers treat as "don't block" —
+    saving costs us nothing (no AI call), so a metering outage should never
+    stop a paying-or-not user from keeping their own trip. Same fail-open
+    stance as check_generation_limit, where the real cost cap lives."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return -1
+        response = client.table("trip_save_log").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).execute()
+        return response.count or 0
+    except Exception as e:
+        # ERROR, not warning: while this is failing the save paywall is
+        # effectively off for everyone. Most likely cause is deploying the
+        # code before creating trip_save_log — see the SQL above.
+        logger.error(f"lifetime save count failed — SAVE LIMIT NOT ENFORCED: {e}")
+        return -1
+
+
+def record_trip_save(user_id: str, trip_id: str) -> None:
+    """Records that this trip was kept. Idempotent via UNIQUE(user_id,
+    trip_id) — a duplicate insert conflicts and is swallowed here, so
+    re-saving an existing trip never burns a second slot. Fail-silent."""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return
+        client.table("trip_save_log").insert(
+            {"user_id": user_id, "trip_id": str(trip_id)}
+        ).execute()
+    except Exception as e:
+        # Conflict on re-save is the expected, correct path — not an error.
+        logger.debug(f"trip save log record skipped: {e}")
