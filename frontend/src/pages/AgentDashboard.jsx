@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast'
 import GenerationOverlay from '../components/GenerationOverlay'
 import FestivalAlert from '../components/FestivalAlert'
+import { VIBE_OPTIONS } from './UserDashboard'
 import PlanModeCoachmark from '../components/PlanModeCoachmark'
 import { extractDateFromText as extractDate } from '../utils/extractDateFromText'
 
@@ -170,6 +171,9 @@ export default function AgentDashboard() {
   const [tripType, setTripType]             = useState('')
   const [travelers, setTravelers]           = useState('')
   const [destination, setDestination]       = useState('')
+  // See VIBE_OPTIONS in UserDashboard — shared vocabulary with the backend
+  // allowlist. Only used when no destination is typed, i.e. the suggest path.
+  const [vibe, setVibe]                     = useState(null)
   const [startDate, setStartDate]           = useState('')
   const [customExtractedDate, setCustomExtractedDate] = useState(null)
   const [tier, setTier]                     = useState('silver')
@@ -519,6 +523,7 @@ export default function AgentDashboard() {
           from_city: from.trim(), days: parseInt(days), budget: parseInt(budget),
           trip_type: tripType || null, destination: destination.trim() || null,
           destination_mode: hasDest ? 'specific' : 'suggest',
+          vibe: hasDest ? null : (vibe || null),
           plan_tier: tier, transport_mode: transport,
           start_date: startDate || null, is_flexible: false,
           client_id: selectedClient?.id || null,
@@ -1557,6 +1562,36 @@ return (
                         style={inp(false)} />
                     </div>
                   </div>
+
+                  {/* Shown only when no destination is typed — exactly when
+                      this dashboard routes to /suggest-destinations. */}
+                  {planMode !== 'custom' && !destination.trim() && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '8px' }}>
+                        What kind of trip? <span style={{ color: '#94a3b8', fontWeight: '500' }}>Optional</span>
+                      </label>
+                      <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
+                        {VIBE_OPTIONS.map(opt => {
+                          const active = vibe === opt.value
+                          return (
+                            <button key={opt.label} type="button"
+                              onClick={() => setVibe(opt.value)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '5px',
+                                padding: '7px 12px', borderRadius: '18px',
+                                border: `1.5px solid ${active ? '#0d9488' : '#e2e8f0'}`,
+                                background: active ? '#f0fdfa' : 'white',
+                                color: active ? '#0f766e' : '#64748b',
+                                fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                                fontFamily: 'Inter, sans-serif', transition: 'all 0.2s',
+                              }}>
+                              <span>{opt.emoji}</span>{opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {planMode === 'quick' && (
                     <button onClick={() => { setShowDetailed(!showDetailed); if (!showDetailed) setPlanMode('detailed') }}

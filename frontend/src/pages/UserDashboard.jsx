@@ -97,6 +97,18 @@ const transportModes = [
 ]
 
 // Sample prompts to inspire users
+// Labels must match backend SUGGESTION_VIBES exactly — the same strings the
+// model returns in each suggestion's `type`, so the chip, the prompt rule and
+// the badge on the results page all say the same word. null = no preference.
+export const VIBE_OPTIONS = [
+  { value: null,           label: 'Surprise me',  emoji: '✨' },
+  { value: 'Hill Station', label: 'Mountains',    emoji: '⛰️' },
+  { value: 'Beach',        label: 'Beaches',      emoji: '🏖️' },
+  { value: 'Heritage',     label: 'Heritage',     emoji: '🏛️' },
+  { value: 'Nature',       label: 'Nature',       emoji: '🌿' },
+  { value: 'Adventure',    label: 'Adventure',    emoji: '🧗' },
+]
+
 const SAMPLE_PROMPTS = [
   { lang: 'English', text: '5 days Shimla and Manali circuit from Delhi, budget ₹25,000, couple trip, starting May 10' },
   { lang: 'Hindi', text: 'Kolkata se 7 din ka trip — 2 din Darjeeling, 2 din Gangtok, 3 din Leh, budget 35 hajar, adventure trip, October mein' },
@@ -247,6 +259,9 @@ export default function UserDashboard() {
   const [tripType, setTripType] = useState('')
   const [travelers, setTravelers] = useState('')
   const [destinationMode, setDestinationMode] = useState('suggest')
+  // Optional "what kind of trip" filter, used only when the AI is the one
+  // choosing the destination. null = no preference = today's behaviour.
+  const [vibe, setVibe] = useState(null)
   const [selectedDestination, setSelectedDestination] = useState('')
   const [intlWarning, setIntlWarning] = useState(false)
   const [promptWarning, setPromptWarning] = useState('')  // invalid source/dest/date warning
@@ -422,6 +437,8 @@ export default function UserDashboard() {
         trip_type: tripType || null,
         destination: destinationMode === 'specific' ? selectedDestination : null,
         destination_mode: destinationMode,
+        // Only meaningful on the suggest path; harmless and ignored otherwise.
+        vibe: vibe || null,
         plan_tier: selectedTier || suggestedTier || 'silver',
         transport_mode: transportMode,
         start_date: startDate || null,
@@ -1437,6 +1454,38 @@ export default function UserDashboard() {
                     <span style={{ fontSize: '13px', color: '#0f766e', fontWeight: '500', lineHeight: 1.5 }}>
                       AI picks the <strong>best destination</strong>, <strong>plan tier</strong>, travel dates and transport for your budget and season
                     </span>
+                  </div>
+                )}
+
+                {/* What kind of trip — shown only when the AI is actually the
+                    one choosing, i.e. exactly when handleGenerate will call
+                    /suggest-destinations rather than /generate. */}
+                {planMode !== 'custom' && !(destinationMode === 'specific' && selectedDestination) && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '9px' }}>
+                      What kind of trip? <span style={{ color: '#94a3b8', fontWeight: '500' }}>Optional</span>
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {VIBE_OPTIONS.map(opt => {
+                        const active = vibe === opt.value
+                        return (
+                          <button key={opt.label} type="button"
+                            onClick={() => setVibe(opt.value)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                              padding: '8px 14px', borderRadius: '20px',
+                              border: `1.5px solid ${active ? '#0d9488' : '#e2e8f0'}`,
+                              background: active ? '#f0fdfa' : 'white',
+                              color: active ? '#0f766e' : '#64748b',
+                              fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+                              fontFamily: 'Inter, sans-serif',
+                              transition: 'all 0.2s',
+                            }}>
+                            <span>{opt.emoji}</span>{opt.label}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
 
