@@ -5,6 +5,71 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { API_URL } from '../api'
+import { DESTINATION_PHOTOS } from '../../api/_destinationPhotos.js'
+
+// Representative destinations per vibe, used only when the AI is still
+// choosing and there is no destination to show yet. Picking beaches should
+// still *look* like beaches while it thinks.
+const VIBE_FALLBACK_CITIES = {
+  'Beach':        ['goa', 'varkala', 'kovalam'],
+  'Hill Station': ['manali', 'darjeeling', 'munnar'],
+  'Heritage':     ['jaipur', 'hampi', 'khajuraho'],
+  'Nature':       ['kerala-backwaters', 'valley-of-flowers', 'kaziranga'],
+  'Adventure':    ['leh-ladakh', 'rishikesh', 'bir-billing'],
+}
+const GENERIC_CITIES = ['jaipur', 'kerala-backwaters', 'leh-ladakh', 'goa']
+
+// Serve a 500px thumbnail, never the full-size original: this screen is up
+// for a couple of minutes and may cycle four images, so originals are a real
+// mobile-data cost for something that sits behind a blur and a scrim anyway.
+// Two URL shapes live in DESTINATION_PHOTOS — ~95 are already /thumb/ URLs
+// ending in /1280px-<file>, the other ~20 are unscaled originals (some of
+// them several MB). Wikimedia derives a thumb of any raster original from its
+// path, so both shapes collapse to the same 500px request. Every entry is a
+// jpg/JPG/png, which is what makes this safe: SVG and PDF thumbs need an
+// extra format suffix that this transform does not add.
+function thumb500(url) {
+  if (!url) return null
+  if (url.includes('/1280px-')) return url.replace('/1280px-', '/500px-')
+  const m = url.match(/^(https:\/\/upload\.wikimedia\.org\/wikipedia\/commons)\/([0-9a-f]\/[0-9a-f]{2})\/([^/?]+)(\?.*)?$/)
+  return m ? `${m[1]}/thumb/${m[2]}/${m[3]}/500px-${m[3]}${m[4] || ''}` : url
+}
+
+// Longest keys first so a fragment containing several known place names
+// resolves to the most specific one, and so match order does not depend on
+// the object's insertion order. Without this, the custom-mode fragment
+// "Udaipur 6 days from Delhi budget 40000" could resolve to whichever of
+// "udaipur"/"delhi" happened to be declared first.
+const PHOTO_KEYS = Object.keys(DESTINATION_PHOTOS).sort((a, b) => b.length - a.length)
+
+const titleCase = (slug) =>
+  slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+
+// Resolve one destination fragment to a real place we have a photo of.
+// Returns the CANONICAL name rather than the caller's text, because in custom
+// mode the fragment is a slice of the user's raw prompt and putting that on
+// screen is what produced captions like "📍 Udaipur 6 days from Delhi".
+function resolveCity(fragment) {
+  const key = String(fragment || '').toLowerCase().trim().replace(/\s+/g, '-')
+  if (!key) return null
+  const match = DESTINATION_PHOTOS[key] ? key : PHOTO_KEYS.find(k => key.includes(k))
+  if (!match) return null
+  return { key: match, name: titleCase(match), photo: thumb500(DESTINATION_PHOTOS[match].photo) }
+}
+
+// Pull the individual cities out of a destination string. Circuits arrive as
+// "Jaipur → Jodhpur → Udaipur" (and sometimes with & or commas), so each leg
+// gets its own photo and the wait doubles as a preview of the route.
+// De-duplicated by resolved city: a prompt that names one place twice, or two
+// fragments that collapse to the same key, should not repeat a slide.
+function slidesFor(destination) {
+  const seen = new Set()
+  return String(destination || '')
+    .split(/→|&|,| and /i)
+    .map(s => resolveCity(s.replace(/\b(circuit|trip|tour|days?)\b/gi, '')))
+    .filter(c => c && !seen.has(c.key) && seen.add(c.key))
+    .slice(0, 4)
+}
 
 // ── Generic fallback facts (shown while destination facts load) ───────────
 const INDIA_FACTS = [
@@ -72,10 +137,27 @@ function extractFacts(pageData) {
 
 // ── Build destination-aware steps ────────────────────────────────────────
 function buildSteps(destination, fromCity, tripType, days, isAgent, clientName) {
-  const dest = destination?.trim() || 'your destination'
+  const dest = destination?.trim()
   const from = fromCity?.trim() || 'your city'
   const who = isAgent && clientName ? `${clientName}'s` : 'your'
   const tripDesc = tripType ? `${tripType} ` : ''
+  const nights = days ? `${days}-day ` : ''
+
+  // Quick mode has no destination yet — the AI is still choosing one. Slotting
+  // a "your destination" placeholder into the same templates collided with the
+  // possessive and produced "Crafting your perfect your destination itinerary",
+  // so that case gets its own phrasing rather than a filler word.
+  if (!dest) {
+    return [
+      `🔍 Understanding ${who} ${tripDesc}trip...`,
+      `🚆 Working out the best way out of ${from}...`,
+      `🏨 Matching hotels to your budget...`,
+      `📍 Discovering experiences worth the trip...`,
+      `🎪 Checking festivals & season for your dates...`,
+      `💰 Calculating ${nights}budget breakdown...`,
+      `✨ Crafting ${who} perfect itinerary...`,
+    ]
+  }
 
   return [
     `🔍 Understanding ${who} ${tripDesc}trip to ${dest}...`,
@@ -83,7 +165,7 @@ function buildSteps(destination, fromCity, tripType, days, isAgent, clientName) 
     `🏨 Searching hotels in ${dest} for your budget...`,
     `📍 Discovering ${dest}'s best experiences...`,
     `🎪 Checking festivals & season near ${dest}...`,
-    `💰 Calculating ${days ? days + '-day ' : ''}budget breakdown...`,
+    `💰 Calculating ${nights}budget breakdown...`,
     `✨ Crafting ${who} perfect ${dest} itinerary...`,
   ]
 }
@@ -98,9 +180,11 @@ export default function GenerationOverlay({
   days,
   isAgent = false,
   clientName = '',
+  vibe = null,
 }) {
   const [facts, setFacts]         = useState(INDIA_FACTS)
-  const [bgImage, setBgImage]     = useState(null)
+  const [slideIdx, setSlideIdx]   = useState(0)
+  const [loaded, setLoaded]       = useState({})
   const [factIdx, setFactIdx]     = useState(0)
   const [typedText, setTypedText] = useState('')
   const [isTyping, setIsTyping]   = useState(true)
@@ -108,9 +192,36 @@ export default function GenerationOverlay({
   const factRef   = useRef(null)
   const fetchedRef = useRef(null) // track last fetched slug
 
-  const steps = buildSteps(destination, fromCity, tripType, days, isAgent, clientName)
+  // What to show behind the progress. Order of preference: the actual cities
+  // of this trip (a circuit becomes a slideshow of its own route), then the
+  // chosen vibe while the AI is still picking, then a generic India set.
+  const named = slidesFor(destination)
+  const slides = named.length
+    ? named
+    // Nothing recognisable yet (Quick mode, where the AI is still choosing).
+    // Show the chosen vibe, unlabelled — these are stand-ins, so captioning
+    // them would promise destinations the plan may not contain.
+    : (VIBE_FALLBACK_CITIES[vibe] || GENERIC_CITIES)
+        .map(c => resolveCity(c))
+        .filter(Boolean)
+        .map(c => ({ ...c, name: null }))
+
+  // Custom mode hands us the user's raw prompt as the "destination", so the
+  // headline and every step line read "...Jaipur → Jodhpur → Udaipur 6 days
+  // from Delhi budget 40000". The cities resolved for the backdrop are a much
+  // better label, so reuse them when we have them.
+  const prettyDestination = named.length
+    ? named.map(s => s.name).join(' → ')
+    : (destination || '').trim()
+
+  const steps = buildSteps(prettyDestination, fromCity, tripType, days, isAgent, clientName)
   const progress = Math.round(((genStep + 1) / steps.length) * 100)
-  const destDisplay = destination?.trim() || (isAgent ? 'client trip' : 'your trip')
+  // Built as a whole sentence rather than "Planning your {destination}": with
+  // no destination that template rendered "Planning your your trip", which is
+  // what showed on every Quick-mode generation, i.e. the common case.
+  const headline = prettyDestination
+    ? `Planning your ${prettyDestination} trip`
+    : (isAgent ? "Planning your client's trip" : 'Planning your trip')
 
   // ── Fetch destination facts + bg from /seo/page ───────────────────────
   useEffect(() => {
@@ -118,10 +229,6 @@ export default function GenerationOverlay({
     const slug = extractSlug(destination)
     if (!slug || slug === fetchedRef.current) return
     fetchedRef.current = slug
-
-    // Background: Unsplash dynamic search — no hardcoding
-    const query = encodeURIComponent(`${destination},india,travel`)
-    setBgImage(`https://source.unsplash.com/1200x800/?${query}`)
 
     // Fetch page data from seo/page endpoint
     fetch(`${API_URL}/seo/page/${slug}`)
@@ -141,11 +248,18 @@ export default function GenerationOverlay({
   useEffect(() => {
     if (generating) {
       setFacts(INDIA_FACTS)
-      setBgImage(null)
       setFactIdx(0)
+      setSlideIdx(0)
       fetchedRef.current = null
     }
   }, [generating])
+
+  // ── Cross-fade through the trip's cities ──────────────────────────────
+  useEffect(() => {
+    if (!generating || slides.length < 2) return
+    const t = setInterval(() => setSlideIdx(i => (i + 1) % slides.length), 6000)
+    return () => clearInterval(t)
+  }, [generating, slides.length])
 
   // ── Typing animation for current step ─────────────────────────────────
   useEffect(() => {
@@ -177,8 +291,7 @@ export default function GenerationOverlay({
 
   if (!generating) return null
 
-  // Default bg if Unsplash hasn't loaded
-  const bg = bgImage || 'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=1200&q=60&auto=format'
+  const activeSlide = slides[slideIdx] || null
 
   return (
     <div style={{
@@ -187,18 +300,57 @@ export default function GenerationOverlay({
       alignItems: 'center', justifyContent: 'center',
       fontFamily: 'Inter, sans-serif',
     }}>
-      {/* Blurred destination background */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        backgroundImage: `url(${bg})`,
-        backgroundSize: 'cover', backgroundPosition: 'center',
-        filter: 'blur(14px) brightness(1.08) saturate(1.05)',
-        transform: 'scale(1.08)',
-        transition: 'background-image 1s ease',
-      }} />
+      {/* Destination backdrop. Real photographs of the places being planned,
+          cross-fading through a circuit's cities in trip order. Each frame
+          fades in only once it has actually decoded, so a slow connection
+          degrades to the gradient instead of flashing a broken image — which
+          is what used to happen: the old source.unsplash.com endpoint was
+          retired and returns 503, and because a dead URL isn't null the
+          `bgImage || fallback` never fired. Hence the blank, dull screen. */}
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#e8eef0' }}>
+        {slides.map((s, i) => (
+          <img
+            key={s.photo}
+            src={s.photo}
+            alt=""
+            // Keyed by URL, not by index: if the destination changes mid-run
+            // the slide list is rebuilt, and an index-keyed flag would mark a
+            // brand-new image as already decoded and flash it in blank.
+            onLoad={() => setLoaded(p => (p[s.photo] ? p : { ...p, [s.photo]: true }))}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%', objectFit: 'cover',
+              opacity: i === slideIdx && loaded[s.photo] ? 1 : 0,
+              transition: 'opacity 1.2s ease',
+              // Slow drift so the screen feels alive rather than frozen for
+              // the couple of minutes a generation takes.
+              animation: i === slideIdx ? 'ovKenBurns 22s ease-out forwards' : 'none',
+              // Enough blur to keep the progress text off busy detail, but not
+              // so much that the place stops being recognisable — showing the
+              // actual destination is the entire point of this backdrop.
+              filter: 'blur(3px) saturate(1.08)',
+              transform: 'scale(1.06)',
+            }}
+          />
+        ))}
+      </div>
 
-      {/* Light warm overlay */}
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(250,250,248,0.86) 0%,rgba(250,250,248,0.90) 100%)' }} />
+      {/* Scrim — lighter than before so the photograph actually reads, but
+          still opaque enough to keep the dark progress text legible. */}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(250,250,248,0.62) 0%,rgba(250,250,248,0.74) 100%)' }} />
+
+      {/* Which city is on screen — on a circuit this quietly previews the
+          route while the plan is still being written. */}
+      {activeSlide?.name && slides.length > 1 && (
+        <div style={{
+          position: 'absolute', bottom: '22px', left: '22px', zIndex: 2,
+          fontSize: '12px', fontWeight: '700', color: '#475569',
+          background: 'rgba(255,255,255,0.72)', border: '1px solid rgba(255,255,255,0.9)',
+          padding: '6px 13px', borderRadius: '20px', backdropFilter: 'blur(6px)',
+        }}>
+          📍 {activeSlide.name}
+        </div>
+      )}
 
       {/* Content */}
       <div style={{
@@ -228,7 +380,7 @@ export default function GenerationOverlay({
             color: '#0F172A', margin: '0 0 6px', lineHeight: 1.2,
             fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
           }}>
-            Planning your {destDisplay}
+            {headline}
           </h2>
 
           {isAgent && clientName && (
@@ -328,15 +480,31 @@ export default function GenerationOverlay({
           </p>
         </div>
 
+        {/* Darker than the #94A3B8 it used to be, and on its own faint plate:
+            this line sits directly on the photograph, and now that the scrim
+            is light enough to see the photo through, pale grey text vanished
+            over the busy parts of an image. */}
         <p style={{
-          textAlign: 'center', fontSize: '11px',
-          color: '#94A3B8', marginTop: '14px', marginBottom: 0,
+          textAlign: 'center', fontSize: '11px', fontWeight: '600',
+          color: '#475569', marginTop: '14px', marginBottom: 0,
+          width: 'fit-content', marginLeft: 'auto', marginRight: 'auto',
+          background: 'rgba(255,255,255,0.65)', borderRadius: '10px',
+          padding: '4px 12px', backdropFilter: 'blur(4px)',
         }}>
-          Usually 30–90 seconds · Complex routes take a little longer
+          Usually 3–5 minutes · Complex routes take a little longer
         </p>
       </div>
 
       <style>{`
+        @keyframes ovKenBurns {
+          from { transform: scale(1.06) translate(0, 0); }
+          to   { transform: scale(1.16) translate(-1.2%, -1%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          /* Respect the OS setting — the drift is decoration, and this screen
+             is already showing a progress bar and a typing animation. */
+          [style*="ovKenBurns"] { animation: none !important; }
+        }
         @keyframes ovPulse {
           0%,100%{opacity:1;transform:scale(1)}
           50%{opacity:0.5;transform:scale(0.8)}

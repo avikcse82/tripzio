@@ -927,6 +927,7 @@ return (
         days={days}
         isAgent={true}
         clientName={selectedClient?.name || ''}
+        vibe={vibe}
       />
 
       <style>{`

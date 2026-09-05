@@ -849,6 +849,9 @@ export default function UserDashboard() {
         tripType={tripType}
         days={days}
         isAgent={false}
+        // Gives the backdrop something honest to show while the AI is still
+        // choosing a destination.
+        vibe={vibe}
       />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
