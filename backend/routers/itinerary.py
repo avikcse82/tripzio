@@ -1077,7 +1077,7 @@ async def call_openai(prompt: str) -> dict:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "claude-sonnet-4-5",
+                "model": "claude-sonnet-5",
                 "max_tokens": _max_tokens,
                 "stream": True,
                 "system": [
@@ -1096,7 +1096,11 @@ async def call_openai(prompt: str) -> dict:
                         "cache_control": {"type": "ephemeral"}
                     }
                 ],
-                "temperature": 0.4,
+                # No temperature: Claude Sonnet 5 removed the sampling
+                # parameters and returns a 400 if any are sent. This was 0.4
+                # (slightly below default) to keep JSON output stable; on
+                # Sonnet 5 that steadiness comes from the model itself, and
+                # output depth is controlled by output_config.effort instead.
                 "messages": [{"role": "user", "content": prompt}]
             }
         ) as response:
@@ -1149,7 +1153,7 @@ async def call_openai(prompt: str) -> dict:
                     "https://api.anthropic.com/v1/messages",
                     headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "anthropic-beta": "prompt-caching-2024-07-31", "Content-Type": "application/json"},
                     json={
-                        "model": "claude-sonnet-4-5",
+                        "model": "claude-sonnet-5",
                         "max_tokens": 32000,
                         "stream": True,
                         "system": [{"type": "text", "text": "You are Tripzio's expert Indian travel AI. Respond with valid JSON only.", "cache_control": {"type": "ephemeral"}}],
