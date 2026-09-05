@@ -1458,8 +1458,33 @@ export default function ItineraryResult() {
               <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '64ch', lineHeight: 1.6 }}>{data.summary}</p>
             </div>
 
-            {/* Right column — action buttons + destination polaroid photos */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', alignItems: 'flex-end' }}>
+            {/* Destination polaroids — sit in the space beside the title rather
+                than stranded under the buttons with the right half of the card
+                empty. flexShrink:0 keeps them intact while the text column
+                absorbs the squeeze; they wrap to two-up, then below the text,
+                as the width runs out. */}
+            {heroPhotos.length > 0 && (
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0, maxWidth: '290px' }}>
+                {heroPhotos.map((p, i) => (
+                  <div key={i} className="polaroid-bounce" style={{
+                    background: 'white', padding: '6px 6px 20px', borderRadius: '6px',
+                    boxShadow: '0 10px 24px rgba(15,23,42,0.14)', width: '84px', height: '96px',
+                    transform: `rotate(${i % 2 === 0 ? '-4deg' : '4deg'})`,
+                    transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    position: 'relative',
+                  }}>
+                    <img src={p.photo} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '2px' }} />
+                    <div style={{ position: 'absolute', bottom: '4px', left: 0, right: 0, textAlign: 'center', fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic', fontSize: '9px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}>
+                      {p.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Action buttons — own full-width row underneath, so the photos
+                get the space beside the title instead of competing for it. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', alignItems: 'flex-start', flexBasis: '100%' }}>
             {/* Action buttons — role aware */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
               {isAgent ? (
@@ -1578,23 +1603,6 @@ export default function ItineraryResult() {
               </div>
             )}
 
-            {/* Destination polaroid photos — fill the empty space, looked up by trip's actual cities/destination */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {heroPhotos.map((p, i) => (
-                <div key={i} className="polaroid-bounce" style={{
-                  background: 'white', padding: '6px 6px 20px', borderRadius: '6px',
-                  boxShadow: '0 10px 24px rgba(15,23,42,0.14)', width: '84px', height: '96px',
-                  transform: `rotate(${i % 2 === 0 ? '-4deg' : '4deg'})`,
-                  transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                  position: 'relative',
-                }}>
-                  <img src={p.photo} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '2px' }} />
-                  <div style={{ position: 'absolute', bottom: '4px', left: 0, right: 0, textAlign: 'center', fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic', fontSize: '9px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}>
-                    {p.name}
-                  </div>
-                </div>
-              ))}
-            </div>
             </div>
           </div>
 
