@@ -103,6 +103,7 @@ const SAMPLE_PROMPTS = [
   { lang: 'Mixed', text: 'Delhi to Kerala road trip — Ooty 2 days, Munnar 3 days, Alleppey backwaters 2 days, family of 4, gold tier, starting December 22' },
   { lang: 'English', text: 'Northeast circuit — Shillong 2 days, Cherrapunji 1 day, Mawlynnong 1 day from Kolkata, ₹15,000 solo, March' },
   { lang: 'Hindi', text: 'Rajasthan ka poora tour — Jaipur 2 din, Jodhpur 2 din, Jaisalmer 3 din, Udaipur 2 din, Delhi se, budget 40 hajar, November mein' },
+  { lang: 'বাংলা', text: 'কলকাতা থেকে দার্জিলিং ৫ দিন, ২ জন, বাজেট ২০ হাজার টাকা, ডিসেম্বর মাসে' },
 ]
 
 const getSeasonFromDate = (d) => {
@@ -747,8 +748,14 @@ export default function UserDashboard() {
 
   // ── Smart missing field detection ─────────────────────────────
   // Computed from customText — zero new state, zero API cost
-  const DAYS_REGEX   = /\b(\d+)\s*(days?|din|रात|nights?|दिन)\b|\b(a week|long weekend|weekend|fortnight)\b/i
-  const PEOPLE_REGEX = /\b(solo|alone|single|couple|family|(\d+)\s*(people|persons|log|pax|members?|adults?|travell?ers?))\b|\b(\d+)\s*(aadmi|banda|bande|jan)\b/i
+  // Indic scripts need their own branch. Two JS traps, both already learned
+  // once in utils/extractDateFromText.js: \d matches ASCII digits only (৫ and
+  // ५ don't match), and \b is defined over [A-Za-z0-9_] so it never fires
+  // beside an Indic letter — which is why the दिन/रात previously listed inside
+  // \b...\b here silently never matched anything. Hence explicit Bengali and
+  // Devanagari digit ranges, and no word boundaries on the Indic alternatives.
+  const DAYS_REGEX   = /\b(\d+)\s*(days?|nights?|din|raat)\b|\b(a week|long weekend|weekend|fortnight)\b|[\d০-৯०-९]\s*(দিন|রাত|दिन|रात)/i
+  const PEOPLE_REGEX = /\b(solo|alone|single|couple|family|(\d+)\s*(people|persons|log|pax|members?|adults?|travell?ers?))\b|\b(\d+)\s*(aadmi|banda|bande|jan)\b|[\d০-৯०-९]\s*(জন|ব্যক্তি|लोग|व्यक्ति)|(একা|দম্পতি|পরিবার|সপরিবারে|अकेला|परिवार)/i
 
   const appendToCustomText = (addition) => {
     const current = customText.trimEnd()

@@ -374,7 +374,7 @@ export default function GuestDashboard() {
             Sign up free
           </Link>{' '}for unlimited plans, save & share
           <br />
-          <span style={{ color: '#64748b' }}>Want Hindi/Hinglish input & more control? </span>
+          <span style={{ color: '#64748b' }}>Want Hindi, Bengali or Hinglish input & more control? </span>
           <Link to="/register" style={{ color: '#0ea5e9', fontWeight: '700', textDecoration: 'none' }}>
             Try Custom Plan after signup →
           </Link>

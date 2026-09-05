@@ -60,6 +60,7 @@ const TYPEWRITER_PROMPTS = [
   { text: 'Goa beach trip — 5 din, December 20, couple, ₹30,000, North Goa beaches', lang: 'Mixed' },
   { text: 'Northeast circuit — Shillong 2 days, Cherrapunji 1 day, solo, ₹15,000, March', lang: 'English' },
   { text: 'Rajasthan poora tour — Jaipur 2 din, Jodhpur 2 din, Jaisalmer 3 din, November, budget 40 hajar', lang: 'Hindi' },
+  { text: 'কলকাতা থেকে দার্জিলিং ৫ দিন, ২ জন, বাজেট ২০ হাজার টাকা', lang: 'Bengali' },
 ]
 
 // ── Sample plans for each language tab in the teaser card ────────────────
@@ -99,6 +100,21 @@ const SAMPLE_PLANS = {
     totalDays: 5,
     costs: { transport: '₹6,000', hotels: '₹15,000', food: '₹5,000', total: '₹30,000' },
     festival: { name: 'Christmas', note: 'Dec 25 — Goa prices 4x, book 2 months ahead!', emoji: '🎄' },
+  },
+  // Bengali sample. The request is understood in Bangla; the itinerary itself
+  // is written in English, which is what the product actually does today —
+  // so this demonstrates the real behaviour rather than implying Bangla output.
+  bengali: {
+    destination: 'Darjeeling → Kalimpong',
+    days: 5, budget: '₹20,000', from: 'Kolkata',
+    days_plan: [
+      { day: 1, title: 'Arrival in Darjeeling', plan: 'Sealdah → NJP overnight train, shared taxi up. Mall Road, Glenary\'s, Observatory Hill.' },
+      { day: 2, title: 'Tiger Hill sunrise', plan: '4AM Tiger Hill for Kanchenjunga, Batasia Loop, Peace Pagoda, Happy Valley tea estate.' },
+      { day: 3, title: 'Toy Train + Kalimpong', plan: 'Morning Toy Train ride, drive to Kalimpong via Teesta. Deolo Hill sunset.' },
+    ],
+    totalDays: 5,
+    costs: { transport: '₹5,500', hotels: '₹9,000', food: '₹3,500', total: '₹20,000' },
+    festival: { name: 'Durga Puja', note: 'October — book 3 months ahead, hills fill up fast!', emoji: '🪔' },
   },
 }
 
@@ -335,7 +351,7 @@ export default function LandingPage() {
                 {/* Language badge */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                   <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>Understands:</span>
-                  {['English', 'Hindi', 'Mixed'].map((lang, i) => (
+                  {['English', 'Hindi', 'Bengali', 'Mixed'].map((lang, i) => (
                     <span key={lang} style={{
                       fontSize: '10px', fontWeight: '700', padding: '2px 10px', borderRadius: '20px',
                       background: TYPEWRITER_PROMPTS[promptIdx]?.lang === lang ? '#F0FDFA' : '#F8FAFC',
@@ -400,6 +416,7 @@ export default function LandingPage() {
                       {[
                         { key: 'english', label: '🇬🇧 English', desc: 'Darjeeling circuit' },
                         { key: 'hindi',   label: '🇮🇳 Hindi',   desc: 'Rajasthan tour' },
+                        { key: 'bengali', label: '🇮🇳 বাংলা',    desc: 'Darjeeling trip' },
                         { key: 'mixed',   label: '🔀 Hinglish', desc: 'Goa trip' },
                       ].map(tab => (
                         <button key={tab.key} onClick={() => setActiveLang(tab.key)}

@@ -309,7 +309,7 @@ Rules:
 - destinations: ONLY actual places to visit — cities, towns, tourist spots
 - Exclude: trip type, budget, day counts, dates, common words
 - Include short names: goa, leh, puri, ooty
-- Handle Hindi/Hinglish naturally
+- Handle Hindi/Hinglish and Bengali (Bangla) naturally, including Bengali and Devanagari numerals (৫ = 5, ২০ হাজার = 20000)
 - days: sum of all days mentioned across destinations (0 if truly not stated anywhere)
 - budget: total rupee amount if stated, else 0
 - travelers: total headcount if stated ("solo"=1, "couple"=2, "family of 5"=5, "8 people"=8, "group of 10"=10). 0 if truly not stated anywhere — do NOT guess from trip type alone, only from an actual number or explicit solo/couple wording.
@@ -2610,7 +2610,7 @@ REAL WEATHER/SEASON AT DESTINATION (use this — do not guess or assume a season
 - Advisory: {_early_weather.get('advisory', 'None')}
 """ if _early_weather else ""
 
-        prompt = f"""You are Tripzio's AI travel expert for India. A user has described their dream trip in natural language. It may be in Hindi, English, or a mix.
+        prompt = f"""You are Tripzio's AI travel expert for India. A user has described their dream trip in natural language. It may be in English, Hindi, Bengali (Bangla), or any mix of these — including Bengali or Devanagari numerals (৫, ५) and script (দিন, दिन). Understand the request in whatever language it arrives in, but always WRITE the itinerary itself in English.
 
 USER'S REQUEST:
 "{req.free_text}"

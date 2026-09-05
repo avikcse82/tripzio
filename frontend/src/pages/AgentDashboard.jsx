@@ -856,8 +856,11 @@ export default function AgentDashboard() {
 
   // ── Smart missing field detection ─────────────────────────
   // Computed from customText — zero new state, zero API cost
-  const DAYS_REGEX   = /\b(\d+)\s*(days?|din|रात|nights?|दिन)\b|\b(a week|long weekend|weekend|fortnight)\b/i
-  const PEOPLE_REGEX = /\b(solo|alone|single|couple|family|(\d+)\s*(people|persons|log|pax|members?|adults?|travell?ers?))\b|\b(\d+)\s*(aadmi|banda|bande|jan)\b/i
+  // Indic branch — see the same block in UserDashboard.jsx for why \d and \b
+  // both fail on Bengali/Devanagari (and why the दिन/रात listed here before
+  // never actually matched).
+  const DAYS_REGEX   = /\b(\d+)\s*(days?|nights?|din|raat)\b|\b(a week|long weekend|weekend|fortnight)\b|[\d০-৯०-९]\s*(দিন|রাত|दिन|रात)/i
+  const PEOPLE_REGEX = /\b(solo|alone|single|couple|family|(\d+)\s*(people|persons|log|pax|members?|adults?|travell?ers?))\b|\b(\d+)\s*(aadmi|banda|bande|jan)\b|[\d০-৯०-९]\s*(জন|ব্যক্তি|लोग|व्यक्ति)|(একা|দম্পতি|পরিবার|সপরিবারে|अकेला|परिवार)/i
 
   const appendToCustomText = (addition) => {
     const current = customText.trimEnd()
