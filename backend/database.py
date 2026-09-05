@@ -523,8 +523,8 @@ def record_generation(user_id: str) -> None:
 # same trip conflicts and is ignored, so a trip can only ever be counted
 # once no matter how many times it's saved.
 #
-# Run this SQL in Supabase BEFORE deploying — including the backfill, or
-# every existing user's counter starts at 0 and they each get 3 fresh slots:
+# Run ALL THREE parts of this SQL in Supabase BEFORE deploying. Each part
+# has bitten once already:
 #
 #   CREATE TABLE IF NOT EXISTS trip_save_log (
 #       id BIGSERIAL PRIMARY KEY,
@@ -535,6 +535,15 @@ def record_generation(user_id: str) -> None:
 #   );
 #   CREATE INDEX IF NOT EXISTS idx_trip_save_log_user ON trip_save_log (user_id);
 #
+#   -- (2) The backend connects with the ANON key, not service_role, so RLS
+#   -- applies to it. Created with RLS on and no policy, inserts are rejected
+#   -- AND selects quietly return an empty set — the count reads 0 for
+#   -- everyone and the limit never fires, with nothing in the logs. This
+#   -- matches how generation_log is already configured.
+#   ALTER TABLE trip_save_log DISABLE ROW LEVEL SECURITY;
+#
+#   -- (3) Backfill. Skip it and every existing user's counter starts at 0,
+#   -- handing them all 3 fresh slots.
 #   INSERT INTO trip_save_log (user_id, trip_id, created_at)
 #   SELECT user_id::text, id::text, COALESCE(created_at, NOW())
 #   FROM trips WHERE locked = true
@@ -566,8 +575,20 @@ def count_lifetime_saves(user_id: str) -> int:
 
 def record_trip_save(user_id: str, trip_id: str) -> None:
     """Records that this trip was kept. Idempotent via UNIQUE(user_id,
-    trip_id) — a duplicate insert conflicts and is swallowed here, so
-    re-saving an existing trip never burns a second slot. Fail-silent."""
+    trip_id) — a duplicate insert conflicts, which is the expected path when
+    an already-kept trip is re-saved. Never raises: a metering failure must
+    not break the user's save.
+
+    Only a duplicate is benign. Anything else (permissions, RLS, missing
+    table) means saves are silently not being counted, and because a
+    SELECT blocked by RLS returns an empty set rather than an error, the
+    count would read 0 for everyone and the limit would never fire — with
+    nothing in the logs to say so. That exact situation happened on first
+    setup: the table was created with RLS on and no policy, so inserts were
+    rejected while reads quietly returned nothing. Hence: duplicates at
+    debug, everything else at ERROR, so this is loud the first time a save
+    is recorded rather than silently disabling the paywall.
+    """
     try:
         client = get_supabase_client()
         if not client:
@@ -576,5 +597,12 @@ def record_trip_save(user_id: str, trip_id: str) -> None:
             {"user_id": user_id, "trip_id": str(trip_id)}
         ).execute()
     except Exception as e:
-        # Conflict on re-save is the expected, correct path — not an error.
-        logger.debug(f"trip save log record skipped: {e}")
+        msg = str(e).lower()
+        is_duplicate = "duplicate key" in msg or "23505" in msg or "already exists" in msg
+        if is_duplicate:
+            logger.debug(f"trip already counted, not double-charging: {trip_id}")
+        else:
+            logger.error(
+                f"SAVE NOT COUNTED — save limit is not being enforced. "
+                f"user={user_id} trip={trip_id}: {e}"
+            )
