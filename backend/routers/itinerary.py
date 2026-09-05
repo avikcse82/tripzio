@@ -1073,7 +1073,8 @@ async def call_openai(prompt: str) -> dict:
             headers={
                 "x-api-key": api_key,
                 "anthropic-version": "2023-06-01",
-                "anthropic-beta": "prompt-caching-2024-07-31",
+                # No prompt-caching beta header — caching went GA long ago and
+                # the old "prompt-caching-2024-07-31" flag was doing nothing.
                 "Content-Type": "application/json"
             },
             json={
@@ -1093,6 +1094,24 @@ async def call_openai(prompt: str) -> dict:
                         # ~40 schema fields don't inflate output tokens and
                         # generation time along with them.
                         "text": "You are Tripzio's expert Indian travel AI. Generate accurate, budget-appropriate travel itineraries for Indian destinations. Deep knowledge of Indian railways, hill stations, permits, acclimatization, multi-leg routes. Always use real train names and numbers. Write each day's morning, afternoon and evening fields as 2-3 sentences, naming specific places, approximate timings and practical detail. Keep every other field to one sentence. Respond with valid JSON only — no markdown, no explanation.",
+                        # Kept, but be aware it is currently a NO-OP: this
+                        # system block is ~124 tokens and the minimum
+                        # cacheable prefix is ~1024, so nothing is cached.
+                        # Measured directly — cache_creation_input_tokens and
+                        # cache_read_input_tokens both come back 0.
+                        #
+                        # Left in place deliberately rather than deleted: if
+                        # this system prompt ever grows past the threshold,
+                        # caching starts working on its own. Not worth
+                        # chasing today — input is only ~10% of a
+                        # generation's cost (output dominates), so the whole
+                        # prize here is low single-digit percent. It becomes
+                        # worth restructuring only if a large STABLE block
+                        # (a destinations reference, few-shot examples) moves
+                        # in front of the breakpoint; note the schema block
+                        # can't simply move here, since days/budget/tier/
+                        # travelers are interpolated through it and only its
+                        # first ~1072 tokens are common across requests.
                         "cache_control": {"type": "ephemeral"}
                     }
                 ],
@@ -1151,7 +1170,7 @@ async def call_openai(prompt: str) -> dict:
                 async with _rc.stream(
                     "POST",
                     "https://api.anthropic.com/v1/messages",
-                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "anthropic-beta": "prompt-caching-2024-07-31", "Content-Type": "application/json"},
+                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
                     json={
                         "model": "claude-sonnet-5",
                         "max_tokens": 32000,
