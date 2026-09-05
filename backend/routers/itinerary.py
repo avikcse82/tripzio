@@ -1984,6 +1984,10 @@ async def generate_itinerary_guest(
                 "pack": weather_data.get("pack", []),
                 "season": weather_data.get("season", ""),
                 "advisory": weather_data.get("advisory"),
+                # Whether these numbers are a real forecast for the trip or
+                # just today's conditions — see get_weather's comment.
+                "basis": weather_data.get("basis"),
+                "days_until": weather_data.get("days_until"),
             }
 
         _dest_for_season = ai_response.get("destination") or req.destination or ""
@@ -2147,7 +2151,9 @@ async def generate_itinerary(
                 "wind": weather_data.get("wind"),
                 "pack": weather_data.get("pack", []),
                 "season": weather_data.get("season", ""),
-                "advisory": weather_data.get("advisory")
+                "advisory": weather_data.get("advisory"),
+                "basis": weather_data.get("basis"),
+                "days_until": weather_data.get("days_until"),
             }
 
         # Season warning — Haiku-powered, works for ANY destination, fail-open
@@ -2796,7 +2802,9 @@ Do NOT show direct source→destination if via city is specified."""
                     "wind": weather.get("wind"),
                     "pack": weather.get("pack", []),
                     "season": weather.get("season", ""),
-                    "advisory": weather.get("advisory")
+                    "advisory": weather.get("advisory"),
+                    "basis": weather.get("basis"),
+                    "days_until": weather.get("days_until"),
                 }
         except:
             pass

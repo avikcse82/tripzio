@@ -304,22 +304,47 @@ async def get_weather(destination: str, date: str = None):
 
             from datetime import datetime
             month = datetime.now().month
+            days_until = None
             if date:
                 try:
-                    month = datetime.strptime(date, "%Y-%m-%d").month
+                    trip_day = datetime.strptime(date, "%Y-%m-%d")
+                    month = trip_day.month
+                    days_until = (trip_day.date() - datetime.now().date()).days
                 except:
                     pass
             season = get_season(month)
 
+            # This endpoint is OpenWeatherMap's CURRENT-conditions API — there
+            # is no forecast for a trip months out, and the free tier only
+            # reaches 5 days regardless. Reporting today's rain as if it were
+            # the trip's weather is actively misleading: a November Rajasthan
+            # trip was showing "Moderate Rain / 100% humidity / carry
+            # waterproof gear" read off a September monsoon afternoon.
+            #
+            # So live numbers are only presented as the trip's weather when
+            # the trip is actually within forecast range. Beyond that we keep
+            # showing them (still useful as "what it's like there") but label
+            # them as today's conditions and stop deriving advice from them.
+            #
+            # days_until is None when no date was given — that's the Trip
+            # Companion case (traveller is there now), where live IS correct,
+            # so behaviour there is unchanged.
+            is_live_for_trip = days_until is None or days_until <= 5
+
             advisory = None
-            if temp > 40:
-                advisory = "Extreme heat — carry water, avoid midday sun"
-            elif temp < 0:
-                advisory = "Below freezing — heavy winter gear essential"
-            elif "rain" in condition.lower() or "storm" in condition.lower():
-                advisory = "Rain expected — carry waterproof gear"
-            elif "snow" in condition.lower():
-                advisory = "Snowfall possible — warm layers essential"
+            if is_live_for_trip:
+                if temp > 40:
+                    advisory = "Extreme heat — carry water, avoid midday sun"
+                elif temp < 0:
+                    advisory = "Below freezing — heavy winter gear essential"
+                elif "rain" in condition.lower() or "storm" in condition.lower():
+                    advisory = "Rain expected — carry waterproof gear"
+                elif "snow" in condition.lower():
+                    advisory = "Snowfall possible — warm layers essential"
+
+            # Packing is advice, so for a far-off trip it must key off the
+            # season the user is actually travelling in, not today's sky.
+            pack_condition = condition if is_live_for_trip else ""
 
             return {
                 "destination": destination,
@@ -329,8 +354,12 @@ async def get_weather(destination: str, date: str = None):
                 "wind": f"{round(wind * 3.6)} km/h",
                 "season": season.title(),
                 "advisory": advisory,
-                "pack": get_packing_list(condition, season, destination),
-                "coords_found": coords != (20.5937, 78.9629)
+                "pack": get_packing_list(pack_condition, season, destination),
+                "coords_found": coords != (20.5937, 78.9629),
+                # Lets the UI say which of the two this actually is, instead of
+                # letting the user assume it's a forecast for their dates.
+                "basis": "forecast" if is_live_for_trip else "current",
+                "days_until": days_until,
             }
 
     except Exception as e:

@@ -1379,14 +1379,18 @@ export default function ItineraryResult() {
         .alt-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(15,23,42,0.1) !important; }
         .action-btn:hover { transform: translateY(-2px); }
         .polaroid-bounce:hover { transform: scale(1.08) rotate(0deg) !important; z-index: 10; }
-        .day-card-bounce:hover { transform: translateY(-5px); box-shadow: 0 16px 32px rgba(15,23,42,0.1) !important; }
+        /* One shared lift for every content card, so Things To Do / Cost
+           Breakdown / Tips & Pack behave the same as Day Plan on hover.
+           Day Plan had the lift but no transition, so it snapped — the
+           spring easing here is the same one the hotel/transport cards use. */
+        .day-card-bounce, .card-lift, .bounce-box { transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s ease; }
+        .day-card-bounce:hover, .card-lift:hover, .bounce-box:hover { transform: translateY(-5px); box-shadow: 0 16px 32px rgba(15,23,42,0.1) !important; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to{transform:rotate(360deg)} }
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         .skeleton { background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size:200% 100%; animation:shimmer 1.5s infinite; border-radius:12px; }
         @keyframes bounceIn { 0%{opacity:0;transform:scale(0.7)} 60%{opacity:1;transform:scale(1.08)} 80%{transform:scale(0.97)} 100%{opacity:1;transform:scale(1)} }
-        .bounce-box { animation: bounceIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both; transition: transform 0.15s ease; cursor: default; }
-        .bounce-box:hover { transform: scale(1.04); }
+        .bounce-box { animation: bounceIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both; cursor: default; }
       `}</style>
 
       <Navbar />
@@ -1404,7 +1408,14 @@ export default function ItineraryResult() {
           <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'radial-gradient(circle,rgba(13,148,136,0.12) 0%,transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
-            <div style={{ flex: 1, minWidth: '240px' }}>
+            {/* flex-basis, not just flex:1 — with only a 240px floor the
+                action-button cluster on the right squeezed this column to
+                barely wider than one word, so a 4-city circuit title stacked
+                one city per line down a tall narrow ribbon with the whole
+                right half of the card empty below the polaroids. A real basis
+                means it either claims proper width or the right column wraps
+                underneath and it gets the full row. */}
+            <div style={{ flex: '1 1 440px', minWidth: '280px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
                 <span style={{ background: tier.bg, color: tier.color, border: `2px dashed ${tier.color}`, padding: '5px 16px', borderRadius: '30px', fontSize: '12px', fontWeight: '800', transform: 'rotate(-4deg)', display: 'inline-block' }}>
                   {tier.emoji} {data.plan_tier?.toUpperCase()} PLAN
@@ -1420,7 +1431,15 @@ export default function ItineraryResult() {
                   </span>
                 )}
               </div>
-              <h1 style={{ fontSize: 'clamp(24px,4vw,40px)', fontWeight: '700', color: '#0F172A', margin: '0 0 8px', fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.5px' }}>
+              {/* Long circuit titles get a smaller size and balanced wrapping —
+                  "A & B & C & D" at 40px was breaking into four near-empty
+                  lines. text-wrap:balance evens the lines out instead. */}
+              <h1 style={{
+                fontSize: circuit && cities.length > 2 ? 'clamp(22px,3vw,30px)' : 'clamp(24px,4vw,40px)',
+                fontWeight: '700', color: '#0F172A', margin: '0 0 8px',
+                fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.5px',
+                textWrap: 'balance', lineHeight: 1.15,
+              }}>
                 {circuit && cities.length > 1 ? cities.join(' & ') : data.destination} 🌏
               </h1>
               {/* Circuit route pills */}
@@ -1436,7 +1455,7 @@ export default function ItineraryResult() {
                   ))}
                 </div>
               )}
-              <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '500px', lineHeight: 1.6 }}>{data.summary}</p>
+              <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '64ch', lineHeight: 1.6 }}>{data.summary}</p>
             </div>
 
             {/* Right column — action buttons + destination polaroid photos */}
@@ -1722,6 +1741,15 @@ export default function ItineraryResult() {
               <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 🌤 Weather at {circuit ? cities[0] : data.destination}
                 {circuit && <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '400', marginLeft: '8px' }}>(first stop)</span>}
+                {/* These are live readings, and no forecast exists for a trip
+                    months out — so say which one the user is looking at
+                    rather than letting them read September rain as their
+                    November weather. */}
+                {data.weather.basis === 'current' && (
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '400', marginLeft: '8px' }}>
+                    — conditions there today, not a forecast for your dates
+                  </span>
+                )}
               </h3>
               <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '4px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>{data.weather.season}</span>
             </div>
@@ -2791,7 +2819,7 @@ export default function ItineraryResult() {
             {activeTab === 'todo' && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '16px' }}>
                 {data.things_to_do?.map((cat, i) => (
-                  <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
+                  <div key={i} className="card-lift" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                       <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg,#0d9488,#0ea5e9)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
                         {categoryIcons[cat.category] || <Star size={14} />}
@@ -2836,7 +2864,7 @@ export default function ItineraryResult() {
                     const detailRaw = parenIdx >= 0 ? strValue.slice(parenIdx + 1).replace(/\)\s*$/, '') : ''
                     const detailItems = detailRaw ? detailRaw.split(/\s*\+\s*/).map(s => s.trim()).filter(Boolean) : []
                     return (
-                      <div key={key} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
+                      <div key={key} className="card-lift" style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', animation: `fadeUp ${0.1 + i * 0.07}s ease` }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                           <span style={{ fontSize: '18px' }}>{m.emoji}</span>
                           <div>
