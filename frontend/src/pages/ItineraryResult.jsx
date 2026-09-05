@@ -4,6 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import { API_URL } from '../api'
+// Same curated, licence-verified photo library the SEO pages use — one source
+// of truth for "what does this place actually look like".
+import { DESTINATION_PHOTOS } from '../../api/_destinationPhotos.js'
 import { Analytics } from '../utils/analytics'
 import {
   MapPin, Clock, ArrowLeft, Download, MessageCircle,
@@ -525,18 +528,31 @@ export default function ItineraryResult() {
     ladakh: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=500&q=75',
     gokarna: 'https://images.unsplash.com/photo-1587922546307-776227941871?w=500&q=75',
   }
-  // Unmatched cities get a picsum photo seeded by city name — deterministic
-  // and distinct per city, instead of every unmatched city sharing one
-  // hardcoded fallback photo (was showing the same image for every day)
+  // Photo lookup order: the curated Wikimedia library first (103 Indian
+  // destinations, each a verified, correctly-licensed picture of the actual
+  // place), then the small Unsplash map above, then a seeded picsum image.
+  //
+  // The order used to be the other way around with no library at all, and
+  // only `jaipur` of the four Rajasthan cities was in the Unsplash map — so
+  // Jodhpur, Jaisalmer and Udaipur fell through to picsum and rendered
+  // *random stock photographs*. A Rajasthan circuit was showing a lake for
+  // the blue city and a frost scene for a desert fort town.
   const getCityPhoto = (name) => {
     const key = String(name || '').toLowerCase().trim()
+    const slug = key.replace(/\s+/g, '-')
+    // exact slug, then a looser contains-match ("north goa" -> goa)
+    const curated = DESTINATION_PHOTOS[slug]
+      || DESTINATION_PHOTOS[Object.keys(DESTINATION_PHOTOS).find(k => slug === k || slug.includes(k)) || '']
+    if (curated?.photo) return curated.photo
     const matchKey = Object.keys(CITY_PHOTO_MAP).find(k => key.includes(k))
     if (matchKey) return CITY_PHOTO_MAP[matchKey]
     const seed = key.replace(/[^a-z0-9]/g, '').slice(0, 24) || 'trip'
     return `https://picsum.photos/seed/${seed}/500/375`
   }
   const heroPhotoSource = circuit && cities.length > 0 ? cities : (data?.destination ? [data.destination] : [])
-  const heroPhotos = (heroPhotoSource.length > 0 ? heroPhotoSource : ['trip']).slice(0, 3).map(name => ({
+  // No slice: a 4-city circuit was silently dropping its 4th city. Every city
+  // on the trip gets a photo; the grid below wraps them 2-up past three.
+  const heroPhotos = (heroPhotoSource.length > 0 ? heroPhotoSource : ['trip']).map(name => ({
     name, photo: getCityPhoto(name)
   }))
 
@@ -1508,7 +1524,14 @@ export default function ItineraryResult() {
                 absorbs the squeeze; they wrap to two-up, then below the text,
                 as the width runs out. */}
             {heroPhotos.length > 0 && (
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0, maxWidth: '290px' }}>
+              <div style={{
+                display: 'grid',
+                // Up to 3 sit in one row; 4+ go 2-up so a four-city circuit
+                // reads as a tidy 2x2 block rather than a row of three with
+                // one orphan hanging underneath.
+                gridTemplateColumns: `repeat(${heroPhotos.length <= 3 ? heroPhotos.length : 2}, 84px)`,
+                gap: '10px', justifyContent: 'flex-end', flexShrink: 0,
+              }}>
                 {heroPhotos.map((p, i) => (
                   <div key={i} className="polaroid-bounce" style={{
                     background: 'white', padding: '6px 6px 20px', borderRadius: '6px',
