@@ -893,6 +893,60 @@ export const DESTINATION_PHOTOS = {
       "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
     }
   },
+  "shantiniketan": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Upasona_griha_%2C_at_Visva-bharati_santiniketan.jpg/1280px-Upasona_griha_%2C_at_Visva-bharati_santiniketan.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Jitu-saswata mondal",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Jitu-saswata_mondal",
+      "license": "CC BY",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+    }
+  },
+  "bishnupur": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Bishnupur%2C_Bankura%2C_West_Bengal%2C_India._Built_around_the_17th_%2Cand_18th_centuries_by_the_Malla.jpg/1280px-Bishnupur%2C_Bankura%2C_West_Bengal%2C_India._Built_around_the_17th_%2Cand_18th_centuries_by_the_Malla.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Shivangi Photos",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Shivangi_Photos",
+      "license": "CC0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0"
+    }
+  },
+  "murshidabad": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Hazarduari_-_Murshidabad_-_West_Bengal.jpg/1280px-Hazarduari_-_Murshidabad_-_West_Bengal.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Keates 09",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Keates_09",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "dooars": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Workers_in_the_Tea_Garden_of_North_Bengal.jpg/1280px-Workers_in_the_Tea_Garden_of_North_Bengal.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Rupeshsarkar",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Rupeshsarkar",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "kalimpong": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/View_of_Kalimpong%2C_India.jpg/1280px-View_of_Kalimpong%2C_India.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Bernard Gagnon",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Bgag",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
+  "mandarmani": {
+    "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Mandarmani_Beach_Sunset.jpg/1280px-Mandarmani_Beach_Sunset.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+    "credit": {
+      "author": "Krishnendu Chatterjee",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Kchat79",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  },
   "memari": {
     "photo": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Temples_in_Amadpur%2C_Memari_08.jpg/1280px-Temples_in_Amadpur%2C_Memari_08.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
     "credit": {
